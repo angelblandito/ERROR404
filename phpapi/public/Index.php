@@ -8,10 +8,10 @@ $budy = json_decode($rawBody, true);
 
 
 
-if ($method == 'GET' && $uri == '/healtcheck'){
+if ($method == 'GET' && $uri == '/healthcheck'){
     http_response_code(200);
     echo json_encode([
-        'success' => 'true',
+        'success' => 'True',
         'data' => ['Language' => 'PHP'],
         'message' => 'API online'
         ]);
@@ -20,7 +20,7 @@ if ($method == 'GET' && $uri == '/healtcheck'){
 else{
     http_response_code(404);
     echo json_encode([
-        'success' => 'false',
+        'success' => 'False',
         'data' => null,
         'message' => 'Not found'
     ]);
