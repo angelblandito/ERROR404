@@ -5,9 +5,6 @@ $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 $rawBody = file_get_contents('php://input');
 $budy = json_decode($rawBody, true); 
                    
-
-
-
 if ($method == 'GET' && $uri == '/healthcheck'){
     http_response_code(200);
     echo json_encode([
