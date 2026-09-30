@@ -4,15 +4,29 @@ $method = $_SERVER['REQUEST_METHOD'];
 $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 $rawBody = file_get_contents('php://input');
 $budy = json_decode($rawBody, true); 
- 
-$DB_Connector = new PDO('mysql:host=localhost;port=3306;dbname=NOMBRE _DB', USER, PASSWORD);
+
+$DB_Connector = new PDO('mysql:host=localhost;port=3306;dbname=NOMBRE _DB', 'USUARIO_DB', 'CONTRASEÑA_DB');
 $DB_Connector->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-$DB_Connector-> exec("SET CHARACTER SET utf8");
+$DB_Connector->exec("SET CHARACTER SET utf8");
+
 if ($method == 'GET' && $uri == '/healthcheck'){
     http_response_code(200);
     echo json_encode([
         'success' => 'True',
         'data' => ['Language' => 'PHP'],
+        'message' => 'API online'
+        ]);
+}
+
+else if ($method == 'GET' && $uri == '/ventas'){
+    $SQL_Query = "SELECT * FROM ventas";
+    $SQL_Sentence = $DB_Connector->prepare($SQL_Query);
+    $SQL_Sentence->execute();
+    $Data = $SQL_Sentence->fetchAll(PDO::FETCH_ASSOC);
+    http_response_code(200);
+    echo json_encode([
+        'success' => 'True',
+        'data' => $Data,
         'message' => 'API online'
         ]);
 }
