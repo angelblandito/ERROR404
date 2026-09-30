@@ -4,7 +4,10 @@ $method = $_SERVER['REQUEST_METHOD'];
 $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 $rawBody = file_get_contents('php://input');
 $budy = json_decode($rawBody, true); 
-                   
+ 
+$DB_Connector = new PDO('mysql:host=localhost;port=3306;dbname=NOMBRE _DB', USER, PASSWORD);
+$DB_Connector->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$DB_Connector-> exec("SET CHARACTER SET utf8");
 if ($method == 'GET' && $uri == '/healthcheck'){
     http_response_code(200);
     echo json_encode([
