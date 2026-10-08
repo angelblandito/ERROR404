@@ -104,6 +104,90 @@ CREATE TABLE compras_proveedores (
     total_compra DECIMAL(10,2),
     estado VARCHAR(30) DEFAULT 'Pendiente'
 );
+USE jam;
+GO
+
+-- 1. Tabla de Proveedores (Surtidores de marcas deportivas)
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'Proveedores')
+BEGIN
+    CREATE TABLE Proveedores (
+        proveedor_id INT IDENTITY(1,1) PRIMARY KEY,
+        nombre_empresa VARCHAR(100) NOT NULL,
+        contacto_nombre VARCHAR(100),
+        email VARCHAR(100) UNIQUE,
+        telefono VARCHAR(20),
+        rfc VARCHAR(15),
+        direccion VARCHAR(255),
+        fecha_registro DATETIME DEFAULT GETDATE()
+    );
+END
+GO
+
+-- 2. Tabla de Órdenes de Compra (Reabastecimiento de inventario)
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'Ordenes_Compra')
+BEGIN
+    CREATE TABLE Ordenes_Compra (
+        orden_compra_id INT IDENTITY(1,1) PRIMARY KEY,
+        proveedor_id INT NOT NULL,
+        fecha_orden DATETIME DEFAULT GETDATE(),
+        total_orden DECIMAL(10,2) NOT NULL,
+        estado VARCHAR(30) DEFAULT 'Pendiente', -- Pendiente, Recibido, Cancelado
+        CONSTRAINT FK_OrdenesCompra_Proveedores FOREIGN KEY (proveedor_id) 
+            REFERENCES Proveedores(proveedor_id)
+    );
+END
+GO
+
+-- 3. Tabla de Cupones de Descuento (Módulo de Marketing/Ventas)
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'Cupones_Descuento')
+BEGIN
+    CREATE TABLE Cupones_Descuento (
+        cupon_id INT IDENTITY(1,1) PRIMARY KEY,
+        codigo VARCHAR(30) UNIQUE NOT NULL,
+        descuento_porcentaje DECIMAL(5,2) NOT NULL, -- ej: 15.00 para 15%
+        fecha_inicio DATETIME NOT NULL,
+        fecha_fin DATETIME NOT NULL,
+        activo BIT DEFAULT 1
+    );
+END
+GO
+
+-- 4. Tabla de Reseñas de Productos (Feedback de clientes)
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'Resenas_Productos')
+BEGIN
+    CREATE TABLE Resenas_Productos (
+        resena_id INT IDENTITY(1,1) PRIMARY KEY,
+        producto_id INT NOT NULL,
+        cliente_id INT NOT NULL,
+        calificacion INT CHECK (calificacion BETWEEN 1 AND 5),
+        comentario VARCHAR(MAX),
+        fecha_resena DATETIME DEFAULT GETDATE(),
+        CONSTRAINT FK_Resenas_Productos FOREIGN KEY (producto_id) 
+            REFERENCES Productos(producto_id),
+        CONSTRAINT FK_Resenas_Clientes FOREIGN KEY (cliente_id) 
+            REFERENCES Clientes(cliente_id)
+    );
+END
+GO
+
+-- 5. Tabla de Devoluciones (Garantías y Soporte Post-Venta)
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'Devoluciones')
+BEGIN
+    CREATE TABLE Devoluciones (
+        devolucion_id INT IDENTITY(1,1) PRIMARY KEY,
+        venta_id INT NOT NULL,
+        cliente_id INT NOT NULL,
+        motivo VARCHAR(255) NOT NULL,
+        monto_reembolsado DECIMAL(10,2) NOT NULL,
+        estado_devolucion VARCHAR(30) DEFAULT 'En Revision', -- En Revision, Aprobada, Rechazada
+        fecha_solicitud DATETIME DEFAULT GETDATE(),
+        CONSTRAINT FK_Devoluciones_Ventas FOREIGN KEY (venta_id) 
+            REFERENCES Ventas(venta_id),
+        CONSTRAINT FK_Devoluciones_Clientes FOREIGN KEY (cliente_id) 
+            REFERENCES Clientes(cliente_id)
+    );
+END
+GO
 
 -- Inserción de Datos Iniciales
 INSERT INTO sucursales (nombre, tipo, direccion, telefono) VALUES 
