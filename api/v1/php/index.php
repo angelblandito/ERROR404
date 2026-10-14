@@ -7,7 +7,7 @@ $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 
 $rawBody = file_get_contents('php://input');
 $body = json_decode($rawBody, true);
-
+$Elements = [];
 // 1. Conexión a tu base de datos SQL Server (jam)
 require_once("core/Database.php"); 
 
