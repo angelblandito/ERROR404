@@ -23,43 +23,201 @@ if ($method === 'GET' && strpos($uri, '/health-check') !== false) {
 
 } 
 // =========================================================================
-// ENDPOINT 1: PROVEEDORES (Reemplaza al '/moods' original)
+// ENDPOINT 1: PROVEEDORES 
 // =========================================================================
 else if ($method === 'GET' && strpos($uri, '/proveedores') !== false) {
-    
-    // Llama al modelo que creaste en el paso anterior
     require_once("models/proveedores_select.php"); 
-    
     http_response_code(200);
     echo json_encode([
         'success' => true,
-        'data' => $Elements, // Esta variable se llenó dentro de proveedores_select.php
+        'data' => $Elements, 
         'message' => 'Proveedores obtenidos con éxito'
     ], JSON_UNESCAPED_UNICODE);
-
 } 
 // =========================================================================
-// ENDPOINT 2: VENTAS (Ejemplo de cómo agregar tu segunda tabla)
+// ENDPOINT 2: VENTAS 
 // =========================================================================
 else if ($method === 'GET' && strpos($uri, '/ventas') !== false) {
-    
-    // Necesitarías crear el archivo ventas_select.php en tu carpeta models
     require_once("models/ventas_select.php"); 
-    
     http_response_code(200);
     echo json_encode([
         'success' => true,
         'data' => $Elements,
         'message' => 'Ventas obtenidas con éxito'
-    ]);
-
+    ], JSON_UNESCAPED_UNICODE);
 }
-
-// Aquí puedes ir copiando y pegando más bloques "else if" para tus otras 18 tablas
-// ...
-
+// =========================================================================
+// ENDPOINT 3: CLIENTES
+// =========================================================================
+else if ($method === 'GET' && strpos($uri, '/clientes') !== false) {
+    require_once("models/clientes_select.php"); 
+    http_response_code(200);
+    echo json_encode([
+        'success' => true,
+        'data' => $Elements,
+        'message' => 'Clientes obtenidos con éxito'
+    ], JSON_UNESCAPED_UNICODE);
+}
+// =========================================================================
+// ENDPOINT 4: PRODUCTOS
+// =========================================================================
+else if ($method === 'GET' && strpos($uri, '/productos') !== false) {
+    require_once("models/productos_select.php"); 
+    http_response_code(200);
+    echo json_encode([
+        'success' => true,
+        'data' => $Elements,
+        'message' => 'Productos obtenidos con éxito'
+    ], JSON_UNESCAPED_UNICODE);
+}
+// =========================================================================
+// ENDPOINT 5: ORDENES DE COMPRA
+// =========================================================================
+else if ($method === 'GET' && strpos($uri, '/ordenes_compra') !== false) {
+    require_once("models/ordenes_compra_select.php"); 
+    http_response_code(200);
+    echo json_encode([
+        'success' => true,
+        'data' => $Elements,
+        'message' => 'Órdenes de compra obtenidas con éxito'
+    ], JSON_UNESCAPED_UNICODE);
+}
+// =========================================================================
+// ENDPOINT 6: CUPONES DE DESCUENTO (Usando el nombre exacto de tu archivo)
+// =========================================================================
+else if ($method === 'GET' && strpos($uri, '/cupones_descuentos') !== false) {
+    require_once("models/cupones_descuentos_select.php"); 
+    http_response_code(200);
+    echo json_encode([
+        'success' => true,
+        'data' => $Elements,
+        'message' => 'Cupones obtenidos con éxito'
+    ], JSON_UNESCAPED_UNICODE);
+}
+// =========================================================================
+// ENDPOINT 7: RESEÑAS DE PRODUCTOS
+// =========================================================================
+else if ($method === 'GET' && strpos($uri, '/resenas_productos') !== false) {
+    require_once("models/resenas_productos_select.php"); 
+    http_response_code(200);
+    echo json_encode([
+        'success' => true,
+        'data' => $Elements,
+        'message' => 'Reseñas obtenidas con éxito'
+    ], JSON_UNESCAPED_UNICODE);
+}
+// =========================================================================
+// ENDPOINT 8: DEVOLUCIONES
+// =========================================================================
+else if ($method === 'GET' && strpos($uri, '/devoluciones') !== false) {
+    require_once("models/devoluciones_select.php"); 
+    http_response_code(200);
+    echo json_encode([
+        'success' => true,
+        'data' => $Elements,
+        'message' => 'Devoluciones obtenidas con éxito'
+    ], JSON_UNESCAPED_UNICODE);
+}
+// =========================================================================
+// ENDPOINT 9: SUCURSALES
+// =========================================================================
+else if ($method === 'GET' && strpos($uri, '/sucursales') !== false) {
+    require_once("models/sucursales_select.php"); 
+    http_response_code(200);
+    echo json_encode([
+        'success' => true,
+        'data' => $Elements,
+        'message' => 'Sucursales obtenidas con éxito'
+    ], JSON_UNESCAPED_UNICODE);
+}
+// =========================================================================
+// ENDPOINT 10: CATEGORIAS
+// =========================================================================
+else if ($method === 'GET' && strpos($uri, '/categorias') !== false) {
+    require_once("models/categorias_select.php"); 
+    http_response_code(200);
+    echo json_encode([
+        'success' => true,
+        'data' => $Elements,
+        'message' => 'Categorías obtenidas con éxito'
+    ], JSON_UNESCAPED_UNICODE);
+}
+// =========================================================================
+// ENDPOINT 11: METODOS DE PAGO
+// =========================================================================
+else if ($method === 'GET' && strpos($uri, '/metodos_pago') !== false) {
+    require_once("models/metodos_pago_select.php"); 
+    http_response_code(200);
+    echo json_encode([
+        'success' => true,
+        'data' => $Elements,
+        'message' => 'Métodos de pago obtenidos con éxito'
+    ], JSON_UNESCAPED_UNICODE);
+}
+// =========================================================================
+// ENDPOINT 12: INVENTARIO SUCURSALES
+// =========================================================================
+else if ($method === 'GET' && strpos($uri, '/inventario_sucursales') !== false) {
+    require_once("models/inventario_sucursales_select.php"); 
+    http_response_code(200);
+    echo json_encode([
+        'success' => true,
+        'data' => $Elements,
+        'message' => 'Inventario obtenido con éxito'
+    ], JSON_UNESCAPED_UNICODE);
+}
+// =========================================================================
+// ENDPOINT 13: EMPLEADOS
+// =========================================================================
+else if ($method === 'GET' && strpos($uri, '/empleados') !== false) {
+    require_once("models/empleados_select.php"); 
+    http_response_code(200);
+    echo json_encode([
+        'success' => true,
+        'data' => $Elements,
+        'message' => 'Empleados obtenidos con éxito'
+    ], JSON_UNESCAPED_UNICODE);
+}
+// =========================================================================
+// ENDPOINT 14: DETALLES VENTA
+// =========================================================================
+else if ($method === 'GET' && strpos($uri, '/detalles_venta') !== false) {
+    require_once("models/detalles_venta_select.php"); 
+    http_response_code(200);
+    echo json_encode([
+        'success' => true,
+        'data' => $Elements,
+        'message' => 'Detalles de venta obtenidos con éxito'
+    ], JSON_UNESCAPED_UNICODE);
+}
+// =========================================================================
+// ENDPOINT 15: ENVIOS
+// =========================================================================
+else if ($method === 'GET' && strpos($uri, '/envios') !== false) {
+    require_once("models/envios_select.php"); 
+    http_response_code(200);
+    echo json_encode([
+        'success' => true,
+        'data' => $Elements,
+        'message' => 'Envíos obtenidos con éxito'
+    ], JSON_UNESCAPED_UNICODE);
+}
+// =========================================================================
+// ENDPOINT 16: COMPRAS A PROVEEDORES
+// =========================================================================
+else if ($method === 'GET' && strpos($uri, '/compras_proveedores') !== false) {
+    require_once("models/compras_proveedores_select.php"); 
+    http_response_code(200);
+    echo json_encode([
+        'success' => true,
+        'data' => $Elements,
+        'message' => 'Compras a proveedores obtenidas con éxito'
+    ], JSON_UNESCAPED_UNICODE);
+}
+// =========================================================================
+// ERROR 404: RUTA NO ENCONTRADA
+// =========================================================================
 else {
-    // Si se pide una URL que no existe, muestra el error 404 del profesor
     http_response_code(404);
     echo json_encode([
         'success' => false,
