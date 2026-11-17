@@ -1,9 +1,9 @@
 <?php
 try {
     $DB_Connector = new PDO(
-        'sqlsrv:Server=localhost;Database=jam;TrustServerCertificate=1',
-        null,
-        null
+        'mysql:host=localhost;dbname=JAM_db;charset=utf8mb4',
+        'root',
+        ''
     );
     $DB_Connector->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 } catch (PDOException $e) {
