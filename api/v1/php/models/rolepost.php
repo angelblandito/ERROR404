@@ -14,10 +14,10 @@ try {
     if ($SQL_Sentence->rowCount() != 0) {
         $RoleId = $body['id_role']; // PK is set manually (no AUTO_INCREMENT)
     } else {
-        $RoleId = 'Error: Cannot create new record';
+        $DB_Error = api_error(400, 'No se pudo crear el registro.');
     };
 }
 catch (PDOException $ex) {
-    $RoleId = 'Error: ' . $ex->getMessage();
+    $DB_Error = api_db_error($ex);
 };
 ?>

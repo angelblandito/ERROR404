@@ -19,10 +19,10 @@ try {
     if ($SQL_Sentence->rowCount() != 0) {
         $newData = $body;
     } else {
-        $newData = 'Error: Cannot update record';
+        $DB_Error = api_error(404, 'El registro no existe o fue eliminado.');
     };
 }
 catch (PDOException $ex) {
-    $newData = "Hubo un error!!!!!!!!!!!!";
+    $DB_Error = api_db_error($ex);
 };
 ?>

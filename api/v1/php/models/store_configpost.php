@@ -16,10 +16,10 @@ try {
     if ($SQL_Sentence->rowCount() != 0) {
         $StoreConfigId = $body['id_store'] . '-' . $body['config_key']; // Composite key (no AUTO_INCREMENT)
     } else {
-        $StoreConfigId = 'Error: Cannot create new record';
+        $DB_Error = api_error(400, 'No se pudo crear el registro.');
     };
 }
 catch (PDOException $ex) {
-    $StoreConfigId = 'Error: ' . $ex->getMessage();
+    $DB_Error = api_db_error($ex);
 };
 ?>

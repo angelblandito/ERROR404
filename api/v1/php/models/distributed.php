@@ -450,8 +450,19 @@ function dist_fragments_summary(): array
 /* Compara conteo y checksum de cada tabla publicada contra cada suscriptor. */
 function dist_replication_status(): array
 {
-    $checksumSql = function (string $table): string {
-        return "SELECT COUNT(*) AS n, CHECKSUM_AGG(BINARY_CHECKSUM(*)) AS chk FROM dbo.$table";
+    /* Columnas comparables: se excluye rowversion (system_type_id 189), porque
+       cada servidor genera sus propios valores y el checksum nunca coincidiría. */
+    $columnsOf = function (PDO $pdo, string $table): array {
+        $rows = dist_query($pdo,
+            'SELECT name FROM sys.columns WHERE object_id = OBJECT_ID(:t) AND system_type_id <> 189 ORDER BY column_id',
+            [':t' => 'dbo.' . $table]);
+        return array_map(function ($r) {
+            return '[' . str_replace(']', ']]', $r['name']) . ']';
+        }, $rows);
+    };
+
+    $checksumSql = function (string $table, array $columns): string {
+        return 'SELECT COUNT(*) AS n, CHECKSUM_AGG(BINARY_CHECKSUM(' . implode(', ', $columns) . ")) AS chk FROM dbo.$table";
     };
 
     try {
@@ -461,9 +472,13 @@ function dist_replication_status(): array
     }
 
     $publisher = [];
+    $columns = [];
     foreach (DIST_REPLICATED_TABLES as $table) {
         try {
-            $publisher[$table] = dist_query($central, $checksumSql($table))[0];
+            $columns[$table] = $columnsOf($central, $table);
+            $publisher[$table] = $columns[$table]
+                ? dist_query($central, $checksumSql($table, $columns[$table]))[0]
+                : null;
         } catch (Throwable $e) {
             $publisher[$table] = null;
         }
@@ -491,7 +506,10 @@ function dist_replication_status(): array
             $state = 'sin_replicar';
             $rows = null;
             try {
-                $sub = dist_query($pdo, $checksumSql($table))[0];
+                if (empty($columns[$table])) {
+                    throw new RuntimeException('Tabla sin columnas en el publicador');
+                }
+                $sub = dist_query($pdo, $checksumSql($table, $columns[$table]))[0];
                 $rows = (int)$sub['n'];
                 $pub = $publisher[$table];
                 $state = ($pub !== null && (int)$pub['n'] === $rows && (string)$pub['chk'] === (string)$sub['chk'])

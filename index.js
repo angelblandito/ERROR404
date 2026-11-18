@@ -458,43 +458,22 @@ async function checkout(event) {
     button.textContent = 'Procesando…';
 
     try {
-        const createdOrder = await api('/customer_order', {
+        const order = await api('/orders/checkout', {
             method: 'POST',
             body: {
                 id_store: idStore,
                 id_customer: idCustomer,
                 id_employee: null,
-                id_promotion: totals.promotion ? Number(totals.promotion.id_promotion) : null,
-                status: 'pending',
                 channel: idStore === 4 ? 'online' : 'in_store',
-                subtotal: totals.subtotal.toFixed(2),
-                discount: totals.discount.toFixed(2),
-                total: totals.total.toFixed(2),
+                promotion_code: totals.promotion ? totals.promotion.code : null,
                 notes: 'Pedido desde la tienda web',
-                source_node: 'web_node'
+                source_node: 'web_node',
+                items: state.cart.map(function (item) {
+                    return { id_variant: item.id_variant, quantity: item.quantity };
+                })
             }
         });
-
-        const orderId = Number(createdOrder);
-        if (!Number.isInteger(orderId) || orderId <= 0) {
-            throw new Error(String(createdOrder || 'La API no devolvió el número de pedido.'));
-        }
-
-        for (const item of state.cart) {
-            const itemId = await api('/order_item', {
-                method: 'POST',
-                body: {
-                    id_order: orderId,
-                    id_variant: item.id_variant,
-                    quantity: item.quantity,
-                    unit_price: item.unit_price.toFixed(2),
-                    source_node: 'web_node'
-                }
-            });
-            if (String(itemId).indexOf('Error') === 0) {
-                throw new Error('Pedido #' + orderId + ' creado, pero falló un artículo: ' + itemId);
-            }
-        }
+        const orderId = order.id_order;
 
         try {
             await api('/distributed/sync', { method: 'POST' });
@@ -506,7 +485,8 @@ async function checkout(event) {
         saveCart();
         renderCart();
         closeCart();
-        toast('Pedido #' + orderId + ' creado en ' + NODES[STORE_NODE[idStore]].label + '.');
+        toast('Pedido #' + orderId + ' creado en ' + NODES[STORE_NODE[idStore]].label + ' por ' + money.format(Number(order.total)) + '.');
+        loadStore(true);
     } catch (e) {
         toast(e.message, true);
     } finally {

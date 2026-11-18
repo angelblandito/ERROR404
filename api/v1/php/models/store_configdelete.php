@@ -1,7 +1,8 @@
 <?php
 try {
-    $SQL_Query = 'DELETE FROM store_config 
+    $SQL_Query = 'UPDATE store_config SET deleted = 1 
         WHERE 
+        deleted = 0 AND 
         id_store = :id_store AND 
         config_key = :config_key';
         
@@ -11,12 +12,12 @@ try {
     $SQL_Sentence->execute();
     
     if ($SQL_Sentence->rowCount() != 0) {
-        $newData = "BORRADO";
+        $newData = ['deleted' => true];
     } else {
-        $newData = 'Error: Cannot delete record';
+        $DB_Error = api_error(404, 'El registro no existe o ya fue eliminado.');
     };
 }
 catch (PDOException $ex) {
-    $newData = "Hubo un error!!!!!!!!!!!!";
+    $DB_Error = api_db_error($ex);
 };
 ?>

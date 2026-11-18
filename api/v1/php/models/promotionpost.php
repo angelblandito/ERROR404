@@ -20,10 +20,10 @@ try {
     if ($SQL_Sentence->rowCount() != 0) {
         $PromotionId = $DB_Connector->lastInsertId(); // Get newly created record ID
     } else {
-        $PromotionId = 'Error: Cannot create new record';
+        $DB_Error = api_error(400, 'No se pudo crear el registro.');
     };
 }
 catch (PDOException $ex) {
-    $PromotionId = 'Error: ' . $ex->getMessage();
+    $DB_Error = api_db_error($ex);
 };
 ?>

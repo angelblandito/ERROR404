@@ -4,6 +4,7 @@ try {
         config_value = :config_value, 
         source_node = :source_node 
         WHERE 
+        deleted = 0 AND 
         id_store = :id_store AND 
         config_key = :config_key';
         
@@ -17,10 +18,10 @@ try {
     if ($SQL_Sentence->rowCount() != 0) {
         $newData = $body;
     } else {
-        $newData = 'Error: Cannot update record';
+        $DB_Error = api_error(404, 'El registro no existe o fue eliminado.');
     };
 }
 catch (PDOException $ex) {
-    $newData = "Hubo un error!!!!!!!!!!!!";
+    $DB_Error = api_db_error($ex);
 };
 ?>

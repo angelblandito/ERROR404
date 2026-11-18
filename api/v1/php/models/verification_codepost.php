@@ -22,10 +22,10 @@ try {
     if ($SQL_Sentence->rowCount() != 0) {
         $VerificationCodeId = $DB_Connector->lastInsertId(); // Get newly created record ID
     } else {
-        $VerificationCodeId = 'Error: Cannot create new record';
+        $DB_Error = api_error(400, 'No se pudo crear el registro.');
     };
 }
 catch (PDOException $ex) {
-    $VerificationCodeId = 'Error: ' . $ex->getMessage();
+    $DB_Error = api_db_error($ex);
 };
 ?>

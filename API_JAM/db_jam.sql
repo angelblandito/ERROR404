@@ -1,10 +1,10 @@
-USE master;
+﻿USE master;
 GO
 
 DROP DATABASE IF EXISTS JAM_db;
 GO
 
-CREATE DATABASE JAM_db;
+CREATE DATABASE JAM_db COLLATE Modern_Spanish_CI_AS;
 GO
 
 USE JAM_db;
@@ -14,7 +14,7 @@ GO
 CREATE TABLE role (
     id_role TINYINT NOT NULL PRIMARY KEY,
     code    VARCHAR(13) NOT NULL,
-    name    VARCHAR(20) NOT NULL,
+    name    NVARCHAR(20) NOT NULL,
     CONSTRAINT uq_role_code UNIQUE (code)
 );
 GO
@@ -29,7 +29,7 @@ GO
 CREATE TABLE store_type (
     id_store_type TINYINT NOT NULL PRIMARY KEY,
     code          VARCHAR(8) NOT NULL,
-    name          VARCHAR(30) NOT NULL,
+    name          NVARCHAR(30) NOT NULL,
     CONSTRAINT uq_store_type_code UNIQUE (code)
 );
 GO
@@ -45,7 +45,7 @@ GO
 CREATE TABLE category (
     id_category TINYINT NOT NULL PRIMARY KEY,
     code        VARCHAR(11) NOT NULL,
-    name        VARCHAR(20) NOT NULL,
+    name        NVARCHAR(20) NOT NULL,
     CONSTRAINT uq_category_code UNIQUE (code)
 );
 GO
@@ -62,7 +62,7 @@ GO
 CREATE TABLE size (
     id_size TINYINT NOT NULL PRIMARY KEY,
     code    VARCHAR(3) NOT NULL,
-    name    VARCHAR(20) NOT NULL,
+    name    NVARCHAR(20) NOT NULL,
     CONSTRAINT uq_size_code UNIQUE (code)
 );
 GO
@@ -81,7 +81,7 @@ GO
 CREATE TABLE color (
     id_color TINYINT NOT NULL PRIMARY KEY,
     code     VARCHAR(5) NOT NULL,
-    name     VARCHAR(15) NOT NULL,
+    name     NVARCHAR(15) NOT NULL,
     CONSTRAINT uq_color_code UNIQUE (code)
 );
 GO
@@ -97,7 +97,7 @@ GO
 CREATE TABLE loyalty_level (
     id_loyalty_level TINYINT NOT NULL PRIMARY KEY,
     code              VARCHAR(6) NOT NULL,
-    name              VARCHAR(10) NOT NULL,
+    name              NVARCHAR(10) NOT NULL,
     discount_percent  DECIMAL(4,2) NOT NULL,
     min_spent         DECIMAL(10,2) NOT NULL,
     CONSTRAINT uq_loyalty_level_code UNIQUE (code),
@@ -115,7 +115,7 @@ GO
 CREATE TABLE absence_type (
     id_absence_type TINYINT NOT NULL PRIMARY KEY,
     code            VARCHAR(11) NOT NULL,
-    name            VARCHAR(20) NOT NULL,
+    name            NVARCHAR(20) NOT NULL,
     CONSTRAINT uq_absence_type_code UNIQUE (code)
 );
 GO
@@ -131,7 +131,7 @@ GO
 CREATE TABLE state (
     id_state TINYINT NOT NULL PRIMARY KEY,
     code     CHAR(3) NOT NULL,
-    name     VARCHAR(20) NOT NULL,
+    name     NVARCHAR(20) NOT NULL,
     CONSTRAINT uq_state_code UNIQUE (code)
 );
 GO
@@ -151,19 +151,18 @@ GO
 
 CREATE TABLE owner (
     id_owner            INT IDENTITY(1,1) PRIMARY KEY,
-    first_name          VARCHAR(50) NOT NULL,
-    last_name_paternal  VARCHAR(50) NOT NULL,
-    last_name_maternal  VARCHAR(50) NULL,
+    first_name          NVARCHAR(50) NOT NULL,
+    last_name_paternal  NVARCHAR(50) NOT NULL,
+    last_name_maternal  NVARCHAR(50) NULL,
     email               VARCHAR(100) NOT NULL,
     phone               VARCHAR(15) NOT NULL,
     password_hash       VARCHAR(100) NOT NULL,
     active              BIT NOT NULL DEFAULT 1,
-    created_at          DATETIME NOT NULL DEFAULT GETDATE(),
+    created_at          DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
     -- columnas de consolidación
     source_node         VARCHAR(20) NOT NULL,
-    updated_at          DATETIME NOT NULL DEFAULT GETDATE(),
-    deleted             BIT NOT NULL DEFAULT 0,
-    CONSTRAINT uq_owner_email UNIQUE (email)
+    updated_at          DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
+    deleted             BIT NOT NULL DEFAULT 0
 );
 GO
 
@@ -182,17 +181,17 @@ GO
 
 CREATE TABLE address (
     id_address     INT IDENTITY(1,1) PRIMARY KEY,
-    street         VARCHAR(100) NOT NULL,
+    street         NVARCHAR(100) NOT NULL,
     ext_number     VARCHAR(10) NOT NULL,
     int_number     VARCHAR(10) NULL,
-    neighborhood   VARCHAR(80) NOT NULL,
-    city           VARCHAR(60) NOT NULL,
+    neighborhood   NVARCHAR(80) NOT NULL,
+    city           NVARCHAR(60) NOT NULL,
     id_state       TINYINT NOT NULL,
     zip_code       CHAR(5) NOT NULL,
-    reference      VARCHAR(150) NULL,
+    reference      NVARCHAR(150) NULL,
     -- columnas de consolidación
     source_node    VARCHAR(20) NOT NULL,
-    updated_at     DATETIME NOT NULL DEFAULT GETDATE(),
+    updated_at     DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
     deleted        BIT NOT NULL DEFAULT 0,
     CONSTRAINT fk_address_state FOREIGN KEY (id_state) REFERENCES state (id_state)
 );
@@ -211,7 +210,7 @@ CREATE TABLE store (
     id_owner       INT NOT NULL, -- ref. logica a owner (otro servicio: Admin)
     id_store_type  TINYINT NOT NULL,
     id_address     INT NULL, -- NULL = tienda en línea
-    store_name     VARCHAR(80) NOT NULL,
+    store_name     NVARCHAR(80) NOT NULL,
     tax_id         VARCHAR(13) NOT NULL,
     contact_phone  VARCHAR(15) NOT NULL,
     email          VARCHAR(100) NOT NULL,
@@ -220,13 +219,10 @@ CREATE TABLE store (
     active         BIT NOT NULL DEFAULT 1,
     -- columnas de consolidación
     source_node    VARCHAR(20) NOT NULL,
-    updated_at     DATETIME NOT NULL DEFAULT GETDATE(),
+    updated_at     DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
     deleted        BIT NOT NULL DEFAULT 0,
     CONSTRAINT fk_store_store_type FOREIGN KEY (id_store_type) REFERENCES store_type (id_store_type),
-    CONSTRAINT fk_store_address FOREIGN KEY (id_address) REFERENCES address (id_address),
-    CONSTRAINT uq_store_tax_id UNIQUE (tax_id),
-    CONSTRAINT uq_store_email UNIQUE (email),
-    CONSTRAINT uq_store_whatsapp UNIQUE (whatsapp)
+    CONSTRAINT fk_store_address FOREIGN KEY (id_address) REFERENCES address (id_address)
 );
 GO
 
@@ -247,7 +243,7 @@ CREATE TABLE store_config (
     config_value  VARCHAR(255) NOT NULL,
     -- columnas de consolidación
     source_node   VARCHAR(20) NOT NULL,
-    updated_at    DATETIME NOT NULL DEFAULT GETDATE(),
+    updated_at    DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
     deleted       BIT NOT NULL DEFAULT 0,
     CONSTRAINT pk_store_config PRIMARY KEY (id_store, config_key),
     CONSTRAINT fk_store_config_store FOREIGN KEY (id_store) REFERENCES store (id_store)
@@ -271,9 +267,9 @@ CREATE TABLE employee (
     id_employee           INT IDENTITY(1,1) PRIMARY KEY,
     id_store               INT NOT NULL, -- ref. logica a store (otro servicio: Sucursales)
     id_role                TINYINT NOT NULL,
-    first_name             VARCHAR(50) NOT NULL,
-    last_name_paternal     VARCHAR(50) NOT NULL,
-    last_name_maternal     VARCHAR(50) NULL,
+    first_name             NVARCHAR(50) NOT NULL,
+    last_name_paternal     NVARCHAR(50) NOT NULL,
+    last_name_maternal     NVARCHAR(50) NULL,
     phone                  VARCHAR(15) NOT NULL,
     phone_verified         BIT NOT NULL DEFAULT 0,
     email                  VARCHAR(100) NOT NULL,
@@ -282,10 +278,9 @@ CREATE TABLE employee (
     hire_date              DATE NOT NULL,
     -- columnas de consolidación
     source_node            VARCHAR(20) NOT NULL,
-    updated_at             DATETIME NOT NULL DEFAULT GETDATE(),
+    updated_at             DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
     deleted                BIT NOT NULL DEFAULT 0,
-    CONSTRAINT fk_employee_role FOREIGN KEY (id_role) REFERENCES role (id_role),
-    CONSTRAINT uq_employee_store_phone UNIQUE (id_store, phone)
+    CONSTRAINT fk_employee_role FOREIGN KEY (id_role) REFERENCES role (id_role)
 );
 GO
 
@@ -308,7 +303,7 @@ CREATE TABLE employee_schedule (
     end_time       TIME NOT NULL,
     -- columnas de consolidación
     source_node    VARCHAR(20) NOT NULL,
-    updated_at     DATETIME NOT NULL DEFAULT GETDATE(),
+    updated_at     DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
     deleted        BIT NOT NULL DEFAULT 0,
     CONSTRAINT fk_employee_schedule_employee FOREIGN KEY (id_employee) REFERENCES employee (id_employee),
     CONSTRAINT uq_employee_schedule_employee_weekday UNIQUE (id_employee, weekday),
@@ -332,7 +327,7 @@ CREATE TABLE employee_absence (
     absence_date     DATE NOT NULL,
     -- columnas de consolidación
     source_node      VARCHAR(20) NOT NULL,
-    updated_at       DATETIME NOT NULL DEFAULT GETDATE(),
+    updated_at       DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
     deleted          BIT NOT NULL DEFAULT 0,
     CONSTRAINT fk_employee_absence_employee FOREIGN KEY (id_employee) REFERENCES employee (id_employee),
     CONSTRAINT fk_employee_absence_type FOREIGN KEY (id_absence_type) REFERENCES absence_type (id_absence_type),
@@ -353,12 +348,12 @@ CREATE TABLE verification_code (
     id_employee   INT NOT NULL,
     purpose       VARCHAR(14) NOT NULL,
     code_hash     VARCHAR(100) NOT NULL,
-    expires_at    DATETIME NOT NULL,
+    expires_at    DATETIME2(3) NOT NULL,
     attempts      TINYINT NOT NULL DEFAULT 0,
     used          BIT NOT NULL DEFAULT 0,
     -- tabla de bitácora: source_node y created_at, sin deleted
     source_node   VARCHAR(20) NOT NULL,
-    created_at    DATETIME NOT NULL DEFAULT GETDATE(),
+    created_at    DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
     CONSTRAINT fk_verification_code_employee FOREIGN KEY (id_employee) REFERENCES employee (id_employee),
     CONSTRAINT ck_verification_code_purpose CHECK (purpose IN ('password_reset','phone_link'))
 );
@@ -382,9 +377,9 @@ CREATE TABLE customer (
     id_loyalty_level    TINYINT NOT NULL DEFAULT 1,
     id_store            INT NOT NULL, -- ref. logica a store (otro servicio: Sucursales)
     id_address          INT NULL,     -- ref. logica a address (otro servicio: Sucursales)
-    first_name          VARCHAR(50) NOT NULL,
-    last_name_paternal  VARCHAR(50) NOT NULL,
-    last_name_maternal  VARCHAR(50) NULL,
+    first_name          NVARCHAR(50) NOT NULL,
+    last_name_paternal  NVARCHAR(50) NOT NULL,
+    last_name_maternal  NVARCHAR(50) NULL,
     birth_date          DATE NOT NULL,
     sex                 CHAR(1) NOT NULL,
     phone               VARCHAR(15) NOT NULL,
@@ -392,11 +387,9 @@ CREATE TABLE customer (
     accepts_marketing   BIT NOT NULL DEFAULT 0,
     -- columnas de consolidación
     source_node         VARCHAR(20) NOT NULL,
-    updated_at          DATETIME NOT NULL DEFAULT GETDATE(),
+    updated_at          DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
     deleted             BIT NOT NULL DEFAULT 0,
     CONSTRAINT fk_customer_loyalty_level FOREIGN KEY (id_loyalty_level) REFERENCES loyalty_level (id_loyalty_level),
-    CONSTRAINT uq_customer_phone UNIQUE (phone),
-    CONSTRAINT uq_customer_email UNIQUE (email),
     CONSTRAINT ck_customer_sex CHECK (sex IN ('M','F','X'))
 );
 GO
@@ -421,13 +414,13 @@ GO
 CREATE TABLE product (
     id_product      INT IDENTITY(1,1) PRIMARY KEY,
     id_category     TINYINT NOT NULL,
-    name            VARCHAR(80) NOT NULL,
-    description     VARCHAR(255) NULL,
+    name            NVARCHAR(80) NOT NULL,
+    description     NVARCHAR(255) NULL,
     target_gender   CHAR(1) NOT NULL,
     base_price      DECIMAL(8,2) NOT NULL,
     -- columnas de consolidación
     source_node     VARCHAR(20) NOT NULL,
-    updated_at      DATETIME NOT NULL DEFAULT GETDATE(),
+    updated_at      DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
     deleted         BIT NOT NULL DEFAULT 0,
     CONSTRAINT fk_product_category FOREIGN KEY (id_category) REFERENCES category (id_category),
     CONSTRAINT ck_product_target_gender CHECK (target_gender IN ('M','F','U')),
@@ -451,13 +444,11 @@ CREATE TABLE product_variant (
     sku          VARCHAR(20) NOT NULL,
     -- columnas de consolidación
     source_node  VARCHAR(20) NOT NULL,
-    updated_at   DATETIME NOT NULL DEFAULT GETDATE(),
+    updated_at   DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
     deleted      BIT NOT NULL DEFAULT 0,
     CONSTRAINT fk_product_variant_product FOREIGN KEY (id_product) REFERENCES product (id_product),
     CONSTRAINT fk_product_variant_size FOREIGN KEY (id_size) REFERENCES size (id_size),
-    CONSTRAINT fk_product_variant_color FOREIGN KEY (id_color) REFERENCES color (id_color),
-    CONSTRAINT uq_product_variant_sku UNIQUE (sku),
-    CONSTRAINT uq_product_variant_product_size_color UNIQUE (id_product, id_size, id_color)
+    CONSTRAINT fk_product_variant_color FOREIGN KEY (id_color) REFERENCES color (id_color)
 );
 GO
 
@@ -477,7 +468,7 @@ CREATE TABLE inventory (
     min_stock     INT NOT NULL DEFAULT 5,
     -- columnas de consolidación
     source_node   VARCHAR(20) NOT NULL,
-    updated_at    DATETIME NOT NULL DEFAULT GETDATE(),
+    updated_at    DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
     deleted       BIT NOT NULL DEFAULT 0,
     CONSTRAINT fk_inventory_variant FOREIGN KEY (id_variant) REFERENCES product_variant (id_variant),
     CONSTRAINT uq_inventory_store_variant UNIQUE (id_store, id_variant),
@@ -486,7 +477,6 @@ CREATE TABLE inventory (
 );
 GO
 
-CREATE INDEX ix_inventory_store ON inventory (id_store);
 GO
 
 INSERT INTO inventory (id_store, id_variant, stock, min_stock, source_node) VALUES
@@ -505,15 +495,14 @@ GO
 CREATE TABLE promotion (
     id_promotion      INT IDENTITY(1,1) PRIMARY KEY,
     code              VARCHAR(20) NOT NULL,
-    description       VARCHAR(150) NULL,
+    description       NVARCHAR(150) NULL,
     discount_percent  DECIMAL(5,2) NOT NULL,
     start_date        DATE NOT NULL,
     end_date          DATE NOT NULL,
     -- columnas de consolidación
     source_node       VARCHAR(20) NOT NULL,
-    updated_at        DATETIME NOT NULL DEFAULT GETDATE(),
+    updated_at        DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
     deleted           BIT NOT NULL DEFAULT 0,
-    CONSTRAINT uq_promotion_code UNIQUE (code),
     CONSTRAINT ck_promotion_discount_percent CHECK (discount_percent BETWEEN 0 AND 100),
     CONSTRAINT ck_promotion_dates CHECK (end_date >= start_date)
 );
@@ -533,16 +522,16 @@ CREATE TABLE customer_order (
     id_customer    INT NOT NULL,      -- ref. logica a customer (otro servicio: Clientes finales)
     id_employee    INT NULL,          -- ref. logica a employee (otro servicio: Empleados)
     id_promotion   INT NULL,
-    order_date     DATETIME NOT NULL DEFAULT GETDATE(),
+    order_date     DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
     status         VARCHAR(9) NOT NULL,
     channel        VARCHAR(8) NOT NULL,
     subtotal       DECIMAL(10,2) NOT NULL,
     discount       DECIMAL(10,2) NOT NULL DEFAULT 0,
     total          DECIMAL(10,2) NOT NULL,
-    notes          VARCHAR(255) NULL,
+    notes          NVARCHAR(255) NULL,
     -- columnas de consolidación
     source_node    VARCHAR(20) NOT NULL,
-    updated_at     DATETIME NOT NULL DEFAULT GETDATE(),
+    updated_at     DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
     deleted        BIT NOT NULL DEFAULT 0,
     CONSTRAINT fk_customer_order_promotion FOREIGN KEY (id_promotion) REFERENCES promotion (id_promotion),
     CONSTRAINT ck_customer_order_status CHECK (status IN ('pending','paid','shipped','delivered','cancelled','returned')),
@@ -574,7 +563,7 @@ CREATE TABLE order_item (
     unit_price     DECIMAL(8,2) NOT NULL,
     -- columnas de consolidación
     source_node    VARCHAR(20) NOT NULL,
-    updated_at     DATETIME NOT NULL DEFAULT GETDATE(),
+    updated_at     DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
     deleted        BIT NOT NULL DEFAULT 0,
     CONSTRAINT fk_order_item_order FOREIGN KEY (id_order) REFERENCES customer_order (id_order),
     CONSTRAINT uq_order_item_order_variant UNIQUE (id_order, id_variant),
@@ -599,13 +588,13 @@ CREATE TABLE payment (
     id_order            INT NOT NULL,
     amount              DECIMAL(10,2) NOT NULL,
     currency            CHAR(3) NOT NULL DEFAULT 'MXN',
-    payment_date        DATETIME NOT NULL DEFAULT GETDATE(),
+    payment_date        DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
     method              VARCHAR(8) NOT NULL,
     external_reference  VARCHAR(50) NULL,
     status              VARCHAR(9) NOT NULL,
     -- columnas de consolidación
     source_node         VARCHAR(20) NOT NULL,
-    updated_at          DATETIME NOT NULL DEFAULT GETDATE(),
+    updated_at          DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
     deleted             BIT NOT NULL DEFAULT 0,
     CONSTRAINT fk_payment_order FOREIGN KEY (id_order) REFERENCES customer_order (id_order),
     CONSTRAINT ck_payment_amount CHECK (amount >= 0),
@@ -633,11 +622,11 @@ CREATE TABLE message_log (
     phone             VARCHAR(15) NOT NULL,
     direction         VARCHAR(8) NOT NULL,
     type              VARCHAR(20) NOT NULL,
-    content           VARCHAR(MAX) NOT NULL,
+    content           NVARCHAR(MAX) NOT NULL,
     response_time_ms  INT NULL,
     -- tabla de bitácora: source_node y created_at, sin deleted
     source_node       VARCHAR(20) NOT NULL,
-    created_at        DATETIME NOT NULL DEFAULT GETDATE(),
+    created_at        DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
     CONSTRAINT ck_message_log_direction CHECK (direction IN ('inbound','outbound')),
     CONSTRAINT ck_message_log_response_time CHECK (response_time_ms IS NULL OR response_time_ms >= 0)
 );
@@ -665,7 +654,7 @@ CREATE TABLE audit_log (
     detail       NVARCHAR(MAX) NULL,
     -- tabla de bitácora: source_node y created_at, sin deleted
     source_node  VARCHAR(20) NOT NULL,
-    created_at   DATETIME NOT NULL DEFAULT GETDATE(),
+    created_at   DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
     CONSTRAINT ck_audit_log_detail_json CHECK (detail IS NULL OR ISJSON(detail) = 1)
 );
 GO
@@ -684,6 +673,70 @@ GO
 
 
 -- =====================================================================
+-- INTEGRIDAD DEL NODO CENTRAL
+-- En JAM_db todas las referencias entre servicios se validan con FK.
+-- En los fragmentos de las sucursales quedan como referencias lógicas.
+-- =====================================================================
+
+ALTER TABLE store          ADD CONSTRAINT fk_store_owner              FOREIGN KEY (id_owner)    REFERENCES owner (id_owner);
+ALTER TABLE employee       ADD CONSTRAINT fk_employee_store           FOREIGN KEY (id_store)    REFERENCES store (id_store);
+ALTER TABLE customer       ADD CONSTRAINT fk_customer_store           FOREIGN KEY (id_store)    REFERENCES store (id_store);
+ALTER TABLE customer       ADD CONSTRAINT fk_customer_address         FOREIGN KEY (id_address)  REFERENCES address (id_address);
+ALTER TABLE inventory      ADD CONSTRAINT fk_inventory_store          FOREIGN KEY (id_store)    REFERENCES store (id_store);
+ALTER TABLE customer_order ADD CONSTRAINT fk_customer_order_store     FOREIGN KEY (id_store)    REFERENCES store (id_store);
+ALTER TABLE customer_order ADD CONSTRAINT fk_customer_order_customer  FOREIGN KEY (id_customer) REFERENCES customer (id_customer);
+ALTER TABLE customer_order ADD CONSTRAINT fk_customer_order_employee  FOREIGN KEY (id_employee) REFERENCES employee (id_employee);
+ALTER TABLE order_item     ADD CONSTRAINT fk_order_item_variant       FOREIGN KEY (id_variant)  REFERENCES product_variant (id_variant);
+ALTER TABLE message_log    ADD CONSTRAINT fk_message_log_store        FOREIGN KEY (id_store)    REFERENCES store (id_store);
+ALTER TABLE audit_log      ADD CONSTRAINT fk_audit_log_store          FOREIGN KEY (id_store)    REFERENCES store (id_store);
+GO
+
+-- Reglas de negocio: el total siempre es subtotal - descuento
+ALTER TABLE customer_order ADD CONSTRAINT ck_customer_order_totals
+    CHECK (discount <= subtotal AND total = subtotal - discount);
+GO
+
+-- Unicidad compatible con el borrado lógico: un registro marcado como
+-- deleted = 1 no impide volver a registrar el mismo correo, teléfono, etc.
+CREATE UNIQUE INDEX uq_owner_email                        ON owner (email)                              WHERE deleted = 0;
+CREATE UNIQUE INDEX uq_store_tax_id                       ON store (tax_id)                             WHERE deleted = 0;
+CREATE UNIQUE INDEX uq_store_email                        ON store (email)                              WHERE deleted = 0;
+CREATE UNIQUE INDEX uq_store_whatsapp                     ON store (whatsapp)                           WHERE deleted = 0;
+CREATE UNIQUE INDEX uq_employee_store_phone               ON employee (id_store, phone)                  WHERE deleted = 0;
+CREATE UNIQUE INDEX uq_customer_phone                     ON customer (phone)                           WHERE deleted = 0;
+CREATE UNIQUE INDEX uq_customer_email                     ON customer (email)                           WHERE deleted = 0;
+CREATE UNIQUE INDEX uq_product_variant_sku                ON product_variant (sku)                      WHERE deleted = 0;
+CREATE UNIQUE INDEX uq_product_variant_product_size_color ON product_variant (id_product, id_size, id_color) WHERE deleted = 0;
+CREATE UNIQUE INDEX uq_promotion_code                     ON promotion (code)                           WHERE deleted = 0;
+GO
+
+-- Índices de soporte para las llaves foráneas que no quedan cubiertas
+-- por la columna inicial de otro índice.
+CREATE INDEX ix_address_state           ON address (id_state);
+CREATE INDEX ix_store_store_type        ON store (id_store_type);
+CREATE INDEX ix_store_address           ON store (id_address);
+CREATE INDEX ix_employee_role           ON employee (id_role);
+CREATE INDEX ix_employee_absence_type   ON employee_absence (id_absence_type);
+CREATE INDEX ix_verification_code_employee ON verification_code (id_employee);
+CREATE INDEX ix_customer_loyalty_level  ON customer (id_loyalty_level);
+CREATE INDEX ix_product_category        ON product (id_category);
+CREATE INDEX ix_product_variant_product ON product_variant (id_product);
+CREATE INDEX ix_product_variant_size    ON product_variant (id_size);
+CREATE INDEX ix_product_variant_color   ON product_variant (id_color);
+CREATE INDEX ix_inventory_variant       ON inventory (id_variant);
+CREATE INDEX ix_customer_order_promotion ON customer_order (id_promotion);
+CREATE INDEX ix_payment_order           ON payment (id_order);
+GO
+
+-- Control de concurrencia optimista: la API rechaza un UPDATE si el
+-- registro cambió desde que el cliente lo leyó.
+ALTER TABLE product        ADD row_version ROWVERSION;
+ALTER TABLE inventory      ADD row_version ROWVERSION;
+ALTER TABLE customer_order ADD row_version ROWVERSION;
+GO
+
+
+-- =====================================================================
 -- TRIGGERS: actualizan updated_at automáticamente en cada UPDATE
 -- (T-SQL no tiene "ON UPDATE CURRENT_TIMESTAMP" como MySQL/MariaDB)
 -- =====================================================================
@@ -691,7 +744,7 @@ GO
 CREATE TRIGGER trg_owner_touch ON owner AFTER UPDATE AS
 BEGIN
     SET NOCOUNT ON;
-    UPDATE t SET t.updated_at = GETDATE()
+    UPDATE t SET t.updated_at = SYSUTCDATETIME()
     FROM owner AS t INNER JOIN inserted AS i ON t.id_owner = i.id_owner;
 END;
 GO
@@ -699,7 +752,7 @@ GO
 CREATE TRIGGER trg_address_touch ON address AFTER UPDATE AS
 BEGIN
     SET NOCOUNT ON;
-    UPDATE t SET t.updated_at = GETDATE()
+    UPDATE t SET t.updated_at = SYSUTCDATETIME()
     FROM address AS t INNER JOIN inserted AS i ON t.id_address = i.id_address;
 END;
 GO
@@ -707,7 +760,7 @@ GO
 CREATE TRIGGER trg_store_touch ON store AFTER UPDATE AS
 BEGIN
     SET NOCOUNT ON;
-    UPDATE t SET t.updated_at = GETDATE()
+    UPDATE t SET t.updated_at = SYSUTCDATETIME()
     FROM store AS t INNER JOIN inserted AS i ON t.id_store = i.id_store;
 END;
 GO
@@ -715,7 +768,7 @@ GO
 CREATE TRIGGER trg_store_config_touch ON store_config AFTER UPDATE AS
 BEGIN
     SET NOCOUNT ON;
-    UPDATE t SET t.updated_at = GETDATE()
+    UPDATE t SET t.updated_at = SYSUTCDATETIME()
     FROM store_config AS t
     INNER JOIN inserted AS i ON t.id_store = i.id_store AND t.config_key = i.config_key;
 END;
@@ -724,7 +777,7 @@ GO
 CREATE TRIGGER trg_employee_touch ON employee AFTER UPDATE AS
 BEGIN
     SET NOCOUNT ON;
-    UPDATE t SET t.updated_at = GETDATE()
+    UPDATE t SET t.updated_at = SYSUTCDATETIME()
     FROM employee AS t INNER JOIN inserted AS i ON t.id_employee = i.id_employee;
 END;
 GO
@@ -732,7 +785,7 @@ GO
 CREATE TRIGGER trg_employee_schedule_touch ON employee_schedule AFTER UPDATE AS
 BEGIN
     SET NOCOUNT ON;
-    UPDATE t SET t.updated_at = GETDATE()
+    UPDATE t SET t.updated_at = SYSUTCDATETIME()
     FROM employee_schedule AS t INNER JOIN inserted AS i ON t.id_schedule = i.id_schedule;
 END;
 GO
@@ -740,7 +793,7 @@ GO
 CREATE TRIGGER trg_employee_absence_touch ON employee_absence AFTER UPDATE AS
 BEGIN
     SET NOCOUNT ON;
-    UPDATE t SET t.updated_at = GETDATE()
+    UPDATE t SET t.updated_at = SYSUTCDATETIME()
     FROM employee_absence AS t INNER JOIN inserted AS i ON t.id_absence = i.id_absence;
 END;
 GO
@@ -748,7 +801,7 @@ GO
 CREATE TRIGGER trg_customer_touch ON customer AFTER UPDATE AS
 BEGIN
     SET NOCOUNT ON;
-    UPDATE t SET t.updated_at = GETDATE()
+    UPDATE t SET t.updated_at = SYSUTCDATETIME()
     FROM customer AS t INNER JOIN inserted AS i ON t.id_customer = i.id_customer;
 END;
 GO
@@ -756,7 +809,7 @@ GO
 CREATE TRIGGER trg_product_touch ON product AFTER UPDATE AS
 BEGIN
     SET NOCOUNT ON;
-    UPDATE t SET t.updated_at = GETDATE()
+    UPDATE t SET t.updated_at = SYSUTCDATETIME()
     FROM product AS t INNER JOIN inserted AS i ON t.id_product = i.id_product;
 END;
 GO
@@ -764,7 +817,7 @@ GO
 CREATE TRIGGER trg_product_variant_touch ON product_variant AFTER UPDATE AS
 BEGIN
     SET NOCOUNT ON;
-    UPDATE t SET t.updated_at = GETDATE()
+    UPDATE t SET t.updated_at = SYSUTCDATETIME()
     FROM product_variant AS t INNER JOIN inserted AS i ON t.id_variant = i.id_variant;
 END;
 GO
@@ -772,7 +825,7 @@ GO
 CREATE TRIGGER trg_inventory_touch ON inventory AFTER UPDATE AS
 BEGIN
     SET NOCOUNT ON;
-    UPDATE t SET t.updated_at = GETDATE()
+    UPDATE t SET t.updated_at = SYSUTCDATETIME()
     FROM inventory AS t INNER JOIN inserted AS i ON t.id_inventory = i.id_inventory;
 END;
 GO
@@ -780,7 +833,7 @@ GO
 CREATE TRIGGER trg_promotion_touch ON promotion AFTER UPDATE AS
 BEGIN
     SET NOCOUNT ON;
-    UPDATE t SET t.updated_at = GETDATE()
+    UPDATE t SET t.updated_at = SYSUTCDATETIME()
     FROM promotion AS t INNER JOIN inserted AS i ON t.id_promotion = i.id_promotion;
 END;
 GO
@@ -788,7 +841,7 @@ GO
 CREATE TRIGGER trg_customer_order_touch ON customer_order AFTER UPDATE AS
 BEGIN
     SET NOCOUNT ON;
-    UPDATE t SET t.updated_at = GETDATE()
+    UPDATE t SET t.updated_at = SYSUTCDATETIME()
     FROM customer_order AS t INNER JOIN inserted AS i ON t.id_order = i.id_order;
 END;
 GO
@@ -796,7 +849,7 @@ GO
 CREATE TRIGGER trg_order_item_touch ON order_item AFTER UPDATE AS
 BEGIN
     SET NOCOUNT ON;
-    UPDATE t SET t.updated_at = GETDATE()
+    UPDATE t SET t.updated_at = SYSUTCDATETIME()
     FROM order_item AS t INNER JOIN inserted AS i ON t.id_item = i.id_item;
 END;
 GO
@@ -804,7 +857,7 @@ GO
 CREATE TRIGGER trg_payment_touch ON payment AFTER UPDATE AS
 BEGIN
     SET NOCOUNT ON;
-    UPDATE t SET t.updated_at = GETDATE()
+    UPDATE t SET t.updated_at = SYSUTCDATETIME()
     FROM payment AS t INNER JOIN inserted AS i ON t.id_payment = i.id_payment;
 END;
 GO

@@ -1,4 +1,4 @@
-/* =====================================================================
+﻿/* =====================================================================
    JAM - Base de datos distribuida
    01. Nodos y fragmentación horizontal
    ---------------------------------------------------------------------
@@ -23,11 +23,11 @@
 USE master;
 GO
 
-IF DB_ID(N'JAM_tijuana') IS NULL CREATE DATABASE JAM_tijuana;
+IF DB_ID(N'JAM_tijuana') IS NULL CREATE DATABASE JAM_tijuana COLLATE Modern_Spanish_CI_AS;
 GO
-IF DB_ID(N'JAM_cdmx') IS NULL CREATE DATABASE JAM_cdmx;
+IF DB_ID(N'JAM_cdmx') IS NULL CREATE DATABASE JAM_cdmx COLLATE Modern_Spanish_CI_AS;
 GO
-IF DB_ID(N'JAM_online') IS NULL CREATE DATABASE JAM_online;
+IF DB_ID(N'JAM_online') IS NULL CREATE DATABASE JAM_online COLLATE Modern_Spanish_CI_AS;
 GO
 
 USE JAM_db;
@@ -86,9 +86,9 @@ CREATE TABLE {db}.dbo.employee (
     id_employee            INT          NOT NULL,
     id_store               INT          NOT NULL,
     id_role                TINYINT      NOT NULL,
-    first_name             VARCHAR(50)  NOT NULL,
-    last_name_paternal     VARCHAR(50)  NOT NULL,
-    last_name_maternal     VARCHAR(50)  NULL,
+    first_name             NVARCHAR(50)  NOT NULL,
+    last_name_paternal     NVARCHAR(50)  NOT NULL,
+    last_name_maternal     NVARCHAR(50)  NULL,
     phone                  VARCHAR(15)  NOT NULL,
     phone_verified         BIT          NOT NULL,
     email                  VARCHAR(100) NOT NULL,
@@ -96,7 +96,7 @@ CREATE TABLE {db}.dbo.employee (
     must_change_password   BIT          NOT NULL,
     hire_date              DATE         NOT NULL,
     source_node            VARCHAR(20)  NOT NULL,
-    updated_at             DATETIME     NOT NULL,
+    updated_at             DATETIME2(3)     NOT NULL,
     deleted                BIT          NOT NULL,
     CONSTRAINT pk_employee PRIMARY KEY (id_employee),
     CONSTRAINT ck_employee_fragment CHECK (id_store = {id})
@@ -110,7 +110,7 @@ CREATE TABLE {db}.dbo.inventory (
     stock         INT          NOT NULL,
     min_stock     INT          NOT NULL,
     source_node   VARCHAR(20)  NOT NULL,
-    updated_at    DATETIME     NOT NULL,
+    updated_at    DATETIME2(3)     NOT NULL,
     deleted       BIT          NOT NULL,
     CONSTRAINT pk_inventory PRIMARY KEY (id_inventory),
     CONSTRAINT uq_inventory_store_variant UNIQUE (id_store, id_variant),
@@ -124,15 +124,15 @@ CREATE TABLE {db}.dbo.customer_order (
     id_customer    INT           NOT NULL,
     id_employee    INT           NULL,
     id_promotion   INT           NULL,
-    order_date     DATETIME      NOT NULL,
+    order_date     DATETIME2(3)      NOT NULL,
     status         VARCHAR(9)    NOT NULL,
     channel        VARCHAR(8)    NOT NULL,
     subtotal       DECIMAL(10,2) NOT NULL,
     discount       DECIMAL(10,2) NOT NULL,
     total          DECIMAL(10,2) NOT NULL,
-    notes          VARCHAR(255)  NULL,
+    notes          NVARCHAR(255)  NULL,
     source_node    VARCHAR(20)   NOT NULL,
-    updated_at     DATETIME      NOT NULL,
+    updated_at     DATETIME2(3)      NOT NULL,
     deleted        BIT           NOT NULL,
     CONSTRAINT pk_customer_order PRIMARY KEY (id_order),
     CONSTRAINT ck_customer_order_fragment CHECK (id_store = {id})
@@ -146,7 +146,7 @@ CREATE TABLE {db}.dbo.order_item (
     quantity       SMALLINT     NOT NULL,
     unit_price     DECIMAL(8,2) NOT NULL,
     source_node    VARCHAR(20)  NOT NULL,
-    updated_at     DATETIME     NOT NULL,
+    updated_at     DATETIME2(3)     NOT NULL,
     deleted        BIT          NOT NULL,
     CONSTRAINT pk_order_item PRIMARY KEY (id_item),
     CONSTRAINT fk_order_item_order FOREIGN KEY (id_order) REFERENCES dbo.customer_order (id_order)
@@ -158,12 +158,12 @@ CREATE TABLE {db}.dbo.payment (
     id_order            INT           NOT NULL,
     amount              DECIMAL(10,2) NOT NULL,
     currency            CHAR(3)       NOT NULL,
-    payment_date        DATETIME      NOT NULL,
+    payment_date        DATETIME2(3)      NOT NULL,
     method              VARCHAR(8)    NOT NULL,
     external_reference  VARCHAR(50)   NULL,
     status              VARCHAR(9)    NOT NULL,
     source_node         VARCHAR(20)   NOT NULL,
-    updated_at          DATETIME      NOT NULL,
+    updated_at          DATETIME2(3)      NOT NULL,
     deleted             BIT           NOT NULL,
     CONSTRAINT pk_payment PRIMARY KEY (id_payment),
     CONSTRAINT fk_payment_order FOREIGN KEY (id_order) REFERENCES dbo.customer_order (id_order)

@@ -14,10 +14,10 @@ try {
     if ($SQL_Sentence->rowCount() != 0) {
         $AbsenceTypeId = $body['id_absence_type']; // PK is set manually (no AUTO_INCREMENT)
     } else {
-        $AbsenceTypeId = 'Error: Cannot create new record';
+        $DB_Error = api_error(400, 'No se pudo crear el registro.');
     };
 }
 catch (PDOException $ex) {
-    $AbsenceTypeId = 'Error: ' . $ex->getMessage();
+    $DB_Error = api_db_error($ex);
 };
 ?>

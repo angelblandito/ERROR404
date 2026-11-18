@@ -1,4 +1,4 @@
-/* =====================================================================
+﻿/* =====================================================================
    JAM - Base de datos distribuida
    02. Fragmentación vertical de customer
    ---------------------------------------------------------------------
@@ -25,12 +25,12 @@ CREATE TABLE dbo.customer_profile (
     id_customer         INT          NOT NULL,
     id_loyalty_level    TINYINT      NOT NULL,
     id_store            INT          NOT NULL,
-    first_name          VARCHAR(50)  NOT NULL,
-    last_name_paternal  VARCHAR(50)  NOT NULL,
-    last_name_maternal  VARCHAR(50)  NULL,
+    first_name          NVARCHAR(50)  NOT NULL,
+    last_name_paternal  NVARCHAR(50)  NOT NULL,
+    last_name_maternal  NVARCHAR(50)  NULL,
     accepts_marketing   BIT          NOT NULL,
     source_node         VARCHAR(20)  NOT NULL,
-    updated_at          DATETIME     NOT NULL,
+    updated_at          DATETIME2(3)     NOT NULL,
     deleted             BIT          NOT NULL,
     CONSTRAINT pk_customer_profile PRIMARY KEY (id_customer)
 );
@@ -47,7 +47,7 @@ CREATE TABLE dist.customer_private (
     sex           CHAR(1)       NOT NULL,
     phone         VARCHAR(15)   NOT NULL,
     email         VARCHAR(100)  NOT NULL,
-    updated_at    DATETIME      NOT NULL,
+    updated_at    DATETIME2(3)      NOT NULL,
     CONSTRAINT pk_customer_private PRIMARY KEY (id_customer),
     CONSTRAINT ck_customer_private_sex CHECK (sex IN ('M','F','X'))
 );

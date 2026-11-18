@@ -14,10 +14,10 @@ try {
     if ($SQL_Sentence->rowCount() != 0) {
         $StateId = $body['id_state']; // PK is set manually (no AUTO_INCREMENT)
     } else {
-        $StateId = 'Error: Cannot create new record';
+        $DB_Error = api_error(400, 'No se pudo crear el registro.');
     };
 }
 catch (PDOException $ex) {
-    $StateId = 'Error: ' . $ex->getMessage();
+    $DB_Error = api_db_error($ex);
 };
 ?>

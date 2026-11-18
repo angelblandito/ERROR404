@@ -30,10 +30,10 @@ try {
     if ($SQL_Sentence->rowCount() != 0) {
         $CustomerOrderId = $DB_Connector->lastInsertId(); // Get newly created record ID
     } else {
-        $CustomerOrderId = 'Error: Cannot create new record';
+        $DB_Error = api_error(400, 'No se pudo crear el registro.');
     };
 }
 catch (PDOException $ex) {
-    $CustomerOrderId = 'Error: ' . $ex->getMessage();
+    $DB_Error = api_db_error($ex);
 };
 ?>

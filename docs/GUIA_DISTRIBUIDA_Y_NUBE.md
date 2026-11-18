@@ -15,24 +15,23 @@ El proyecto cubre los cuatro puntos del pizarrón:
 ## 1. Arquitectura
 
 ```
-                         ┌──────────────────────────── Local (SQL Server 2022 Developer) ───────────────────────────┐
-                         │                                                                                            │
-   Navegador ──► API ───►│  JAM_db (central)  ──pub_catalogo──►  JAM_tijuana   JAM_cdmx   JAM_online                  │
-   (index.html)  (PHP)   │     │   publicador         (replicación    fragmento     fragmento  fragmento + perfil         │
-                         │     │   + dist.customer_private   transaccional)  id_store=1  id_store=2  id_store=4 de clientes   │
-                         │     │                                                                                      │
-                         └─────┼──────────────────────────────────────────────────────────────────────────────────────┘
-                               │ pub_completa (replicación transaccional por internet)
-                               ▼
-                 ┌───────────────── Azure SQL ─────────────────┐
-                 │  jam-sql-principal / JAM_cloud  (PRIMARY)    │
-                 │            │ geo-replicación (espejo)        │
-                 │            ▼                                 │
-                 │  jam-sql-espejo / JAM_cloud     (SECONDARY)  │
-                 │  Listener: jam-fog.database.windows.net      │
-                 └──────────────────────────────────────────────┘
-                               ▲
-          API en Azure App Service (solo lectura) + frontend en Azure Static Web Apps
+LOCAL · SQL Server 2022 Developer
+  JAM_db  (nodo central: publicador, catálogo maestro, dist.customer_private)
+    ├─ fragmentos + pub_catalogo ─► JAM_tijuana   id_store = 1
+    ├─ fragmentos + pub_catalogo ─► JAM_cdmx      id_store = 2
+    ├─ fragmentos + pub_catalogo ─► JAM_online    id_store = 4  + customer_profile
+    └─ pub_completa (internet) ───► Azure SQL
+
+AZURE
+  jam-sql-principal / JAM_cloud  (PRIMARY)
+        │  geo-replicación = espejo
+        ▼
+  jam-sql-espejo / JAM_cloud     (SECONDARY)
+  Listener del grupo: jam-fog.database.windows.net
+
+USO
+  Local: navegador ─► API PHP (php -S :8080) ─► JAM_db y nodos
+  Nube:  Static Web Apps ─► App Service (API, solo lectura) ─► jam-fog (principal o espejo)
 ```
 
 ### 1.1 Fragmentación horizontal (`01_fragmentacion_horizontal.sql`)
@@ -202,7 +201,6 @@ az webapp config appsettings set -n $APP -g $RG --settings `
   JAM_CLOUD_DB=JAM_cloud JAM_CLOUD_USER=jamadmin JAM_CLOUD_PASSWORD=$PWD_SQL
 
 az webapp config set -n $APP -g $RG --startup-file "bash /home/site/wwwroot/azure/startup.sh"
-az webapp cors add -n $APP -g $RG --allowed-origins "*"
 
 # Publicar el contenido de api/v1/php
 cd C:\xampp\htdocs\ERROR404\api\v1\php
@@ -212,6 +210,7 @@ az webapp deploy -n $APP -g $RG --src-path ..\api.zip --type zip
 
 - Si `PHP:8.3` no aparece, revisar los disponibles con `az webapp list-runtimes --os linux`.
 - Comprobar `https://jam-api-<sufijo>.azurewebsites.net/health-check` → `"pdo_sqlsrv": true`.
+- No activar CORS en el portal de App Service: la API ya envía sus encabezados CORS y duplicarlos hace que el navegador rechace la respuesta.
 - `settings.php` no se sube: en Azure la configuración sale de las variables de entorno.
 - El plan B1 tiene costo (se cubre con el crédito de estudiante). Apagar o borrar el grupo al terminar: `az group delete -n rg-jam`.
 

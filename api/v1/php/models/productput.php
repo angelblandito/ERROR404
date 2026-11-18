@@ -8,10 +8,14 @@ try {
         base_price = :base_price, 
         source_node = :source_node 
         WHERE 
-        id_product = :id_product';
+        deleted = 0 AND 
+        id_product = :id_product AND 
+        (:rv_check IS NULL OR row_version = CAST(CAST(:rv_value AS BIGINT) AS BINARY(8)))';
         
     $SQL_Sentence = $DB_Connector->prepare($SQL_Query);
     $SQL_Sentence->bindParam(':id_product', $resourceId, PDO::PARAM_INT);
+    $SQL_Sentence->bindValue(':rv_check', $body['row_version'] ?? null, PDO::PARAM_STR);
+    $SQL_Sentence->bindValue(':rv_value', $body['row_version'] ?? null, PDO::PARAM_STR);
     $SQL_Sentence->bindParam(':id_category', $body['id_category'], PDO::PARAM_INT);
     $SQL_Sentence->bindParam(':name', $body['name'], PDO::PARAM_STR);
     $SQL_Sentence->bindParam(':description', $body['description'], PDO::PARAM_STR);
@@ -23,10 +27,12 @@ try {
     if ($SQL_Sentence->rowCount() != 0) {
         $newData = $body;
     } else {
-        $newData = 'Error: Cannot update record';
+        $DB_Error = isset($body['row_version'])
+            ? api_error(409, 'El registro fue modificado por otro usuario. Vuelva a cargarlo.')
+            : api_error(404, 'El registro no existe o fue eliminado.');
     };
 }
 catch (PDOException $ex) {
-    $newData = "Hubo un error!!!!!!!!!!!!";
+    $DB_Error = api_db_error($ex);
 };
 ?>

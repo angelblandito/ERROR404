@@ -1,7 +1,8 @@
 <?php
 try {
-    $SQL_Query = 'DELETE FROM customer_order 
+    $SQL_Query = 'UPDATE customer_order SET deleted = 1 
         WHERE 
+        deleted = 0 AND 
         id_order = :id_order';
         
     $SQL_Sentence = $DB_Connector->prepare($SQL_Query);
@@ -9,12 +10,12 @@ try {
     $SQL_Sentence->execute();
     
     if ($SQL_Sentence->rowCount() != 0) {
-        $newData = "BORRADO";
+        $newData = ['deleted' => true];
     } else {
-        $newData = 'Error: Cannot delete record';
+        $DB_Error = api_error(404, 'El registro no existe o ya fue eliminado.');
     };
 }
 catch (PDOException $ex) {
-    $newData = "Hubo un error!!!!!!!!!!!!";
+    $DB_Error = api_db_error($ex);
 };
 ?>

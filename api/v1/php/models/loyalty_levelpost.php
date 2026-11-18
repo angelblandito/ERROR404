@@ -18,10 +18,10 @@ try {
     if ($SQL_Sentence->rowCount() != 0) {
         $LoyaltyLevelId = $body['id_loyalty_level']; // PK is set manually (no AUTO_INCREMENT)
     } else {
-        $LoyaltyLevelId = 'Error: Cannot create new record';
+        $DB_Error = api_error(400, 'No se pudo crear el registro.');
     };
 }
 catch (PDOException $ex) {
-    $LoyaltyLevelId = 'Error: ' . $ex->getMessage();
+    $DB_Error = api_db_error($ex);
 };
 ?>

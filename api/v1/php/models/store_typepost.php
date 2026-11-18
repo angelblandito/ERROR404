@@ -14,10 +14,10 @@ try {
     if ($SQL_Sentence->rowCount() != 0) {
         $StoreTypeId = $body['id_store_type']; // PK is set manually (no AUTO_INCREMENT)
     } else {
-        $StoreTypeId = 'Error: Cannot create new record';
+        $DB_Error = api_error(400, 'No se pudo crear el registro.');
     };
 }
 catch (PDOException $ex) {
-    $StoreTypeId = 'Error: ' . $ex->getMessage();
+    $DB_Error = api_db_error($ex);
 };
 ?>

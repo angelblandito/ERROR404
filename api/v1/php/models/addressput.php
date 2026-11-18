@@ -11,6 +11,7 @@ try {
         reference = :reference, 
         source_node = :source_node 
         WHERE 
+        deleted = 0 AND 
         id_address = :id_address';
         
     $SQL_Sentence = $DB_Connector->prepare($SQL_Query);
@@ -29,10 +30,10 @@ try {
     if ($SQL_Sentence->rowCount() != 0) {
         $newData = $body;
     } else {
-        $newData = 'Error: Cannot update record';
+        $DB_Error = api_error(404, 'El registro no existe o fue eliminado.');
     };
 }
 catch (PDOException $ex) {
-    $newData = "Hubo un error!!!!!!!!!!!!";
+    $DB_Error = api_db_error($ex);
 };
 ?>
