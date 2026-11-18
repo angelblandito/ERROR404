@@ -6,6 +6,7 @@ try {
         description = :description, 
         target_gender = :target_gender, 
         base_price = :base_price, 
+        age_segment = COALESCE(:age_segment, age_segment), 
         source_node = :source_node 
         WHERE 
         deleted = 0 AND 
@@ -21,6 +22,7 @@ try {
     $SQL_Sentence->bindParam(':description', $body['description'], PDO::PARAM_STR);
     $SQL_Sentence->bindParam(':target_gender', $body['target_gender'], PDO::PARAM_STR);
     $SQL_Sentence->bindParam(':base_price', $body['base_price'], PDO::PARAM_STR);
+    $SQL_Sentence->bindValue(':age_segment', $body['age_segment'] ?? null, PDO::PARAM_STR);
     $SQL_Sentence->bindParam(':source_node', $body['source_node'], PDO::PARAM_STR);
     $SQL_Sentence->execute();
     

@@ -116,6 +116,28 @@ if ($method === 'GET' && $uri === '/health-check') {
         'message' => 'Pedido creado'
     ], JSON_UNESCAPED_UNICODE);
 
+} else if ($method === 'GET' && $uri === '/season_theme/current') {
+    require_once("models/season_themecurrent.php");
+    api_fail_if_error();
+    http_response_code(200);
+
+    echo json_encode([
+        'success' => true,
+        'data' => $Elements,
+        'message' => 'Temporada vigente'
+    ], JSON_UNESCAPED_UNICODE);
+
+} else if ($method === 'GET' && $uri === '/season_theme') {
+    require_once("models/season_themeselect.php");
+    api_fail_if_error();
+    http_response_code(200);
+
+    echo json_encode([
+        'success' => true,
+        'data' => $Elements,
+        'message' => 'Consulta realizada'
+    ], JSON_UNESCAPED_UNICODE);
+
 } else if ($method === 'GET' && $uri === '/role') {
     require_once("models/roleselect.php");
     api_fail_if_error();

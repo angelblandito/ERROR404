@@ -3,7 +3,8 @@
 /* =====================================================================
    JAM Sport - frontend
    Vistas (menú de 4 opciones):
-     1. Tienda             catálogo, carrito y creación de pedidos
+     1. Tienda             catálogo (calzado, ropa, accesorios), carrito y pedidos
+                           con paleta de colores según la temporada
      2. Inventario         fragmentos horizontales de inventory por nodo
      3. Pedidos            fragmentos horizontales de customer_order
      4. Base distribuida   nodos, fragmentación, replicación y espejo
@@ -30,6 +31,21 @@ const ORDER_STATUS = {
 
 const CHANNEL = { in_store: 'En tienda', online: 'En línea', whatsapp: 'WhatsApp' };
 
+const SEGMENT = { youth: 'Juvenil 15–24', adult: 'Adulto 25–45', all: '15–45 años' };
+const GENDER = { M: 'Hombre', F: 'Mujer', U: 'Unisex' };
+
+/* Copia local de season_theme, usada solo si la API no responde. */
+const FALLBACK_THEMES = [
+    { code: 'spring', name: 'Primavera', theme_type: 'season', range: [320, 620], priority: 1, color_primary: '#1D4D3A', color_secondary: '#2A6B50', color_accent: '#FFB3C7', color_accent_text: '#1D4D3A', hero_title: 'Renueva tu rutina', hero_text: 'Colores frescos y prendas ligeras para entrenar al aire libre.' },
+    { code: 'summer', name: 'Verano', theme_type: 'season', range: [621, 922], priority: 1, color_primary: '#0B3D5C', color_secondary: '#0E5A85', color_accent: '#FFD23F', color_accent_text: '#0B3D5C', hero_title: 'Verano en movimiento', hero_text: 'Shorts, tops y tenis transpirables para los días de más calor.' },
+    { code: 'autumn', name: 'Otoño', theme_type: 'season', range: [923, 1220], priority: 1, color_primary: '#3B1F14', color_secondary: '#5A2E1B', color_accent: '#FF8C42', color_accent_text: '#3B1F14', hero_title: 'Entrena en otoño', hero_text: 'Capas ligeras, rompevientos y tenis para correr con el clima fresco.' },
+    { code: 'winter', name: 'Invierno', theme_type: 'season', range: [1221, 319], priority: 1, color_primary: '#0F1D3D', color_secondary: '#1C2F5E', color_accent: '#9BE7FF', color_accent_text: '#0F1D3D', hero_title: 'Invierno sin pausa', hero_text: 'Sudaderas, chamarras y leggings térmicos para no dejar de moverte.' },
+    { code: 'back_to_school', name: 'Regreso a clases', theme_type: 'campaign', range: [801, 831], priority: 5, color_primary: '#1E1B4B', color_secondary: '#312E81', color_accent: '#FACC15', color_accent_text: '#1E1B4B', hero_title: 'Regreso a clases', hero_text: 'Mochilas, tenis y uniformes deportivos para el nuevo ciclo escolar.' },
+    { code: 'buen_fin', name: 'El Buen Fin', theme_type: 'campaign', range: [1113, 1117], priority: 9, color_primary: '#7A0019', color_secondary: '#A3001F', color_accent: '#FFD000', color_accent_text: '#3A0010', hero_title: 'El Buen Fin JAM', hero_text: 'Descuentos en calzado, ropa y accesorios del 13 al 17 de noviembre.' },
+    { code: 'black_friday', name: 'Black Friday', theme_type: 'campaign', range: [1120, 1130], priority: 9, color_primary: '#0A0A0A', color_secondary: '#262626', color_accent: '#FF2D55', color_accent_text: '#FFFFFF', hero_title: 'Black Friday', hero_text: 'Hasta 25% de descuento con el cupón BLACKFRIDAY.' },
+    { code: 'christmas', name: 'Navidad', theme_type: 'campaign', range: [1201, 106], priority: 8, color_primary: '#14351F', color_secondary: '#1E4D2B', color_accent: '#E63946', color_accent_text: '#FFFFFF', hero_title: 'Regala movimiento', hero_text: 'Ideas de regalo deportivas para jóvenes y adultos.' }
+];
+
 const state = {
     products: [],
     categories: [],
@@ -41,6 +57,10 @@ const state = {
     customers: [],
     cart: loadCart(),
     activeCategory: 'all',
+    department: 'all',
+    segment: 'all',
+    gender: 'all',
+    themes: [],
     search: '',
     inventoryNode: 'all',
     storeLoaded: false
@@ -199,6 +219,77 @@ async function checkApi() {
 }
 
 /* ---------------------------------------------------------------------
+   Paleta por temporada (tabla season_theme)
+   --------------------------------------------------------------------- */
+function localDate() {
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+function fallbackThemeFor(date) {
+    const md = Number(date.slice(5, 7)) * 100 + Number(date.slice(8, 10));
+    return FALLBACK_THEMES.filter(function (t) {
+        const start = t.range[0];
+        const end = t.range[1];
+        return start <= end ? (md >= start && md <= end) : (md >= start || md <= end);
+    }).sort(function (a, b) { return b.priority - a.priority; })[0];
+}
+
+function applyTheme(theme) {
+    if (!theme) return;
+    const root = document.documentElement.style;
+    root.setProperty('--brand', theme.color_primary);
+    root.setProperty('--brand-2', theme.color_secondary);
+    root.setProperty('--accent', theme.color_accent);
+    root.setProperty('--accent-ink', theme.color_accent_text);
+    document.documentElement.dataset.theme = theme.code;
+    document.querySelector('meta[name="theme-color"]').setAttribute('content', theme.color_primary);
+
+    $('#heroEyebrow').textContent = theme.name + ' · Para jóvenes y adultos de 15 a 45 años';
+    $('#tituloTienda').textContent = theme.hero_title;
+    $('#heroText').textContent = theme.hero_text;
+}
+
+function savedThemeChoice() {
+    const fromUrl = new URLSearchParams(window.location.search).get('temporada');
+    if (fromUrl) return fromUrl;
+    try {
+        return localStorage.getItem('jam_theme') || 'auto';
+    } catch (e) {
+        return 'auto';
+    }
+}
+
+async function loadTheme() {
+    try {
+        state.themes = await api('/season_theme');
+    } catch (e) {
+        state.themes = FALLBACK_THEMES;
+    }
+
+    $('#seasonSelect').innerHTML = '<option value="auto">Automática (según la fecha)</option>' +
+        state.themes.map(function (t) {
+            return '<option value="' + esc(t.code) + '">' + esc(t.name) + (t.theme_type === 'campaign' ? ' · campaña' : '') + '</option>';
+        }).join('');
+
+    const choice = savedThemeChoice();
+    $('#seasonSelect').value = state.themes.some(function (t) { return t.code === choice; }) ? choice : 'auto';
+    await selectTheme($('#seasonSelect').value);
+}
+
+async function selectTheme(code) {
+    if (code !== 'auto') {
+        applyTheme(state.themes.find(function (t) { return t.code === code; }));
+        return;
+    }
+    try {
+        applyTheme(await api('/season_theme/current?date=' + localDate()));
+    } catch (e) {
+        applyTheme(fallbackThemeFor(localDate()));
+    }
+}
+
+/* ---------------------------------------------------------------------
    1. Tienda
    --------------------------------------------------------------------- */
 async function loadStore(force) {
@@ -237,7 +328,14 @@ async function loadStore(force) {
 }
 
 function renderCategoryChips() {
-    const chips = [{ id: 'all', name: 'Todo' }].concat(state.categories.map(function (c) {
+    const categories = state.categories.filter(function (c) {
+        return state.department === 'all' || c.department === state.department;
+    });
+    if (categories.length <= 1) {
+        $('#categoryChips').innerHTML = '';
+        return;
+    }
+    const chips = [{ id: 'all', name: 'Todas las categorías' }].concat(categories.map(function (c) {
         return { id: String(c.id_category), name: c.name };
     }));
 
@@ -267,9 +365,14 @@ function availabilityHtml(idVariant) {
 function renderProducts() {
     const search = state.search.trim().toLowerCase();
     const list = state.products.filter(function (p) {
+        const category = state.categories.find(function (c) { return Number(c.id_category) === Number(p.id_category); });
+        const matchDepartment = state.department === 'all' || (category && category.department === state.department);
         const matchCategory = state.activeCategory === 'all' || String(p.id_category) === state.activeCategory;
+        const segment = p.age_segment || 'all';
+        const matchSegment = state.segment === 'all' || segment === 'all' || segment === state.segment;
+        const matchGender = state.gender === 'all' || p.target_gender === state.gender || p.target_gender === 'U';
         const text = (p.name + ' ' + (p.description || '')).toLowerCase();
-        return matchCategory && (!search || text.indexOf(search) >= 0);
+        return matchDepartment && matchCategory && matchSegment && matchGender && (!search || text.indexOf(search) >= 0);
     });
 
     if (!list.length) {
@@ -292,6 +395,7 @@ function renderProducts() {
                 '<span class="product-category">' + esc(category ? category.name : '') + '</span>' +
                 '<h3 class="product-name">' + esc(p.name) + '</h3>' +
                 '<p class="product-desc">' + esc(p.description || '') + '</p>' +
+                '<div class="product-tags">' + badge(SEGMENT[p.age_segment || 'all'], 'info') + badge(GENDER[p.target_gender] || '') + '</div>' +
                 '<span class="price">' + money.format(Number(p.base_price)) + '</span>' +
                 (variants.length
                     ? '<select class="input variant-select" aria-label="Talla y color de ' + esc(p.name) + '">' + options + '</select>' +
@@ -792,6 +896,39 @@ function bindEvents() {
         renderProducts();
     });
 
+    $('#departmentTabs').addEventListener('click', function (e) {
+        const tab = e.target.closest('button[data-department]');
+        if (!tab) return;
+        state.department = tab.dataset.department;
+        state.activeCategory = 'all';
+        document.querySelectorAll('#departmentTabs button').forEach(function (b) {
+            const active = b === tab;
+            b.classList.toggle('active', active);
+            b.setAttribute('aria-selected', String(active));
+        });
+        renderCategoryChips();
+        renderProducts();
+    });
+
+    $('#segmentFilter').addEventListener('change', function (e) {
+        state.segment = e.target.value;
+        renderProducts();
+    });
+
+    $('#genderFilter').addEventListener('change', function (e) {
+        state.gender = e.target.value;
+        renderProducts();
+    });
+
+    $('#seasonSelect').addEventListener('change', function (e) {
+        try {
+            localStorage.setItem('jam_theme', e.target.value);
+        } catch (err) {
+            /* La elección dura solo esta visita. */
+        }
+        selectTheme(e.target.value);
+    });
+
     $('#categoryChips').addEventListener('click', function (e) {
         const chip = e.target.closest('.chip');
         if (!chip) return;
@@ -851,5 +988,6 @@ document.addEventListener('DOMContentLoaded', function () {
     bindEvents();
     renderCart();
     checkApi();
+    loadTheme();
     showView();
 });

@@ -2,7 +2,7 @@
 try {
     [$Offset, $PageSize] = api_page();
 
-    $SQL_Query = 'SELECT id_product, id_category, name, description, target_gender, base_price, source_node, updated_at, deleted, CAST(row_version AS BIGINT) AS row_version
+    $SQL_Query = 'SELECT id_product, id_category, name, description, target_gender, base_price, age_segment, source_node, updated_at, deleted, CAST(row_version AS BIGINT) AS row_version
         FROM product
         WHERE deleted = 0
         ORDER BY id_product

@@ -26,7 +26,7 @@ const DIST_FRAGMENT_TABLES = ['employee', 'inventory', 'customer_order', 'order_
 
 const DIST_REPLICATED_TABLES = [
     'role', 'store_type', 'category', 'size', 'color', 'loyalty_level', 'absence_type',
-    'state', 'store', 'store_config', 'product', 'product_variant', 'promotion',
+    'state', 'season_theme', 'store', 'store_config', 'product', 'product_variant', 'promotion',
 ];
 
 const DIST_SUBSCRIBERS = ['tijuana', 'cdmx', 'online', 'cloud'];

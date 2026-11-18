@@ -46,17 +46,19 @@ CREATE TABLE category (
     id_category TINYINT NOT NULL PRIMARY KEY,
     code        VARCHAR(11) NOT NULL,
     name        NVARCHAR(20) NOT NULL,
-    CONSTRAINT uq_category_code UNIQUE (code)
+    department  VARCHAR(11) NOT NULL,
+    CONSTRAINT uq_category_code UNIQUE (code),
+    CONSTRAINT ck_category_department CHECK (department IN ('apparel','footwear','accessories'))
 );
 GO
 
-INSERT INTO category (id_category, code, name) VALUES
-(1, 'tops',        'Parte Superior'),
-(2, 'bottoms',     'Parte Inferior'),
-(3, 'leggings',    'Leggings'),
-(4, 'hoodies',     'Sudaderas'),
-(5, 'footwear',    'Calzado'),
-(6, 'accessories', 'Accesorios');
+INSERT INTO category (id_category, code, name, department) VALUES
+(1, 'tops',        'Parte Superior', 'apparel'),
+(2, 'bottoms',     'Parte Inferior', 'apparel'),
+(3, 'leggings',    'Leggings', 'apparel'),
+(4, 'hoodies',     'Sudaderas', 'apparel'),
+(5, 'footwear',    'Calzado', 'footwear'),
+(6, 'accessories', 'Accesorios', 'accessories');
 GO
 
 CREATE TABLE size (
@@ -78,6 +80,12 @@ INSERT INTO size (id_size, code, name) VALUES
 (8, '27',  'Calzado 27');
 GO
 
+INSERT INTO size (id_size, code, name) VALUES
+(9,  'UNI', 'Unitalla'),
+(10, '25',  'Calzado 25'),
+(11, '28',  'Calzado 28');
+GO
+
 CREATE TABLE color (
     id_color TINYINT NOT NULL PRIMARY KEY,
     code     VARCHAR(5) NOT NULL,
@@ -92,6 +100,12 @@ INSERT INTO color (id_color, code, name) VALUES
 (3, 'red',   'Rojo'),
 (4, 'navy',  'Azul Marino'),
 (5, 'gray',  'Gris');
+GO
+
+INSERT INTO color (id_color, code, name) VALUES
+(6, 'pink',  'Rosa'),
+(7, 'green', 'Verde'),
+(8, 'blue',  'Azul Rey');
 GO
 
 CREATE TABLE loyalty_level (
@@ -142,6 +156,50 @@ INSERT INTO state (id_state, code, name) VALUES
 (3, 'JAL', 'Jalisco'),
 (4, 'NLE', 'Nuevo León'),
 (5, 'SON', 'Sonora');
+GO
+
+-- Temporadas visuales de la tienda: la página toma su paleta de colores de
+-- aquí según la fecha. Las estaciones se repiten cada año; las campañas
+-- tienen mayor prioridad y se sobreponen a la estación vigente.
+CREATE TABLE season_theme (
+    id_theme          TINYINT       NOT NULL PRIMARY KEY,
+    code              VARCHAR(20)   NOT NULL,
+    name              NVARCHAR(40)  NOT NULL,
+    theme_type        VARCHAR(8)    NOT NULL,
+    start_month       TINYINT       NOT NULL,
+    start_day         TINYINT       NOT NULL,
+    end_month         TINYINT       NOT NULL,
+    end_day           TINYINT       NOT NULL,
+    priority          TINYINT       NOT NULL,
+    color_primary     CHAR(7)       NOT NULL,
+    color_secondary   CHAR(7)       NOT NULL,
+    color_accent      CHAR(7)       NOT NULL,
+    color_accent_text CHAR(7)       NOT NULL,
+    hero_title        NVARCHAR(80)  NOT NULL,
+    hero_text         NVARCHAR(160) NOT NULL,
+    active            BIT           NOT NULL DEFAULT 1,
+    CONSTRAINT uq_season_theme_code UNIQUE (code),
+    CONSTRAINT ck_season_theme_type CHECK (theme_type IN ('season','campaign')),
+    CONSTRAINT ck_season_theme_months CHECK (start_month BETWEEN 1 AND 12 AND end_month BETWEEN 1 AND 12),
+    CONSTRAINT ck_season_theme_days CHECK (start_day BETWEEN 1 AND 31 AND end_day BETWEEN 1 AND 31),
+    CONSTRAINT ck_season_theme_colors CHECK (
+        color_primary     LIKE '#[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]' AND
+        color_secondary   LIKE '#[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]' AND
+        color_accent      LIKE '#[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]' AND
+        color_accent_text LIKE '#[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]')
+);
+GO
+
+INSERT INTO season_theme (id_theme, code, name, theme_type, start_month, start_day, end_month, end_day, priority,
+                          color_primary, color_secondary, color_accent, color_accent_text, hero_title, hero_text) VALUES
+(1, 'spring',        'Primavera',          'season',    3, 20,  6, 20, 1, '#1D4D3A', '#2A6B50', '#FFB3C7', '#1D4D3A', 'Renueva tu rutina',          'Colores frescos y prendas ligeras para entrenar al aire libre.'),
+(2, 'summer',        'Verano',             'season',    6, 21,  9, 22, 1, '#0B3D5C', '#0E5A85', '#FFD23F', '#0B3D5C', 'Verano en movimiento',       'Shorts, tops y tenis transpirables para los días de más calor.'),
+(3, 'autumn',        'Otoño',              'season',    9, 23, 12, 20, 1, '#3B1F14', '#5A2E1B', '#FF8C42', '#3B1F14', 'Entrena en otoño',           'Capas ligeras, rompevientos y tenis para correr con el clima fresco.'),
+(4, 'winter',        'Invierno',           'season',   12, 21,  3, 19, 1, '#0F1D3D', '#1C2F5E', '#9BE7FF', '#0F1D3D', 'Invierno sin pausa',         'Sudaderas, chamarras y leggings térmicos para no dejar de moverte.'),
+(5, 'back_to_school','Regreso a clases',   'campaign',  8,  1,  8, 31, 5, '#1E1B4B', '#312E81', '#FACC15', '#1E1B4B', 'Regreso a clases',           'Mochilas, tenis y uniformes deportivos para el nuevo ciclo escolar.'),
+(6, 'buen_fin',      'El Buen Fin',        'campaign', 11, 13, 11, 17, 9, '#7A0019', '#A3001F', '#FFD000', '#3A0010', 'El Buen Fin JAM',            'Descuentos en calzado, ropa y accesorios del 13 al 17 de noviembre.'),
+(7, 'black_friday',  'Black Friday',       'campaign', 11, 20, 11, 30, 9, '#0A0A0A', '#262626', '#FF2D55', '#FFFFFF', 'Black Friday',               'Hasta 25% de descuento con el cupón BLACKFRIDAY.'),
+(8, 'christmas',     'Navidad',            'campaign', 12,  1,  1,  6, 8, '#14351F', '#1E4D2B', '#E63946', '#FFFFFF', 'Regala movimiento',          'Ideas de regalo deportivas para jóvenes y adultos.');
 GO
 
 
@@ -418,13 +476,15 @@ CREATE TABLE product (
     description     NVARCHAR(255) NULL,
     target_gender   CHAR(1) NOT NULL,
     base_price      DECIMAL(8,2) NOT NULL,
+    age_segment     VARCHAR(5) NOT NULL CONSTRAINT df_product_age_segment DEFAULT 'all',
     -- columnas de consolidación
     source_node     VARCHAR(20) NOT NULL,
     updated_at      DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
     deleted         BIT NOT NULL DEFAULT 0,
     CONSTRAINT fk_product_category FOREIGN KEY (id_category) REFERENCES category (id_category),
     CONSTRAINT ck_product_target_gender CHECK (target_gender IN ('M','F','U')),
-    CONSTRAINT ck_product_base_price CHECK (base_price >= 0)
+    CONSTRAINT ck_product_base_price CHECK (base_price >= 0),
+    CONSTRAINT ck_product_age_segment CHECK (age_segment IN ('youth','adult','all'))
 );
 GO
 
@@ -434,6 +494,27 @@ INSERT INTO product (id_category, name, description, target_gender, base_price, 
 (3, 'Legging Compresión JAM Flex',     'Legging de compresión para entrenar','F', 520.00, 'catalog_node'),
 (4, 'Sudadera Hoodie JAM Core',        'Sudadera con capucha de algodón',    'U', 750.00, 'catalog_node'),
 (5, 'Tenis Trainer JAM Stride',        'Tenis para entrenamiento multiuso',  'U',1850.00, 'catalog_node');
+GO
+
+-- Catálogo ampliado: calzado, ropa y accesorios para jóvenes (15-24) y adultos (25-45)
+INSERT INTO product (id_category, name, description, target_gender, base_price, age_segment, source_node) VALUES
+(5, 'Tenis Running JAM Pulse', 'Tenis ligero con amortiguación para distancias largas', 'U', 1650.00, 'adult', 'catalog_node'),
+(5, 'Tenis Urbanos JAM Street', 'Tenis casuales de estilo urbano para diario', 'U', 1290.00, 'youth', 'catalog_node'),
+(5, 'Tenis Basketball JAM Jump', 'Tenis de caña alta con soporte de tobillo', 'M', 1990.00, 'youth', 'catalog_node'),
+(5, 'Sandalias JAM Recovery Slide', 'Sandalias acolchadas para después de entrenar', 'U', 450.00, 'all', 'catalog_node'),
+(1, 'Top Deportivo JAM Core', 'Top de soporte medio con tela de secado rápido', 'F', 390.00, 'all', 'catalog_node'),
+(1, 'Jersey Futbol JAM Club', 'Jersey transpirable para futbol y entrenamiento', 'U', 650.00, 'youth', 'catalog_node'),
+(2, 'Pants Jogger JAM Move', 'Pants jogger con puños y bolsillos con cierre', 'U', 690.00, 'youth', 'catalog_node'),
+(4, 'Chamarra Rompevientos JAM Storm', 'Chamarra ligera contra viento y lluvia', 'U', 1190.00, 'adult', 'catalog_node'),
+(3, 'Leggings JAM Seamless', 'Leggings sin costuras de cintura alta', 'F', 590.00, 'adult', 'catalog_node'),
+(6, 'Gorra JAM Sport Cap', 'Gorra ajustable de secado rápido', 'U', 290.00, 'youth', 'catalog_node'),
+(6, 'Mochila JAM Gym Pack', 'Mochila de 25 L con compartimento para tenis', 'U', 890.00, 'all', 'catalog_node'),
+(6, 'Botella Térmica JAM 750 ml', 'Botella de acero que conserva la temperatura 12 horas', 'U', 350.00, 'all', 'catalog_node'),
+(6, 'Calcetas JAM Pro (3 pares)', 'Calcetas acolchadas para correr', 'U', 220.00, 'all', 'catalog_node');
+GO
+
+UPDATE product SET age_segment = 'adult' WHERE id_product IN (2, 3);
+UPDATE product SET age_segment = 'youth' WHERE id_product = 4;
 GO
 
 CREATE TABLE product_variant (
@@ -458,6 +539,33 @@ INSERT INTO product_variant (id_product, id_size, id_color, sku, source_node) VA
 (3, 2, 1, 'JAM-FLX-S-BLK',  'catalog_node'),
 (4, 4, 5, 'JAM-CORE-L-GRY', 'catalog_node'),
 (5, 8, 2, 'JAM-STR-27-WHT', 'catalog_node');
+GO
+
+INSERT INTO product_variant (id_product, id_size, id_color, sku, source_node) VALUES
+(6, 7, 1, 'JAM-PLS-26-BLK', 'catalog_node'),
+(6, 8, 2, 'JAM-PLS-27-WHT', 'catalog_node'),
+(6, 11, 8, 'JAM-PLS-28-BLU', 'catalog_node'),
+(7, 7, 2, 'JAM-STT-26-WHT', 'catalog_node'),
+(7, 8, 1, 'JAM-STT-27-BLK', 'catalog_node'),
+(8, 8, 3, 'JAM-JMP-27-RED', 'catalog_node'),
+(8, 11, 1, 'JAM-JMP-28-BLK', 'catalog_node'),
+(9, 9, 1, 'JAM-SLD-UNI-BLK', 'catalog_node'),
+(10, 2, 6, 'JAM-TOP-S-PNK', 'catalog_node'),
+(10, 3, 1, 'JAM-TOP-M-BLK', 'catalog_node'),
+(11, 3, 7, 'JAM-CLB-M-GRN', 'catalog_node'),
+(11, 4, 2, 'JAM-CLB-L-WHT', 'catalog_node'),
+(12, 3, 5, 'JAM-JOG-M-GRY', 'catalog_node'),
+(12, 4, 1, 'JAM-JOG-L-BLK', 'catalog_node'),
+(13, 4, 4, 'JAM-STM-L-NVY', 'catalog_node'),
+(13, 5, 1, 'JAM-STM-XL-BLK', 'catalog_node'),
+(14, 2, 1, 'JAM-SML-S-BLK', 'catalog_node'),
+(14, 3, 8, 'JAM-SML-M-BLU', 'catalog_node'),
+(15, 9, 1, 'JAM-CAP-UNI-BLK', 'catalog_node'),
+(15, 9, 2, 'JAM-CAP-UNI-WHT', 'catalog_node'),
+(16, 9, 5, 'JAM-GYM-UNI-GRY', 'catalog_node'),
+(17, 9, 8, 'JAM-BTL-UNI-BLU', 'catalog_node'),
+(18, 2, 2, 'JAM-SCK-S-WHT', 'catalog_node'),
+(18, 3, 2, 'JAM-SCK-M-WHT', 'catalog_node');
 GO
 
 CREATE TABLE inventory (
@@ -485,6 +593,77 @@ INSERT INTO inventory (id_store, id_variant, stock, min_stock, source_node) VALU
 (2, 2, 60,  10, 'catalog_node'),
 (5, 5, 2,   5,  'catalog_node'),
 (4, 3, 100, 20, 'catalog_node');
+GO
+
+-- Existencias de la tienda en línea (4) y las sucursales Tijuana (1) y CDMX (2)
+INSERT INTO inventory (id_store, id_variant, stock, min_stock, source_node) VALUES
+(2, 1, 29, 5, 'catalog_node'),
+(4, 1, 11, 5, 'catalog_node'),
+(1, 2, 25, 5, 'catalog_node'),
+(4, 2, 18, 5, 'catalog_node'),
+(1, 3, 32, 5, 'catalog_node'),
+(2, 3, 3, 5, 'catalog_node'),
+(4, 4, 32, 5, 'catalog_node'),
+(2, 5, 17, 5, 'catalog_node'),
+(4, 5, 2, 5, 'catalog_node'),
+(1, 6, 13, 5, 'catalog_node'),
+(2, 6, 24, 5, 'catalog_node'),
+(4, 6, 6, 5, 'catalog_node'),
+(1, 7, 20, 5, 'catalog_node'),
+(2, 7, 2, 5, 'catalog_node'),
+(4, 7, 13, 5, 'catalog_node'),
+(1, 8, 2, 5, 'catalog_node'),
+(2, 8, 38, 5, 'catalog_node'),
+(1, 9, 34, 5, 'catalog_node'),
+(4, 9, 27, 5, 'catalog_node'),
+(2, 10, 12, 5, 'catalog_node'),
+(4, 10, 34, 5, 'catalog_node'),
+(1, 11, 8, 5, 'catalog_node'),
+(2, 11, 19, 5, 'catalog_node'),
+(4, 11, 1, 5, 'catalog_node'),
+(1, 12, 15, 5, 'catalog_node'),
+(2, 12, 26, 5, 'catalog_node'),
+(4, 12, 8, 5, 'catalog_node'),
+(1, 13, 22, 5, 'catalog_node'),
+(2, 13, 33, 5, 'catalog_node'),
+(1, 14, 29, 5, 'catalog_node'),
+(4, 14, 2, 5, 'catalog_node'),
+(2, 15, 7, 5, 'catalog_node'),
+(4, 15, 29, 5, 'catalog_node'),
+(1, 16, 3, 5, 'catalog_node'),
+(2, 16, 2, 5, 'catalog_node'),
+(4, 16, 36, 5, 'catalog_node'),
+(1, 17, 2, 5, 'catalog_node'),
+(2, 17, 21, 5, 'catalog_node'),
+(4, 17, 3, 5, 'catalog_node'),
+(1, 18, 17, 5, 'catalog_node'),
+(2, 18, 28, 5, 'catalog_node'),
+(1, 19, 24, 5, 'catalog_node'),
+(4, 19, 17, 5, 'catalog_node'),
+(2, 20, 2, 5, 'catalog_node'),
+(4, 20, 24, 5, 'catalog_node'),
+(1, 21, 38, 5, 'catalog_node'),
+(2, 21, 9, 5, 'catalog_node'),
+(4, 21, 31, 5, 'catalog_node'),
+(1, 22, 5, 5, 'catalog_node'),
+(2, 22, 16, 5, 'catalog_node'),
+(4, 22, 38, 5, 'catalog_node'),
+(1, 23, 12, 5, 'catalog_node'),
+(2, 23, 23, 5, 'catalog_node'),
+(1, 24, 19, 5, 'catalog_node'),
+(4, 24, 12, 5, 'catalog_node'),
+(2, 25, 2, 5, 'catalog_node'),
+(4, 25, 19, 5, 'catalog_node'),
+(1, 26, 2, 5, 'catalog_node'),
+(2, 26, 4, 5, 'catalog_node'),
+(4, 26, 26, 5, 'catalog_node'),
+(1, 27, 0, 5, 'catalog_node'),
+(2, 27, 11, 5, 'catalog_node'),
+(4, 27, 33, 5, 'catalog_node'),
+(1, 28, 7, 5, 'catalog_node'),
+(2, 28, 18, 5, 'catalog_node'),
+(1, 29, 14, 5, 'catalog_node'),
+(4, 29, 7, 5, 'catalog_node');
 GO
 
 

@@ -2,7 +2,8 @@
 try {
     $SQL_Query = 'UPDATE category SET
         code = :code, 
-        name = :name 
+        name = :name, 
+        department = COALESCE(:department, department) 
         WHERE 
         id_category = :id_category';
         
@@ -10,6 +11,7 @@ try {
     $SQL_Sentence->bindParam(':id_category', $resourceId, PDO::PARAM_INT);
     $SQL_Sentence->bindParam(':code', $body['code'], PDO::PARAM_STR);
     $SQL_Sentence->bindParam(':name', $body['name'], PDO::PARAM_STR);
+    $SQL_Sentence->bindValue(':department', $body['department'] ?? null, PDO::PARAM_STR);
     $SQL_Sentence->execute();
     
     if ($SQL_Sentence->rowCount() != 0) {

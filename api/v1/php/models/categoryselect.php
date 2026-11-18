@@ -2,7 +2,7 @@
 try {
     [$Offset, $PageSize] = api_page();
 
-    $SQL_Query = 'SELECT id_category, code, name
+    $SQL_Query = 'SELECT id_category, code, name, department
         FROM category
         ORDER BY id_category
         OFFSET :offset ROWS FETCH NEXT :page_size ROWS ONLY';

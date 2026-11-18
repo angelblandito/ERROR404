@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="JAM Sport: ropa deportiva en línea y en sucursales Tijuana y CDMX.">
+    <meta name="description" content="JAM Sport: calzado, ropa y accesorios deportivos en línea y en las sucursales Tijuana y CDMX.">
+    <meta name="theme-color" content="#0b1d3a">
     <title>JAM Sport</title>
     <link rel="stylesheet" href="index.css">
 </head>
@@ -43,16 +44,39 @@
         <section class="view" id="view-tienda" aria-labelledby="tituloTienda">
             <div class="hero">
                 <div>
-                    <p class="eyebrow">Tienda en línea · Tijuana · CDMX</p>
+                    <p class="eyebrow" id="heroEyebrow">Para jóvenes y adultos de 15 a 45 años</p>
                     <h1 id="tituloTienda">Equípate para entrenar</h1>
-                    <p class="hero-text">Ropa y calzado deportivo con disponibilidad en tiempo real en cada sucursal.</p>
+                    <p class="hero-text" id="heroText">Calzado, ropa y accesorios deportivos con disponibilidad en tiempo real en cada sucursal.</p>
                 </div>
+                <label class="season-picker">
+                    <span>Temporada</span>
+                    <select id="seasonSelect" aria-label="Paleta de temporada">
+                        <option value="auto">Automática</option>
+                    </select>
+                </label>
+            </div>
+
+            <div class="segmented" id="departmentTabs" role="tablist" aria-label="Departamento">
+                <button role="tab" class="active" data-department="all" aria-selected="true">Todo</button>
+                <button role="tab" data-department="footwear" aria-selected="false">Calzado</button>
+                <button role="tab" data-department="apparel" aria-selected="false">Ropa</button>
+                <button role="tab" data-department="accessories" aria-selected="false">Accesorios</button>
             </div>
 
             <div class="toolbar">
                 <input type="search" id="searchProducts" class="input" placeholder="Buscar producto…" aria-label="Buscar producto">
-                <div class="chips" id="categoryChips" role="group" aria-label="Filtrar por categoría"></div>
+                <select id="segmentFilter" class="input" aria-label="Edad">
+                    <option value="all">Todas las edades (15–45)</option>
+                    <option value="youth">Juvenil (15–24)</option>
+                    <option value="adult">Adulto (25–45)</option>
+                </select>
+                <select id="genderFilter" class="input" aria-label="Género">
+                    <option value="all">Mujer, hombre y unisex</option>
+                    <option value="F">Mujer</option>
+                    <option value="M">Hombre</option>
+                </select>
             </div>
+            <div class="chips" id="categoryChips" role="group" aria-label="Filtrar por categoría"></div>
 
             <div class="product-grid" id="productGrid" aria-live="polite"></div>
         </section>

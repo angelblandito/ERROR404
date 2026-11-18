@@ -91,7 +91,11 @@ En SSMS, conectado a la instancia Developer, ejecutar en orden:
 1. `API_JAM/db_jam.sql`
 2. `API_JAM/distribuida/01_fragmentacion_horizontal.sql`
 3. `API_JAM/distribuida/02_fragmentacion_vertical.sql`
-4. `API_JAM/distribuida/05_validacion.sql` → todas las columnas `diferencias` y `repetidos_entre_fragmentos` deben valer **0**.
+4. `API_JAM/distribuida/06_pedidos_y_seguridad.sql` (procedimiento de pedidos y usuario `jam_api`; antes cambiar la contraseña marcada con `>>>`)
+5. `API_JAM/distribuida/05_validacion.sql` → todas las columnas `diferencias` y `repetidos_entre_fragmentos` deben valer **0**.
+
+> El usuario `jam_api` necesita que la instancia acepte autenticación de SQL Server:
+> en SSMS, clic derecho en el servidor → *Propiedades → Seguridad → Modo de autenticación de SQL Server y Windows*, y reiniciar el servicio.
 
 ### 2.3 Replicación local
 
@@ -107,7 +111,7 @@ En SSMS, conectado a la instancia Developer, ejecutar en orden:
 
 ### 2.4 API (PHP)
 
-1. Copiar `api/v1/php/config/settings.example.php` como `settings.php` y ajustar `JAM_LOCAL_SERVER` (p. ej. `localhost`).
+1. Copiar `api/v1/php/config/settings.example.php` como `settings.php` y ajustar `JAM_LOCAL_SERVER` (p. ej. `localhost`), `JAM_LOCAL_USER` = `jam_api` y `JAM_LOCAL_PASSWORD`.
 2. Abrir una terminal en `C:\xampp\htdocs\ERROR404\api\v1\php` y ejecutar:
    ```
    C:\xampp\php\php.exe -S localhost:8080 index.php
@@ -120,7 +124,7 @@ Con Apache de XAMPP encendido: `http://localhost/ERROR404/index.html`.
 
 | Menú | Qué muestra |
 |------|-------------|
-| **Tienda** | Catálogo, disponibilidad por sucursal, carrito, cupón y creación de pedidos |
+| **Tienda** | Calzado, ropa y accesorios con filtros Juvenil (15–24) / Adulto (25–45) y por género; disponibilidad por sucursal, carrito, cupón y pedidos. La paleta de colores cambia sola según la temporada (selector *Temporada* para mostrarlas en la presentación, o `?temporada=black_friday` en la URL) |
 | **Inventario** | Fragmento de `inventory` de cada nodo (pestañas Tijuana, CDMX, En línea) |
 | **Pedidos** | Pedidos reconstruidos desde los fragmentos, con sus artículos |
 | **Base distribuida** | Estado de nodos, completitud de fragmentos, reconstrucción vertical, replicación y espejo |
@@ -138,12 +142,48 @@ Con Apache de XAMPP encendido: `http://localhost/ERROR404/index.html`.
 | GET | `/distributed/fragments` | Renglones de cada fragmento contra lo esperado según el nodo central |
 | GET | `/replication/status` | Conteo y checksum del catálogo en el publicador contra cada suscriptor |
 | POST | `/distributed/sync` | Ejecuta `dist.sp_sincronizar_nodos` |
+| GET | `/season_theme` | Temporadas y campañas con su paleta de colores |
+| GET | `/season_theme/current?date=AAAA-MM-DD` | Temporada vigente para esa fecha (campaña > estación) |
+| POST | `/orders/checkout` | Registra un pedido completo con `dbo.sp_crear_pedido` (precios, cupón, total y stock se calculan en la base) |
+
+Todos los `GET` de catálogo aceptan paginación: `?page=1&page_size=100` (máximo 500) y no devuelven registros con `deleted = 1`.
+Los `DELETE` de tablas con columna `deleted` hacen borrado lógico.
+
+Códigos de respuesta:
+
+| Código | Cuándo |
+|--------|--------|
+| 200 / 201 | Consulta, actualización o creación correcta |
+| 400 | JSON inválido, campo obligatorio faltante o formato incorrecto |
+| 404 | El registro no existe o fue eliminado |
+| 405 | Escritura en la réplica de solo lectura (Azure) |
+| 409 | Duplicado, violación de FK o CHECK, cupón no vigente, sin stock, o registro modificado por otro usuario (`row_version`) |
+| 500 / 503 | Error interno o nodo sin conexión; el detalle queda en el log del servidor |
 
 Si un nodo fragmento no responde, la API lee sus datos del nodo por defecto filtrando por `id_store` (transparencia ante fallos). El campo `sources` de la respuesta indica de dónde salió cada parte.
 
 ---
 
-## 4. Despliegue en Azure
+## 4. Decisiones de diseño de la base de datos
+
+| Decisión | Motivo |
+|----------|--------|
+| Collation `Modern_Spanish_CI_AS` en todas las bases (local y Azure) | Evita el error *Cannot resolve collation conflict* al comparar datos entre nodos y ordena correctamente en español |
+| Fechas `DATETIME2(3)` en UTC (`SYSUTCDATETIME()`) | Los nodos están en zonas horarias distintas (Tijuana, CDMX, Azure); UTC hace comparables las marcas de tiempo |
+| `NVARCHAR` en nombres, direcciones y descripciones | Soporta acentos y ñ sin depender de la página de códigos |
+| FK completas en el nodo central; referencias lógicas en los fragmentos | El central garantiza la integridad global; un fragmento no puede referenciar tablas de otro nodo |
+| Borrado lógico (`deleted`) con índices únicos filtrados (`WHERE deleted = 0`) | Conserva el historial y permite volver a registrar un correo o SKU de un registro eliminado |
+| `CHECK (total = subtotal - discount)` | El total nunca puede quedar inconsistente, venga de donde venga el dato |
+| `dbo.sp_crear_pedido` en una transacción | Pedido, artículos y descuento de stock se guardan completos o no se guardan; el `UPDATE ... WHERE stock >= cantidad` evita vender la misma pieza dos veces |
+| Tabla `season_theme` (estaciones y campañas con colores validados por `CHECK`) | La paleta de la página es un dato: se cambia una campaña o sus colores con un `UPDATE`, sin tocar el código, y se replica a las sucursales con el catálogo |
+| `category.department` y `product.age_segment` | Separan Calzado / Ropa / Accesorios y el público Juvenil (15–24) / Adulto (25–45) con valores controlados por `CHECK` |
+| `ROWVERSION` en `product`, `inventory` y `customer_order` | Control de concurrencia optimista: un `PUT` con `row_version` viejo responde 409 en vez de sobrescribir |
+| Índices en todas las FK no cubiertas | Evita recorridos completos de tabla en JOIN y en la validación de FK |
+| Usuario `jam_api` sin permisos de DDL | Principio de mínimo privilegio para la aplicación |
+
+---
+
+## 5. Despliegue en Azure
 
 Requisitos: cuenta **Azure for Students** (correo escolar) y **Azure CLI** (`winget install Microsoft.AzureCLI`).
 
@@ -151,7 +191,7 @@ Requisitos: cuenta **Azure for Students** (correo escolar) y **Azure CLI** (`win
 > Azure for Students solo permite algunas regiones: si una región da error de política, elegir otra.
 > Revisar las regiones permitidas en *Directivas → Asignaciones* de la suscripción.
 
-### 4.1 Servidores, base y espejo
+### 5.1 Servidores, base y espejo
 
 ```powershell
 az login
@@ -168,7 +208,7 @@ foreach ($s in "jam-sql-principal-$SUF","jam-sql-espejo-$SUF") {
   az sql server firewall-rule create -g $RG -s $s -n MiIP --start-ip-address <TU_IP_PUBLICA> --end-ip-address <TU_IP_PUBLICA>
 }
 
-az sql db create -g $RG -s jam-sql-principal-$SUF -n JAM_cloud --service-objective Basic --backup-storage-redundancy Local
+az sql db create -g $RG -s jam-sql-principal-$SUF -n JAM_cloud --service-objective Basic --backup-storage-redundancy Local --collation Modern_Spanish_CI_AS
 
 # Espejo: grupo de conmutación por error
 az sql failover-group create -n jam-fog-$SUF -g $RG -s jam-sql-principal-$SUF `
@@ -179,7 +219,7 @@ Puntos de conexión resultantes:
 - Lectura/escritura: `jam-fog-<sufijo>.database.windows.net`
 - Espejo (solo lectura): `jam-fog-<sufijo>.secondary.database.windows.net`
 
-### 4.2 Replicación hacia Azure
+### 5.2 Replicación hacia Azure
 
 1. En `03_replicacion.sql` llenar `@azure_servidor` (listener `jam-fog-<sufijo>.database.windows.net`), `@azure_usuario` y `@azure_password`.
 2. Ejecutar el script completo otra vez: lo que ya existe se omite y solo se crea la suscripción a Azure.
@@ -187,7 +227,7 @@ Puntos de conexión resultantes:
 
 > Si la red de la escuela bloquea el puerto 1433 de salida, hacer este paso desde casa o con datos del celular.
 
-### 4.3 API en App Service
+### 5.3 API en App Service
 
 ```powershell
 $APP="jam-api-$SUF"
@@ -214,7 +254,7 @@ az webapp deploy -n $APP -g $RG --src-path ..\api.zip --type zip
 - `settings.php` no se sube: en Azure la configuración sale de las variables de entorno.
 - El plan B1 tiene costo (se cubre con el crédito de estudiante). Apagar o borrar el grupo al terminar: `az group delete -n rg-jam`.
 
-### 4.4 Frontend en Static Web Apps
+### 5.4 Frontend en Static Web Apps
 
 1. En `config.js` cambiar `AZURE_API_URL` por `https://jam-api-<sufijo>.azurewebsites.net` y subir el cambio a GitHub.
 2. Portal de Azure → **Static Web Apps → Crear** → plan **Free** → origen **GitHub** → repo `ERROR404`, rama `main`.
@@ -225,7 +265,7 @@ En la nube la tienda funciona en modo consulta: el catálogo, el inventario y lo
 
 ---
 
-## 5. Guion para la presentación (≈ 6 min)
+## 6. Guion para la presentación (≈ 6 min)
 
 1. **Tienda** (móvil y escritorio): mostrar el menú hamburguesa y la cuadrícula adaptable (media queries).
 2. **Fragmentación horizontal**: menú **Inventario** → pestañas por nodo. En SSMS, `SELECT * FROM JAM_cdmx.dbo.inventory` muestra solo `id_store = 2`, e intentar insertar `id_store = 1` ahí falla por el `CHECK`.
@@ -237,7 +277,7 @@ En la nube la tienda funciona en modo consulta: el catálogo, el inventario y lo
 
 ---
 
-## 6. Problemas comunes
+## 7. Problemas comunes
 
 | Síntoma | Causa / solución |
 |---------|------------------|
