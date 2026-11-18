@@ -1,6 +1,6 @@
 /* Paleta de colores según la temporada (tabla season_theme). */
 import { api } from './api.js';
-import { $, esc } from './ui.js';
+import { $ } from './ui.js';
 
 /* Copia local de season_theme, usada solo si la API no responde. */
 const FALLBACK_THEMES = [
@@ -73,9 +73,9 @@ export async function initTheme() {
     }
 
     const selectEl = $('#seasonSelect');
-    selectEl.innerHTML = '<option value="auto">Automática (según la fecha)</option>' + themes.map(function (t) {
-        return '<option value="' + esc(t.code) + '">' + esc(t.name) + (t.theme_type === 'campaign' ? ' · campaña' : '') + '</option>';
-    }).join('');
+    themes.forEach(function (t) {
+        selectEl.add(new Option(t.name + (t.theme_type === 'campaign' ? ' · campaña' : ''), t.code));
+    });
 
     const choice = savedChoice();
     selectEl.value = themes.some(function (t) { return t.code === choice; }) ? choice : 'auto';

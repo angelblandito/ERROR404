@@ -1,9 +1,9 @@
 /* Pago: entrega, método de pago y confirmación del pedido. */
 import { api } from '../api.js';
-import { $, esc, money, toast, emptyState, setTitle, PAYMENT_METHODS } from '../ui.js';
+import { $, clone, field, fill, show, slot, money, toast, emptyState, setTitle } from '../ui.js';
 import { productArt } from '../illustrations.js';
 import { activePromotions, cartLines, cartSubtotal, clearCart, loadCatalog, physicalStores, state, stockAt } from '../store.js';
-import { authPanel, bindAuth } from './account.js';
+import { authPanel } from './account.js';
 
 let statesCache = null;
 
@@ -47,88 +47,57 @@ function validateCard(form) {
     return null;
 }
 
+function summaryLine(l) {
+    const line = fill(clone('tpl-summary-line'), {
+        name: l.product.name,
+        detail: l.variant.color + ' · ' + (l.variant.size === 'UNI' ? 'Unitalla' : l.variant.size) + ' · ' + l.quantity + ' pza',
+        total: money.format(l.total)
+    });
+    slot(line, 'art').replaceWith(productArt(l.product, l.variant.color_code, 'mini'));
+    return line;
+}
+
+function storeOption(s, checked) {
+    const option = fill(clone('tpl-store-option'), {
+        name: s.store_name,
+        address: [s.city, s.state].filter(Boolean).join(', ') + (s.opening_hours ? ' · ' + s.opening_hours : '')
+    });
+    const input = option.querySelector('input');
+    input.value = s.id_store;
+    input.checked = checked;
+    field(option, 'stock').dataset.store = s.id_store;
+    return option;
+}
+
 export async function renderCheckout(page) {
     setTitle('Pagar');
     const lines = cartLines();
     if (!lines.length) {
-        page.innerHTML = emptyState('Tu carrito está vacío', 'Agrega productos para continuar con el pago.', { href: '#/tienda', label: 'Ir a la tienda' });
+        page.replaceChildren(emptyState('Tu carrito está vacío', 'Agrega productos para continuar con el pago.', { href: '#/tienda', label: 'Ir a la tienda' }));
         return;
     }
 
     if (!state.customer) {
-        page.innerHTML = '<div class="narrow"><h1>Pagar</h1>' + authPanel('Inicia sesión o crea tu cuenta para terminar tu compra. Tu carrito se conserva.') + '</div>';
-        bindAuth($('.narrow', page), function () { renderCheckout(page); });
+        page.replaceChildren(authPanel('Pagar', 'Inicia sesión o crea tu cuenta para terminar tu compra. Tu carrito se conserva.', function () {
+            renderCheckout(page);
+        }));
         return;
     }
 
     const [states, promotions] = await Promise.all([loadStates(), activePromotions()]);
-    const stores = physicalStores();
     const c = state.customer;
-
-    page.innerHTML = '<div class="checkout">' +
-        '<form class="checkout-form" id="checkoutForm" novalidate>' +
-            '<h1>Pagar</h1>' +
-            '<section class="step"><h2><span>1</span> Entrega</h2>' +
-                '<div class="choice-grid">' +
-                    '<label class="choice"><input type="radio" name="delivery" value="shipping" checked><span><strong>Envío a domicilio</strong><em id="shipLabel"></em></span></label>' +
-                    '<label class="choice"><input type="radio" name="delivery" value="pickup"><span><strong>Recoger en sucursal</strong><em>Gratis · listo el mismo día</em></span></label>' +
-                '</div>' +
-                '<div id="shippingFields">' +
-                    '<p class="muted small">Recibe: ' + esc(c.first_name + ' ' + c.last_name_paternal) + ' · ' + esc(c.phone) + '</p>' +
-                    '<div class="field-row"><label class="field grow"><span>Calle</span><input class="input" name="street" maxlength="100" autocomplete="address-line1"></label>' +
-                    '<label class="field"><span>Número</span><input class="input" name="ext_number" maxlength="10"></label>' +
-                    '<label class="field"><span>Interior</span><input class="input" name="int_number" maxlength="10"></label></div>' +
-                    '<div class="field-row"><label class="field grow"><span>Colonia</span><input class="input" name="neighborhood" maxlength="80"></label>' +
-                    '<label class="field"><span>Código postal</span><input class="input" name="zip_code" inputmode="numeric" maxlength="5" autocomplete="postal-code"></label></div>' +
-                    '<div class="field-row"><label class="field grow"><span>Ciudad</span><input class="input" name="city" maxlength="60" autocomplete="address-level2"></label>' +
-                    '<label class="field grow"><span>Estado</span><select class="input" name="id_state"><option value="">Elige</option>' +
-                        states.map(function (s) { return '<option value="' + s.id_state + '">' + esc(s.name) + '</option>'; }).join('') +
-                    '</select></label></div>' +
-                    '<label class="field"><span>Referencias (opcional)</span><input class="input" name="reference" maxlength="150"></label>' +
-                '</div>' +
-                '<div id="pickupFields" hidden>' +
-                    stores.map(function (s, i) {
-                        return '<label class="choice store-choice"><input type="radio" name="pickup_store" value="' + s.id_store + '"' + (i === 0 ? ' checked' : '') + '>' +
-                            '<span><strong>' + esc(s.store_name) + '</strong><em>' + esc([s.city, s.state].filter(Boolean).join(', ')) +
-                            (s.opening_hours ? ' · ' + esc(s.opening_hours) : '') + '</em><em class="stock-note" data-store="' + s.id_store + '"></em></span></label>';
-                    }).join('') +
-                '</div>' +
-            '</section>' +
-            '<section class="step"><h2><span>2</span> Pago</h2>' +
-                '<div class="choice-grid" id="paymentChoices">' +
-                    ['card', 'oxxo', 'transfer', 'cash'].map(function (m, i) {
-                        const hint = { card: 'Aprobación inmediata', oxxo: 'Paga en efectivo en OXXO', transfer: 'SPEI desde tu banco', cash: 'Solo al recoger en sucursal' }[m];
-                        return '<label class="choice"><input type="radio" name="payment" value="' + m + '"' + (i === 0 ? ' checked' : '') + '>' +
-                            '<span><strong>' + PAYMENT_METHODS[m] + '</strong><em>' + hint + '</em></span></label>';
-                    }).join('') +
-                '</div>' +
-                '<div id="cardFields">' +
-                    '<p class="notice">Pago simulado para el proyecto: los datos de la tarjeta solo se validan en tu navegador; no se envían ni se guardan.</p>' +
-                    '<label class="field"><span>Nombre en la tarjeta</span><input class="input" name="card_name" autocomplete="cc-name"></label>' +
-                    '<label class="field"><span>Número de tarjeta</span><input class="input" name="card_number" inputmode="numeric" autocomplete="cc-number" placeholder="4242 4242 4242 4242"></label>' +
-                    '<div class="field-row"><label class="field"><span>Vence (MM/AA)</span><input class="input" name="card_exp" placeholder="12/28" autocomplete="cc-exp" maxlength="5"></label>' +
-                    '<label class="field"><span>CVV</span><input class="input" name="card_cvv" inputmode="numeric" maxlength="4" autocomplete="cc-csc"></label></div>' +
-                '</div>' +
-            '</section>' +
-        '</form>' +
-        '<aside class="summary">' +
-            '<h2>Tu pedido</h2>' +
-            '<div class="sum-lines">' + lines.map(function (l) {
-                return '<div class="sum-line">' + productArt(l.product, l.variant.color_code, 'mini') +
-                    '<div><strong>' + esc(l.product.name) + '</strong><p class="muted small">' + esc(l.variant.color + ' · ' + (l.variant.size === 'UNI' ? 'Unitalla' : l.variant.size) + ' · ' + l.quantity + ' pza') + '</p></div>' +
-                    '<span>' + money.format(l.total) + '</span></div>';
-            }).join('') + '</div>' +
-            '<div class="coupon-input"><input class="input" id="couponInput" placeholder="Código de cupón" autocomplete="off" aria-label="Código de cupón">' +
-                '<button class="btn btn-ghost" id="couponBtn" type="button">Aplicar</button></div>' +
-            '<p class="small" id="couponMsg"></p>' +
-            '<div id="totals"></div>' +
-            '<button class="btn btn-dark btn-block btn-lg" id="placeOrder" type="button">Confirmar pedido</button>' +
-            '<p class="muted small">Al confirmar, el pedido, el descuento de inventario y el pago se registran juntos en una sola transacción.</p>' +
-        '</aside>' +
-    '</div>';
-
-    const form = $('#checkoutForm', page);
+    const checkout = clone('tpl-checkout');
+    const form = $('.checkout-form', checkout);
+    const couponInput = $('input[name="coupon"]', checkout);
+    const couponMessage = field(checkout, 'couponMessage');
     let coupon = null;
+
+    field(checkout, 'receiver').textContent = c.first_name + ' ' + c.last_name_paternal + ' · ' + c.phone;
+    states.forEach(function (s) { form.id_state.add(new Option(s.name, s.id_state)); });
+    slot(checkout, 'pickupFields').append(...physicalStores().map(function (s, i) { return storeOption(s, i === 0); }));
+    slot(checkout, 'lines').append(...lines.map(summaryLine));
+
+    page.replaceChildren(checkout);
 
     const delivery = function () { return form.delivery.value; };
     const pickupStore = function () { return Number((form.querySelector('input[name="pickup_store"]:checked') || {}).value || 0); };
@@ -147,48 +116,52 @@ export async function renderCheckout(page) {
 
     const refresh = function () {
         const isShipping = delivery() === 'shipping';
-        $('#shippingFields', page).hidden = !isShipping;
-        $('#pickupFields', page).hidden = isShipping;
-        $('#cardFields', page).hidden = form.payment.value !== 'card';
+        slot(checkout, 'shippingFields').hidden = !isShipping;
+        slot(checkout, 'pickupFields').hidden = isShipping;
 
         const cash = form.querySelector('input[name="payment"][value="cash"]');
         cash.disabled = isShipping;
         if (isShipping && cash.checked) {
             form.querySelector('input[name="payment"][value="card"]').checked = true;
-            $('#cardFields', page).hidden = false;
         }
+        slot(checkout, 'cardFields').hidden = form.payment.value !== 'card';
 
-        page.querySelectorAll('.stock-note').forEach(function (el) {
+        checkout.querySelectorAll('.stock-note').forEach(function (el) {
             const missing = missingAt(Number(el.dataset.store));
             el.textContent = missing.length ? 'Sin existencias de: ' + missing.map(function (l) { return l.product.name; }).join(', ') : 'Todo disponible';
-            el.className = 'stock-note ' + (missing.length ? 'bad-text' : 'ok-text');
+            el.classList.toggle('bad-text', missing.length > 0);
+            el.classList.toggle('ok-text', missing.length === 0);
         });
 
         const t = totals();
-        $('#shipLabel', page).textContent = t.subtotal - t.discount >= state.shipping.free_from
-            ? 'Gratis · 3 a 5 días hábiles'
-            : money.format(state.shipping.cost) + ' · gratis desde ' + money.format(state.shipping.free_from);
-        $('#totals', page).innerHTML =
-            '<div class="sum-row"><span>Subtotal</span><span>' + money.format(t.subtotal) + '</span></div>' +
-            (t.discount ? '<div class="sum-row ok-text"><span>Cupón ' + esc(coupon.code) + '</span><span>−' + money.format(t.discount) + '</span></div>' : '') +
-            '<div class="sum-row"><span>Envío</span><span>' + (t.shipping ? money.format(t.shipping) : 'Gratis') + '</span></div>' +
-            '<div class="sum-row total"><span>Total</span><span>' + money.format(t.total) + '</span></div>';
+        fill(checkout, {
+            shipLabel: t.subtotal - t.discount >= state.shipping.free_from
+                ? 'Gratis · 3 a 5 días hábiles'
+                : money.format(state.shipping.cost) + ' · gratis desde ' + money.format(state.shipping.free_from),
+            orderSubtotal: money.format(t.subtotal),
+            couponCode: coupon ? coupon.code : '',
+            orderDiscount: '−' + money.format(t.discount),
+            orderShipping: t.shipping ? money.format(t.shipping) : 'Gratis',
+            orderTotal: money.format(t.total)
+        });
+        show(field(checkout, 'discountRow'), t.discount > 0);
     };
 
     form.addEventListener('change', refresh);
 
-    $('#couponBtn', page).addEventListener('click', function () {
-        const code = $('#couponInput', page).value.trim().toUpperCase();
+    $('[data-action="coupon"]', checkout).addEventListener('click', function () {
+        const code = couponInput.value.trim().toUpperCase();
         const found = promotions.find(function (p) { return p.code.toUpperCase() === code; });
         coupon = found || null;
-        $('#couponMsg', page).textContent = found
+        couponMessage.textContent = found
             ? 'Cupón aplicado: ' + (found.description || found.code)
             : (code ? 'El cupón no existe o no está vigente.' : '');
-        $('#couponMsg', page).className = 'small ' + (found ? 'ok-text' : 'bad-text');
+        couponMessage.classList.toggle('ok-text', Boolean(found));
+        couponMessage.classList.toggle('bad-text', !found);
         refresh();
     });
 
-    $('#placeOrder', page).addEventListener('click', async function () {
+    $('[data-action="place-order"]', checkout).addEventListener('click', async function () {
         const isShipping = delivery() === 'shipping';
         const required = ['street', 'ext_number', 'neighborhood', 'zip_code', 'city', 'id_state'];
         if (isShipping) {
@@ -279,14 +252,15 @@ export function renderConfirmation(page, id) {
         cash: 'Paga en efectivo al recoger tu pedido en la sucursal.'
     }[order.payment_method] || '';
 
-    page.innerHTML = '<div class="confirm">' +
-        '<div class="confirm-icon" aria-hidden="true">✓</div>' +
-        '<h1>¡Gracias por tu compra!</h1>' +
-        '<p>Tu pedido <strong>#' + esc(id) + '</strong> quedó registrado.</p>' +
-        (order.total !== undefined ? '<p class="confirm-total">' + money.format(Number(order.total)) + '</p>' : '') +
-        (instructions ? '<p class="notice">' + esc(instructions) + '</p>' : '') +
-        (order.delivery_type === 'pickup' && order.store ? '<p>Recógelo en <strong>' + esc(order.store) + '</strong>. Te avisaremos cuando esté listo.</p>' : '') +
-        (order.delivery_type === 'shipping' ? '<p>Llegará en 3 a 5 días hábiles.</p>' : '') +
-        '<div class="confirm-actions"><a class="btn btn-dark" href="#/cuenta">Ver mis pedidos</a><a class="btn btn-ghost" href="#/tienda">Seguir comprando</a></div>' +
-    '</div>';
+    const confirm = fill(clone('tpl-confirmation'), {
+        id: id,
+        total: order.total !== undefined ? money.format(Number(order.total)) : '',
+        instructions: instructions,
+        pickup: order.store ? 'Recógelo en ' + order.store + '. Te avisaremos cuando esté listo.' : ''
+    });
+    show(field(confirm, 'total'), order.total !== undefined);
+    show(field(confirm, 'instructions'), Boolean(instructions));
+    show(field(confirm, 'pickup'), order.delivery_type === 'pickup' && Boolean(order.store));
+    show(field(confirm, 'shipping'), order.delivery_type === 'shipping');
+    page.replaceChildren(confirm);
 }

@@ -6,12 +6,13 @@
     <meta name="description" content="JAM Sport: calzado, ropa y accesorios deportivos para jóvenes y adultos. Compra en línea, recoge en Tijuana o CDMX.">
     <meta name="theme-color" content="#3B1F14">
     <title>JAM Sport · Calzado, ropa y accesorios deportivos</title>
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23111'/%3E%3Ctext x='16' y='21' font-family='Arial' font-weight='900' font-size='12' fill='%23fff' text-anchor='middle'%3EJAM%3C/text%3E%3C/svg%3E">
+    <link rel="icon" href="img/favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="index.css">
 </head>
 <body>
     <a class="skip-link" href="#view">Ir al contenido</a>
 
+    <!-- ===================== Encabezado ===================== -->
     <div class="announcement" role="region" aria-label="Avisos">
         <p id="announcementText">Envío gratis en compras desde $999</p>
     </div>
@@ -19,7 +20,7 @@
     <header class="site-header">
         <div class="header-inner">
             <button class="icon-btn menu-btn" id="menuButton" aria-label="Abrir menú" aria-controls="mobileMenu" aria-expanded="false">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+                <svg aria-hidden="true"><use href="img/iconos.svg#menu"></use></svg>
             </button>
 
             <a class="logo" href="#/" aria-label="JAM Sport, inicio">
@@ -38,21 +39,21 @@
             </nav>
 
             <form class="search" id="searchForm" role="search">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                <svg aria-hidden="true"><use href="img/iconos.svg#search"></use></svg>
                 <input id="searchInput" type="search" placeholder="Buscar" autocomplete="off" aria-label="Buscar productos" aria-controls="searchSuggestions">
                 <div class="suggestions" id="searchSuggestions" role="listbox" hidden></div>
             </form>
 
             <div class="header-actions">
                 <a class="icon-btn" href="#/cuenta" aria-label="Mi cuenta">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>
+                    <svg aria-hidden="true"><use href="img/iconos.svg#user"></use></svg>
                 </a>
                 <a class="icon-btn" href="#/favoritos" aria-label="Favoritos">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7.5-4.6-9.2-9.2C1.6 7.6 3.6 4.8 6.6 4.8c2.2 0 3.7 1.4 5.4 3.4 1.7-2 3.2-3.4 5.4-3.4 3 0 5 2.8 3.8 6C19.5 15.4 12 20 12 20z"/></svg>
+                    <svg aria-hidden="true"><use href="img/iconos.svg#heart"></use></svg>
                     <span class="count" data-count="favorites" hidden>0</span>
                 </a>
                 <a class="icon-btn" href="#/carrito" aria-label="Carrito de compras">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h2.2l2.3 10.6a1.5 1.5 0 0 0 1.5 1.2h8.4a1.5 1.5 0 0 0 1.5-1.1L20.5 8H6.1"/><circle cx="9.5" cy="19.5" r="1.4"/><circle cx="17" cy="19.5" r="1.4"/></svg>
+                    <svg aria-hidden="true"><use href="img/iconos.svg#cart"></use></svg>
                     <span class="count" data-count="cart" hidden>0</span>
                 </a>
             </div>
@@ -64,7 +65,7 @@
             <div class="mobile-menu-head">
                 <span class="logo"><span class="logo-mark">JAM</span><span class="logo-text">SPORT</span></span>
                 <button class="icon-btn" id="menuClose" aria-label="Cerrar menú">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+                    <svg aria-hidden="true"><use href="img/iconos.svg#close"></use></svg>
                 </button>
             </div>
             <nav class="mobile-links" aria-label="Menú principal">
@@ -87,8 +88,10 @@
         </div>
     </div>
 
+    <!-- ===================== Contenido ===================== -->
     <main id="view" tabindex="-1"></main>
 
+    <!-- ===================== Pie de página ===================== -->
     <footer class="site-footer">
         <div class="footer-grid">
             <div>
@@ -123,32 +126,893 @@
             <label class="season-switch">
                 Temporada
                 <select id="seasonSelect" aria-label="Paleta de temporada">
-                    <option value="auto">Automática</option>
+                    <option value="auto">Automática (según la fecha)</option>
                 </select>
             </label>
         </div>
     </footer>
 
     <nav class="tabbar" aria-label="Navegación rápida">
-        <a href="#/" data-tab="home"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11 12 4l9 7v9h-6v-6H9v6H3z"/></svg><span>Inicio</span></a>
-        <a href="#/tienda" data-tab="shop"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span>Tienda</span></a>
-        <a href="#/favoritos" data-tab="favorites"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7.5-4.6-9.2-9.2C1.6 7.6 3.6 4.8 6.6 4.8c2.2 0 3.7 1.4 5.4 3.4 1.7-2 3.2-3.4 5.4-3.4 3 0 5 2.8 3.8 6C19.5 15.4 12 20 12 20z"/></svg><span>Favoritos</span><i class="count" data-count="favorites" hidden>0</i></a>
-        <a href="#/carrito" data-tab="cart"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h2.2l2.3 10.6a1.5 1.5 0 0 0 1.5 1.2h8.4a1.5 1.5 0 0 0 1.5-1.1L20.5 8H6.1"/><circle cx="9.5" cy="19.5" r="1.4"/><circle cx="17" cy="19.5" r="1.4"/></svg><span>Carrito</span><i class="count" data-count="cart" hidden>0</i></a>
-        <a href="#/cuenta" data-tab="account"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg><span>Cuenta</span></a>
+        <a href="#/" data-tab="home"><svg aria-hidden="true"><use href="img/iconos.svg#home"></use></svg><span>Inicio</span></a>
+        <a href="#/tienda" data-tab="shop"><svg aria-hidden="true"><use href="img/iconos.svg#search"></use></svg><span>Tienda</span></a>
+        <a href="#/favoritos" data-tab="favorites"><svg aria-hidden="true"><use href="img/iconos.svg#heart"></use></svg><span>Favoritos</span><i class="count" data-count="favorites" hidden>0</i></a>
+        <a href="#/carrito" data-tab="cart"><svg aria-hidden="true"><use href="img/iconos.svg#cart"></use></svg><span>Carrito</span><i class="count" data-count="cart" hidden>0</i></a>
+        <a href="#/cuenta" data-tab="account"><svg aria-hidden="true"><use href="img/iconos.svg#user"></use></svg><span>Cuenta</span></a>
     </nav>
 
+    <!-- ===================== Carrito lateral y avisos ===================== -->
     <div class="drawer-backdrop" id="miniCartBackdrop" hidden></div>
     <aside class="mini-cart" id="miniCart" aria-label="Producto agregado al carrito" aria-hidden="true">
         <div class="mini-cart-head">
             <p class="ok-text"><strong>✓ Agregado al carrito</strong></p>
             <button class="icon-btn" id="miniCartClose" aria-label="Cerrar">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+                <svg aria-hidden="true"><use href="img/iconos.svg#close"></use></svg>
             </button>
         </div>
-        <div id="miniCartBody"></div>
+        <div class="mini-cart-item">
+            <div data-slot="art"></div>
+            <div>
+                <strong data-field="name"></strong>
+                <p class="muted small" data-field="detail"></p>
+                <p data-field="price"></p>
+            </div>
+        </div>
+        <p class="mini-cart-total"><span data-field="count"></span><strong data-field="subtotal"></strong></p>
+        <p class="small" data-field="shipping"></p>
+        <div class="mini-cart-actions">
+            <a class="btn btn-ghost" href="#/carrito">Ver carrito</a>
+            <a class="btn btn-dark" href="#/pago">Pagar</a>
+        </div>
     </aside>
 
-    <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+    <div class="toast" id="toast" role="status" aria-live="polite" hidden>
+        <span data-field="message"></span>
+        <a data-field="action" hidden></a>
+    </div>
+
+    <!-- ===================== Plantillas: piezas comunes ===================== -->
+    <template id="tpl-loading">
+        <div class="loading" role="status"><span class="spinner"></span><span data-field="text">Cargando…</span></div>
+    </template>
+
+    <template id="tpl-empty">
+        <div class="empty-state">
+            <h2 data-field="title"></h2>
+            <p data-field="text"></p>
+            <a class="btn btn-dark" data-field="action" hidden></a>
+        </div>
+    </template>
+
+    <template id="tpl-badge">
+        <span class="badge"></span>
+    </template>
+
+    <template id="tpl-stars">
+        <span class="stars" role="img"><i class="star"></i><i class="star"></i><i class="star"></i><i class="star"></i><i class="star"></i></span>
+    </template>
+
+    <template id="tpl-product-art">
+        <div class="product-art">
+            <svg viewBox="0 0 240 180" role="img"><use></use></svg>
+            <img class="product-photo" alt="" loading="lazy" hidden>
+        </div>
+    </template>
+
+    <template id="tpl-fav-button">
+        <button class="fav-btn" type="button" aria-pressed="false" aria-label="Agregar a favoritos">
+            <svg aria-hidden="true"><use href="img/iconos.svg#heart"></use></svg>
+        </button>
+    </template>
+
+    <template id="tpl-product-card">
+        <article class="card">
+            <a class="card-media" data-field="media" tabindex="-1" aria-hidden="true"></a>
+            <div class="card-body">
+                <span class="card-tag" data-field="tag" hidden></span>
+                <h3 class="card-title"><a data-field="name"></a></h3>
+                <p class="card-sub" data-field="sub"></p>
+                <p class="card-colors" data-field="colors"></p>
+                <p class="card-rating" data-field="rating" hidden><span data-slot="stars"></span><span data-field="reviews"></span></p>
+                <p class="card-price" data-field="price"></p>
+            </div>
+        </article>
+    </template>
+
+    <template id="tpl-rail">
+        <section class="rail">
+            <div class="section-head">
+                <h2 data-field="title"></h2>
+                <a class="link-more" data-field="link" hidden></a>
+            </div>
+            <div class="rail-track" data-slot="items"></div>
+        </section>
+    </template>
+
+    <template id="tpl-suggestion">
+        <a role="option">
+            <span data-slot="art"></span>
+            <span><strong data-field="name"></strong><em data-field="price"></em></span>
+        </a>
+    </template>
+
+    <template id="tpl-see-all">
+        <a class="see-all">Ver todos los resultados</a>
+    </template>
+
+    <template id="tpl-message">
+        <p class="muted"></p>
+    </template>
+
+    <!-- ===================== Plantillas: inicio ===================== -->
+    <template id="tpl-home">
+        <div>
+            <section class="hero">
+                <div class="hero-copy">
+                    <p class="eyebrow"><span data-field="season"></span> · Para jóvenes y adultos de 15 a 45 años</p>
+                    <h1 data-field="heroTitle"></h1>
+                    <p data-field="heroText"></p>
+                    <div class="hero-cta">
+                        <a class="btn btn-accent" href="#/tienda">Comprar ahora</a>
+                        <a class="btn btn-outline-light" href="#/ofertas">Ver cupones</a>
+                    </div>
+                </div>
+                <div class="hero-art" data-slot="heroArt" aria-hidden="true"></div>
+            </section>
+
+            <section class="perks">
+                <div class="perk"><strong>Envío gratis</strong><span>En compras desde <span data-field="freeFrom"></span></span></div>
+                <div class="perk"><strong>Recoge en sucursal</strong><span>Tijuana y CDMX, sin costo</span></div>
+                <div class="perk"><strong>30 días para cambios</strong><span>Devoluciones sin complicaciones</span></div>
+                <div class="perk"><strong>Pago seguro</strong><span>Tarjeta, OXXO o transferencia</span></div>
+            </section>
+
+            <section class="tiles">
+                <a class="tile" href="#/tienda?dep=footwear">
+                    <div data-slot="tileFootwear"></div>
+                    <div class="tile-copy"><h2>Calzado</h2><p>Running, básquetbol y urbano</p><span class="btn btn-light btn-sm">Comprar</span></div>
+                </a>
+                <a class="tile" href="#/tienda?dep=apparel">
+                    <div data-slot="tileApparel"></div>
+                    <div class="tile-copy"><h2>Ropa</h2><p>Playeras, joggers, leggings y más</p><span class="btn btn-light btn-sm">Comprar</span></div>
+                </a>
+                <a class="tile" href="#/tienda?dep=accessories">
+                    <div data-slot="tileAccessories"></div>
+                    <div class="tile-copy"><h2>Accesorios</h2><p>Gorras, mochilas y botellas</p><span class="btn btn-light btn-sm">Comprar</span></div>
+                </a>
+            </section>
+
+            <div data-slot="bestSellers"></div>
+
+            <section class="segments">
+                <a class="segment segment-youth" href="#/tienda?edad=youth"><span>15–24</span><h2>Juvenil</h2><p>Estilo urbano, escuela y deporte.</p></a>
+                <a class="segment segment-adult" href="#/tienda?edad=adult"><span>25–45</span><h2>Adulto</h2><p>Rendimiento para correr, entrenar y competir.</p></a>
+            </section>
+
+            <section class="coupon-strip" data-slot="coupons" hidden></section>
+            <div data-slot="newest"></div>
+            <div data-slot="topRated"></div>
+        </div>
+    </template>
+
+    <template id="tpl-coupon">
+        <div class="coupon">
+            <span class="coupon-pct" data-field="pct"></span>
+            <div>
+                <strong data-field="description"></strong>
+                <span>Usa el cupón <code data-field="code"></code></span>
+            </div>
+        </div>
+    </template>
+
+    <!-- ===================== Plantillas: catálogo ===================== -->
+    <template id="tpl-catalog">
+        <div class="plp">
+            <div class="plp-head">
+                <div>
+                    <h1><span data-field="title"></span> <span class="muted" data-field="count"></span></h1>
+                    <div class="active-filters" data-slot="chips"></div>
+                </div>
+                <div class="plp-tools">
+                    <button class="btn btn-ghost filters-toggle" type="button" data-action="toggle-filters" aria-expanded="false">Filtros</button>
+                    <label class="sort">Ordenar por
+                        <select name="orden">
+                            <option value="destacados">Destacados</option>
+                            <option value="vendidos">Más vendidos</option>
+                            <option value="calificacion">Mejor calificados</option>
+                            <option value="nuevo">Novedades</option>
+                            <option value="precio-asc">Precio: menor a mayor</option>
+                            <option value="precio-desc">Precio: mayor a menor</option>
+                        </select>
+                    </label>
+                </div>
+            </div>
+            <div class="plp-body">
+                <aside class="plp-filters">
+                    <form class="filters">
+                        <fieldset class="filter">
+                            <legend>Departamento</legend>
+                            <label class="opt"><input type="radio" name="dep" value=""> Todos</label>
+                            <label class="opt"><input type="radio" name="dep" value="footwear"> Calzado</label>
+                            <label class="opt"><input type="radio" name="dep" value="apparel"> Ropa</label>
+                            <label class="opt"><input type="radio" name="dep" value="accessories"> Accesorios</label>
+                        </fieldset>
+                        <fieldset class="filter">
+                            <legend>Género</legend>
+                            <label class="opt"><input type="radio" name="genero" value=""> Todos</label>
+                            <label class="opt"><input type="radio" name="genero" value="F"> Mujer</label>
+                            <label class="opt"><input type="radio" name="genero" value="M"> Hombre</label>
+                        </fieldset>
+                        <fieldset class="filter">
+                            <legend>Edad</legend>
+                            <label class="opt"><input type="radio" name="edad" value=""> Todas</label>
+                            <label class="opt"><input type="radio" name="edad" value="youth"> Juvenil 15–24</label>
+                            <label class="opt"><input type="radio" name="edad" value="adult"> Adulto 25–45</label>
+                        </fieldset>
+                        <fieldset class="filter">
+                            <legend>Precio</legend>
+                            <label class="opt"><input type="radio" name="precio" value=""> Todos</label>
+                            <label class="opt"><input type="radio" name="precio" value="lt500"> Menos de $500</label>
+                            <label class="opt"><input type="radio" name="precio" value="500-1000"> $500 a $1,000</label>
+                            <label class="opt"><input type="radio" name="precio" value="1000-1500"> $1,000 a $1,500</label>
+                            <label class="opt"><input type="radio" name="precio" value="gt1500"> Más de $1,500</label>
+                        </fieldset>
+                        <fieldset class="filter">
+                            <legend>Talla</legend>
+                            <div class="size-chips" data-slot="sizes"></div>
+                        </fieldset>
+                        <fieldset class="filter">
+                            <legend>Color</legend>
+                            <div class="color-chips" data-slot="colors"></div>
+                        </fieldset>
+                        <fieldset class="filter">
+                            <legend>Más filtros</legend>
+                            <label class="opt"><input type="checkbox" name="disp" value="1"> Solo con existencias</label>
+                            <label class="opt"><input type="checkbox" name="calif" value="4"> 4 estrellas o más</label>
+                        </fieldset>
+                        <a class="btn btn-ghost btn-block" href="#/tienda">Limpiar filtros</a>
+                    </form>
+                </aside>
+                <div class="product-grid" data-slot="grid"></div>
+            </div>
+        </div>
+    </template>
+
+    <template id="tpl-size-chip">
+        <label class="size-chip"><input type="radio" name="talla"><span></span></label>
+    </template>
+
+    <template id="tpl-color-chip">
+        <label class="color-chip"><input type="radio" name="color"><span class="dot"></span><em></em></label>
+    </template>
+
+    <template id="tpl-chip-remove">
+        <a class="chip-remove"></a>
+    </template>
+
+    <!-- ===================== Plantillas: producto ===================== -->
+    <template id="tpl-product">
+        <div>
+            <nav class="breadcrumb" aria-label="Ruta">
+                <a href="#/">Inicio</a> / <a data-field="department"></a> / <span data-field="crumb"></span>
+            </nav>
+            <div class="pdp">
+                <div class="pdp-gallery">
+                    <div class="pdp-main" data-slot="main"></div>
+                    <div class="pdp-thumbs" data-slot="thumbs"></div>
+                </div>
+                <div class="pdp-info">
+                    <p class="eyebrow-dark" data-field="audience"></p>
+                    <h1 data-field="name"></h1>
+                    <p class="pdp-sub" data-field="category"></p>
+                    <a class="pdp-rating" href="#resenas" data-action="scroll-reviews" data-field="ratingLink" hidden><span data-slot="stars"></span><span data-field="ratingText"></span></a>
+                    <p class="pdp-price" data-field="price"></p>
+                    <p class="ok-text small" data-field="freeShipping" hidden>Envío gratis</p>
+
+                    <div class="pdp-block">
+                        <p class="label">Color: <strong data-field="colorName"></strong></p>
+                        <div class="swatches" data-slot="swatches"></div>
+                    </div>
+                    <div class="pdp-block">
+                        <p class="label">Talla</p>
+                        <div class="sizes" data-slot="sizes"></div>
+                        <p class="field-error" data-field="sizeError" hidden>Selecciona una talla.</p>
+                    </div>
+
+                    <div class="pdp-actions">
+                        <div class="qty" aria-label="Cantidad">
+                            <button type="button" data-q="-1" aria-label="Menos">−</button>
+                            <span data-field="qty">1</span>
+                            <button type="button" data-q="1" aria-label="Más">+</button>
+                        </div>
+                        <button class="btn btn-dark btn-lg" type="button" data-action="add">Agregar al carrito</button>
+                        <span data-slot="fav"></span>
+                    </div>
+
+                    <div class="availability">
+                        <p class="muted" data-field="chooseSize">Elige una talla para ver la disponibilidad.</p>
+                        <div data-field="stockInfo" hidden>
+                            <p><strong>Envío a domicilio:</strong> <span data-field="online"></span></p>
+                            <p><strong>Recoger en sucursal:</strong></p>
+                            <ul data-slot="stores"></ul>
+                        </div>
+                    </div>
+
+                    <details class="acc" open>
+                        <summary>Descripción</summary>
+                        <p data-field="description"></p>
+                    </details>
+                    <details class="acc">
+                        <summary>Detalles</summary>
+                        <ul>
+                            <li>Departamento: <span data-field="departmentName"></span></li>
+                            <li>Categoría: <span data-field="categoryName"></span></li>
+                            <li>Para: <span data-field="forWho"></span></li>
+                            <li>SKU: <span data-field="sku">elige una talla</span></li>
+                        </ul>
+                    </details>
+                    <details class="acc">
+                        <summary>Envíos y devoluciones</summary>
+                        <p>Envío gratis desde <span data-field="freeFrom"></span>; si no, cuesta <span data-field="shippingCost"></span>. Recoger en sucursal no tiene costo. Tienes 30 días para cambios y devoluciones.</p>
+                    </details>
+                </div>
+            </div>
+            <div data-slot="reviews"><p class="muted">Cargando reseñas…</p></div>
+            <div data-slot="related"></div>
+        </div>
+    </template>
+
+    <template id="tpl-thumb">
+        <button class="thumb" type="button"></button>
+    </template>
+
+    <template id="tpl-swatch">
+        <button class="swatch" type="button" aria-pressed="false"></button>
+    </template>
+
+    <template id="tpl-size-button">
+        <button class="size" type="button" aria-pressed="false"></button>
+    </template>
+
+    <template id="tpl-store-stock">
+        <li><span data-field="store"></span><span data-field="status"></span></li>
+    </template>
+
+    <template id="tpl-reviews">
+        <section class="reviews" id="resenas">
+            <h2>Reseñas (<span data-field="total"></span>)</h2>
+            <div class="reviews-grid">
+                <div class="reviews-summary">
+                    <p class="big-rating" data-field="average"></p>
+                    <span data-slot="stars"></span>
+                    <p class="muted"><span data-field="count"></span> calificaciones</p>
+                    <div data-slot="bars"></div>
+                    <div data-slot="form"></div>
+                </div>
+                <div class="reviews-list" data-slot="list"></div>
+            </div>
+        </section>
+    </template>
+
+    <template id="tpl-review-bar">
+        <div class="bar-row"><span data-field="label"></span><progress max="100" value="0"></progress><span data-field="pct"></span></div>
+    </template>
+
+    <template id="tpl-review">
+        <article class="review">
+            <div class="review-head"><span data-slot="stars"></span><strong data-field="title"></strong></div>
+            <p class="review-meta"><span data-field="meta"></span> <span class="verified" data-field="verified" hidden>· Compra verificada</span></p>
+            <p data-field="comment"></p>
+        </article>
+    </template>
+
+    <template id="tpl-review-form">
+        <form class="review-form">
+            <h3>Escribe una reseña</h3>
+            <div class="rate-input" role="radiogroup" aria-label="Calificación">
+                <label><input type="radio" name="rating" value="1"><span>1★</span></label>
+                <label><input type="radio" name="rating" value="2"><span>2★</span></label>
+                <label><input type="radio" name="rating" value="3"><span>3★</span></label>
+                <label><input type="radio" name="rating" value="4"><span>4★</span></label>
+                <label><input type="radio" name="rating" value="5" checked><span>5★</span></label>
+            </div>
+            <label class="field"><span>Título</span><input class="input" name="title" maxlength="80" required></label>
+            <label class="field"><span>Comentario</span><textarea class="input" name="comment" rows="3" maxlength="1000"></textarea></label>
+            <button class="btn btn-dark">Publicar reseña</button>
+        </form>
+    </template>
+
+    <template id="tpl-review-login">
+        <p class="muted"><a data-field="login">Inicia sesión</a> para escribir una reseña.</p>
+    </template>
+
+    <!-- ===================== Plantillas: carrito ===================== -->
+    <template id="tpl-cart">
+        <div class="cart-page">
+            <section class="cart-lines">
+                <h1>Carrito <span class="muted" data-field="cartCount"></span></h1>
+                <div class="free-ship">
+                    <p data-field="freeShipText"></p>
+                    <progress max="100" value="0"></progress>
+                </div>
+                <div data-slot="lines"></div>
+            </section>
+            <aside class="summary">
+                <h2>Resumen</h2>
+                <div class="sum-row"><span>Subtotal</span><span data-field="cartSubtotal"></span></div>
+                <div class="sum-row"><span>Envío estimado</span><span data-field="cartShipping"></span></div>
+                <p class="muted small">Recoger en sucursal no tiene costo. Los cupones se aplican al pagar.</p>
+                <div class="sum-row total"><span>Total estimado</span><span data-field="cartTotal"></span></div>
+                <a class="btn btn-dark btn-block btn-lg" href="#/pago">Pagar</a>
+                <a class="btn btn-ghost btn-block" href="#/tienda">Seguir comprando</a>
+            </aside>
+        </div>
+    </template>
+
+    <template id="tpl-cart-line">
+        <article class="cart-line">
+            <a class="cart-thumb" data-field="thumb"></a>
+            <div class="cart-info">
+                <div class="cart-row"><a class="cart-name" data-field="name"></a><strong data-field="total"></strong></div>
+                <p class="muted" data-field="category"></p>
+                <p class="muted" data-field="variant"></p>
+                <p class="bad-text small" data-field="lowStock" hidden></p>
+                <div class="cart-actions">
+                    <label>Cantidad
+                        <select data-action="quantity">
+                            <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
+                            <option>6</option><option>7</option><option>8</option><option>9</option><option>10</option>
+                        </select>
+                    </label>
+                    <button class="link-btn" type="button" data-action="move">Mover a favoritos</button>
+                    <button class="link-btn" type="button" data-action="remove">Eliminar</button>
+                </div>
+            </div>
+        </article>
+    </template>
+
+    <!-- ===================== Plantillas: pago ===================== -->
+    <template id="tpl-checkout">
+        <div class="checkout">
+            <form class="checkout-form" novalidate>
+                <h1>Pagar</h1>
+
+                <section class="step">
+                    <h2><span>1</span> Entrega</h2>
+                    <div class="choice-grid">
+                        <label class="choice"><input type="radio" name="delivery" value="shipping" checked><span><strong>Envío a domicilio</strong><em data-field="shipLabel"></em></span></label>
+                        <label class="choice"><input type="radio" name="delivery" value="pickup"><span><strong>Recoger en sucursal</strong><em>Gratis · listo el mismo día</em></span></label>
+                    </div>
+                    <div data-slot="shippingFields">
+                        <p class="muted small">Recibe: <span data-field="receiver"></span></p>
+                        <div class="field-row">
+                            <label class="field grow"><span>Calle</span><input class="input" name="street" maxlength="100" autocomplete="address-line1"></label>
+                            <label class="field"><span>Número</span><input class="input" name="ext_number" maxlength="10"></label>
+                            <label class="field"><span>Interior</span><input class="input" name="int_number" maxlength="10"></label>
+                        </div>
+                        <div class="field-row">
+                            <label class="field grow"><span>Colonia</span><input class="input" name="neighborhood" maxlength="80"></label>
+                            <label class="field"><span>Código postal</span><input class="input" name="zip_code" inputmode="numeric" maxlength="5" autocomplete="postal-code"></label>
+                        </div>
+                        <div class="field-row">
+                            <label class="field grow"><span>Ciudad</span><input class="input" name="city" maxlength="60" autocomplete="address-level2"></label>
+                            <label class="field grow"><span>Estado</span><select class="input" name="id_state"><option value="">Elige</option></select></label>
+                        </div>
+                        <label class="field"><span>Referencias (opcional)</span><input class="input" name="reference" maxlength="150"></label>
+                    </div>
+                    <div data-slot="pickupFields" hidden></div>
+                </section>
+
+                <section class="step">
+                    <h2><span>2</span> Pago</h2>
+                    <div class="choice-grid">
+                        <label class="choice"><input type="radio" name="payment" value="card" checked><span><strong>Tarjeta</strong><em>Aprobación inmediata</em></span></label>
+                        <label class="choice"><input type="radio" name="payment" value="oxxo"><span><strong>OXXO</strong><em>Paga en efectivo en OXXO</em></span></label>
+                        <label class="choice"><input type="radio" name="payment" value="transfer"><span><strong>Transferencia</strong><em>SPEI desde tu banco</em></span></label>
+                        <label class="choice"><input type="radio" name="payment" value="cash"><span><strong>Efectivo en sucursal</strong><em>Solo al recoger en sucursal</em></span></label>
+                    </div>
+                    <div data-slot="cardFields">
+                        <p class="notice">Pago simulado para el proyecto: los datos de la tarjeta solo se validan en tu navegador; no se envían ni se guardan.</p>
+                        <label class="field"><span>Nombre en la tarjeta</span><input class="input" name="card_name" autocomplete="cc-name"></label>
+                        <label class="field"><span>Número de tarjeta</span><input class="input" name="card_number" inputmode="numeric" autocomplete="cc-number" placeholder="4242 4242 4242 4242"></label>
+                        <div class="field-row">
+                            <label class="field"><span>Vence (MM/AA)</span><input class="input" name="card_exp" placeholder="12/28" autocomplete="cc-exp" maxlength="5"></label>
+                            <label class="field"><span>CVV</span><input class="input" name="card_cvv" inputmode="numeric" maxlength="4" autocomplete="cc-csc"></label>
+                        </div>
+                    </div>
+                </section>
+            </form>
+
+            <aside class="summary">
+                <h2>Tu pedido</h2>
+                <div class="sum-lines" data-slot="lines"></div>
+                <div class="coupon-input">
+                    <input class="input" name="coupon" placeholder="Código de cupón" autocomplete="off" aria-label="Código de cupón">
+                    <button class="btn btn-ghost" type="button" data-action="coupon">Aplicar</button>
+                </div>
+                <p class="small" data-field="couponMessage"></p>
+                <div class="sum-row"><span>Subtotal</span><span data-field="orderSubtotal"></span></div>
+                <div class="sum-row ok-text" data-field="discountRow" hidden><span>Cupón <span data-field="couponCode"></span></span><span data-field="orderDiscount"></span></div>
+                <div class="sum-row"><span>Envío</span><span data-field="orderShipping"></span></div>
+                <div class="sum-row total"><span>Total</span><span data-field="orderTotal"></span></div>
+                <button class="btn btn-dark btn-block btn-lg" type="button" data-action="place-order">Confirmar pedido</button>
+                <p class="muted small">Al confirmar, el pedido, el descuento de inventario y el pago se registran juntos en una sola transacción.</p>
+            </aside>
+        </div>
+    </template>
+
+    <template id="tpl-store-option">
+        <label class="choice store-choice">
+            <input type="radio" name="pickup_store">
+            <span><strong data-field="name"></strong><em data-field="address"></em><em class="stock-note" data-field="stock"></em></span>
+        </label>
+    </template>
+
+    <template id="tpl-summary-line">
+        <div class="sum-line">
+            <span data-slot="art"></span>
+            <div><strong data-field="name"></strong><p class="muted small" data-field="detail"></p></div>
+            <span data-field="total"></span>
+        </div>
+    </template>
+
+    <template id="tpl-confirmation">
+        <div class="confirm">
+            <div class="confirm-icon" aria-hidden="true">✓</div>
+            <h1>¡Gracias por tu compra!</h1>
+            <p>Tu pedido <strong>#<span data-field="id"></span></strong> quedó registrado.</p>
+            <p class="confirm-total" data-field="total" hidden></p>
+            <p class="notice" data-field="instructions" hidden></p>
+            <p data-field="pickup" hidden></p>
+            <p data-field="shipping" hidden>Llegará en 3 a 5 días hábiles.</p>
+            <div class="confirm-actions">
+                <a class="btn btn-dark" href="#/cuenta">Ver mis pedidos</a>
+                <a class="btn btn-ghost" href="#/tienda">Seguir comprando</a>
+            </div>
+        </div>
+    </template>
+
+    <!-- ===================== Plantillas: cuenta ===================== -->
+    <template id="tpl-auth">
+        <div class="narrow">
+            <h1 data-field="title"></h1>
+            <div class="auth">
+                <p class="auth-intro" data-field="intro"></p>
+                <div class="auth-tabs" role="tablist">
+                    <button role="tab" class="active" type="button" data-auth="login" aria-selected="true">Iniciar sesión</button>
+                    <button role="tab" type="button" data-auth="register" aria-selected="false">Crear cuenta</button>
+                </div>
+                <form class="auth-form" data-form="login" novalidate>
+                    <label class="field"><span>Correo</span><input class="input" type="email" name="email" autocomplete="email" required></label>
+                    <label class="field"><span>Contraseña</span><input class="input" type="password" name="password" autocomplete="current-password" required></label>
+                    <button class="btn btn-dark btn-block btn-lg">Iniciar sesión</button>
+                </form>
+                <form class="auth-form" data-form="register" hidden novalidate>
+                    <div class="field-row">
+                        <label class="field"><span>Nombre</span><input class="input" name="first_name" autocomplete="given-name" required maxlength="50"></label>
+                        <label class="field"><span>Apellido paterno</span><input class="input" name="last_name_paternal" autocomplete="family-name" required maxlength="50"></label>
+                    </div>
+                    <label class="field"><span>Apellido materno (opcional)</span><input class="input" name="last_name_maternal" maxlength="50"></label>
+                    <label class="field"><span>Correo</span><input class="input" type="email" name="email" autocomplete="email" required maxlength="100"></label>
+                    <label class="field"><span>Teléfono (10 dígitos)</span><input class="input" type="tel" name="phone" inputmode="numeric" pattern="\d{10}" autocomplete="tel-national" required></label>
+                    <div class="field-row">
+                        <label class="field"><span>Fecha de nacimiento</span><input class="input" type="date" name="birth_date" required></label>
+                        <label class="field"><span>Sexo</span>
+                            <select class="input" name="sex" required>
+                                <option value="">Elige</option>
+                                <option value="F">Mujer</option>
+                                <option value="M">Hombre</option>
+                                <option value="X">Prefiero no decir</option>
+                            </select>
+                        </label>
+                    </div>
+                    <label class="field"><span>Contraseña (mínimo 8, con letras y números)</span><input class="input" type="password" name="password" autocomplete="new-password" minlength="8" required></label>
+                    <label class="check"><input type="checkbox" name="accepts_marketing" value="1"> Quiero recibir ofertas y novedades</label>
+                    <button class="btn btn-dark btn-block btn-lg">Crear cuenta</button>
+                    <p class="muted small">Debes tener al menos 15 años. Tu contraseña se guarda cifrada.</p>
+                </form>
+            </div>
+        </div>
+    </template>
+
+    <template id="tpl-account">
+        <div class="account">
+            <header class="account-head">
+                <div>
+                    <p class="eyebrow-dark">Mi cuenta</p>
+                    <h1>Hola, <span data-field="name"></span></h1>
+                    <p class="muted" data-field="contact"></p>
+                </div>
+                <div class="loyalty"><span>Nivel</span><strong data-field="level"></strong></div>
+            </header>
+            <div class="section-head">
+                <h2>Mis pedidos</h2>
+                <button class="btn btn-ghost btn-sm" type="button" data-action="logout">Cerrar sesión</button>
+            </div>
+            <div data-slot="orders"></div>
+        </div>
+    </template>
+
+    <template id="tpl-no-orders">
+        <p class="muted">Aún no tienes pedidos. <a href="#/tienda">Explora la tienda</a>.</p>
+    </template>
+
+    <template id="tpl-order-card">
+        <article class="order-card">
+            <header>
+                <div><strong>Pedido #<span data-field="id"></span></strong> <span class="muted">· <span data-field="date"></span></span></div>
+                <span data-slot="status"></span>
+            </header>
+            <div class="order-items" data-slot="items"></div>
+            <footer><span class="muted small" data-field="info"></span><strong data-field="total"></strong></footer>
+        </article>
+    </template>
+
+    <template id="tpl-order-line">
+        <div class="order-item">
+            <span data-slot="art"></span>
+            <div><a data-field="name"></a><p class="muted small" data-field="detail"></p></div>
+            <span data-field="total"></span>
+        </div>
+    </template>
+
+    <!-- ===================== Plantillas: páginas informativas ===================== -->
+    <template id="tpl-favorites">
+        <div class="plain-page">
+            <h1>Favoritos <span class="muted" data-field="count"></span></h1>
+            <div class="product-grid wide" data-slot="grid"></div>
+        </div>
+    </template>
+
+    <template id="tpl-offers">
+        <div class="plain-page">
+            <h1>Ofertas y cupones</h1>
+            <div class="coupon-grid" data-slot="coupons"></div>
+            <div class="section-head"><h2>Recomendados para ti</h2><a class="link-more" href="#/tienda?orden=calificacion">Ver todo</a></div>
+            <div class="product-grid wide" data-slot="grid"></div>
+        </div>
+    </template>
+
+    <template id="tpl-coupon-big">
+        <article class="coupon big">
+            <span class="coupon-pct" data-field="pct"></span>
+            <div>
+                <strong data-field="description"></strong>
+                <span>Vigente hasta el <span data-field="until"></span></span>
+                <button class="code-btn" type="button" data-action="copy"><span data-field="code"></span> · Copiar</button>
+            </div>
+        </article>
+    </template>
+
+    <template id="tpl-stores">
+        <div class="plain-page">
+            <h1>Sucursales</h1>
+            <p class="muted">Compra en línea y recoge sin costo, o visítanos.</p>
+            <div class="store-grid" data-slot="stores"></div>
+        </div>
+    </template>
+
+    <template id="tpl-store-card">
+        <article class="store-card">
+            <h2 data-field="name"></h2>
+            <p data-field="location"></p>
+            <p class="muted" data-field="hours" hidden></p>
+            <p class="muted">Tel. <span data-field="phone"></span></p>
+            <a class="btn btn-ghost btn-sm" href="#/tienda?disp=1">Ver productos disponibles</a>
+        </article>
+    </template>
+
+    <template id="tpl-help">
+        <div class="plain-page narrow">
+            <h1>Ayuda</h1>
+            <details class="acc" open>
+                <summary>¿Cuánto cuesta el envío?</summary>
+                <p>El envío a domicilio es gratis en compras desde <span data-field="freeFrom"></span> (después del cupón). Si no, cuesta <span data-field="shippingCost"></span>. Llega en 3 a 5 días hábiles.</p>
+            </details>
+            <details class="acc">
+                <summary>¿Puedo recoger en tienda?</summary>
+                <p>Sí. Elige “Recoger en sucursal” al pagar y escoge Tijuana o CDMX. Es gratis y te mostramos qué tiene existencias cada sucursal.</p>
+            </details>
+            <details class="acc">
+                <summary>¿Qué métodos de pago aceptan?</summary>
+                <p>Tarjeta (aprobación inmediata), OXXO, transferencia SPEI y efectivo al recoger en sucursal. En este proyecto académico los pagos son simulados.</p>
+            </details>
+            <details class="acc">
+                <summary>¿Cómo uso un cupón?</summary>
+                <p>Escribe el código en el resumen del pago. Encuentra los cupones vigentes en Ofertas.</p>
+            </details>
+            <details class="acc">
+                <summary>¿Puedo cambiar o devolver un producto?</summary>
+                <p>Tienes 30 días desde que lo recibes. Debe estar sin uso y con etiquetas.</p>
+            </details>
+            <details class="acc">
+                <summary>¿Dónde veo mis pedidos?</summary>
+                <p>En Mi cuenta, con su estado, método de pago y forma de entrega.</p>
+            </details>
+        </div>
+    </template>
+
+    <!-- ===================== Plantillas: panel de sucursales ===================== -->
+    <template id="tpl-panel">
+        <div class="panel">
+            <div class="panel-head">
+                <div>
+                    <p class="eyebrow-dark">Panel de sucursales</p>
+                    <h1 data-field="title"></h1>
+                    <p class="muted" data-field="subtitle"></p>
+                </div>
+                <button class="btn btn-dark" type="button" data-action="sync" hidden>Sincronizar fragmentos</button>
+            </div>
+            <nav class="panel-tabs">
+                <a href="#/panel/inventario" data-section="inventario">Inventario por sucursal</a>
+                <a href="#/panel/pedidos" data-section="pedidos">Pedidos por nodo</a>
+                <a href="#/panel/distribuida" data-section="distribuida">Base de datos distribuida</a>
+            </nav>
+            <div data-slot="content"></div>
+        </div>
+    </template>
+
+    <template id="tpl-panel-inventory">
+        <div>
+            <div class="tabs" role="tablist">
+                <button role="tab" class="tab" type="button" data-node="all" aria-selected="false">Todas</button>
+                <button role="tab" class="tab" type="button" data-node="tijuana" aria-selected="false">Tijuana</button>
+                <button role="tab" class="tab" type="button" data-node="cdmx" aria-selected="false">CDMX</button>
+                <button role="tab" class="tab" type="button" data-node="online" aria-selected="false">En línea</button>
+            </div>
+            <div class="sources" data-slot="sources"></div>
+            <div class="table-wrap">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Nodo</th><th>Sucursal</th><th>SKU</th><th>Producto</th>
+                            <th>Talla</th><th>Color</th><th class="num">Stock</th><th class="num">Mínimo</th><th>Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody data-slot="rows"></tbody>
+                </table>
+            </div>
+        </div>
+    </template>
+
+    <template id="tpl-inventory-row">
+        <tr>
+            <td data-slot="node"></td>
+            <td data-field="store"></td>
+            <td data-field="sku"></td>
+            <td data-field="product"></td>
+            <td data-field="size"></td>
+            <td data-field="color"></td>
+            <td class="num" data-field="stock"></td>
+            <td class="num" data-field="min"></td>
+            <td data-slot="status"></td>
+        </tr>
+    </template>
+
+    <template id="tpl-table-message">
+        <tr><td class="empty" data-field="text"></td></tr>
+    </template>
+
+    <template id="tpl-panel-orders">
+        <div>
+            <div class="toolbar">
+                <select class="input" name="node" aria-label="Filtrar por nodo">
+                    <option value="all">Todos los nodos</option>
+                    <option value="tijuana">Tijuana</option>
+                    <option value="cdmx">CDMX</option>
+                    <option value="online">En línea</option>
+                </select>
+                <select class="input" name="status" aria-label="Filtrar por estado">
+                    <option value="">Todos los estados</option>
+                    <option value="pending">Pendiente</option>
+                    <option value="paid">Pagado</option>
+                    <option value="shipped">Enviado</option>
+                    <option value="delivered">Entregado</option>
+                    <option value="cancelled">Cancelado</option>
+                    <option value="returned">Devuelto</option>
+                </select>
+            </div>
+            <div class="sources" data-slot="sources"></div>
+            <div class="order-list" data-slot="list"></div>
+        </div>
+    </template>
+
+    <template id="tpl-panel-order">
+        <details class="order">
+            <summary>
+                <span class="order-id">#<span data-field="id"></span></span>
+                <span class="order-store"><span data-field="store"></span> <span data-slot="node"></span></span>
+                <span class="order-date muted" data-field="date"></span>
+                <span class="order-channel"><span data-slot="status"></span> <span data-slot="channel"></span></span>
+                <span class="order-total" data-field="total"></span>
+            </summary>
+            <div class="order-items" data-slot="items"></div>
+        </details>
+    </template>
+
+    <template id="tpl-panel-order-item">
+        <div class="order-item"><span data-field="text"></span><span data-field="amount"></span></div>
+    </template>
+
+    <template id="tpl-panel-distributed">
+        <div>
+            <h2 class="section-title">Nodos</h2>
+            <div class="node-grid" data-slot="nodes"></div>
+
+            <h2 class="section-title">Fragmentación horizontal <span class="muted small">predicado id_store</span></h2>
+            <div class="fragment-grid" data-slot="fragments"></div>
+
+            <h2 class="section-title">Fragmentación vertical <span class="muted small">customer</span></h2>
+            <div class="legend" data-slot="legend"></div>
+            <div class="table-wrap">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th class="col-profile">Nombre</th><th class="col-profile">Apellido</th><th class="col-profile">Sucursal</th>
+                            <th class="col-profile">Nivel</th><th class="col-profile">Publicidad</th>
+                            <th class="col-private">Nacimiento</th><th class="col-private">Sexo</th><th class="col-private">Teléfono</th><th class="col-private">Correo</th>
+                        </tr>
+                    </thead>
+                    <tbody data-slot="customers"></tbody>
+                </table>
+            </div>
+
+            <h2 class="section-title">Replicación del catálogo</h2>
+            <div class="table-wrap">
+                <table class="table">
+                    <thead><tr data-slot="replicationHead"><th>Tabla</th><th class="num">Publicador</th></tr></thead>
+                    <tbody data-slot="replication"></tbody>
+                </table>
+            </div>
+        </div>
+    </template>
+
+    <template id="tpl-node-card">
+        <article class="node-card">
+            <header><h3 data-field="label"></h3><span data-slot="status"></span></header>
+            <div data-slot="details"></div>
+            <div class="node-error" data-field="error" hidden></div>
+        </article>
+    </template>
+
+    <template id="tpl-kv">
+        <div class="kv"><span data-field="key"></span><span data-field="value"></span></div>
+    </template>
+
+    <template id="tpl-fragment-card">
+        <article class="fragment-card">
+            <header><h3 data-field="label"></h3><span data-slot="predicate"></span></header>
+            <div class="node-error" data-field="error" hidden></div>
+            <div data-slot="tables"></div>
+        </article>
+    </template>
+
+    <template id="tpl-customer-row">
+        <tr>
+            <td data-field="id"></td>
+            <td class="col-profile" data-field="first"></td>
+            <td class="col-profile" data-field="last"></td>
+            <td class="col-profile" data-field="store"></td>
+            <td class="col-profile" data-field="level"></td>
+            <td class="col-profile" data-field="marketing"></td>
+            <td class="col-private" data-field="birth"></td>
+            <td class="col-private" data-field="sex"></td>
+            <td class="col-private" data-field="phone"></td>
+            <td class="col-private" data-field="email"></td>
+        </tr>
+    </template>
+
+    <template id="tpl-legend-item">
+        <span><i class="legend-swatch"></i> <span data-field="text"></span> <span data-slot="badge"></span></span>
+    </template>
+
+    <template id="tpl-cell">
+        <td></td>
+    </template>
+
+    <template id="tpl-head-cell">
+        <th></th>
+    </template>
 
     <script src="config.js"></script>
     <script type="module" src="js/app.js"></script>

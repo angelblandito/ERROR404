@@ -1,7 +1,7 @@
 /* Panel de sucursales: inventario por nodo, pedidos por fragmento y estado
    de la base de datos distribuida. */
 import { api } from '../api.js';
-import { $, esc, badge, money, formatDate, setTitle, toast as notify } from '../ui.js';
+import { $, $$, clone, field, fill, show, slot, badge, money, message, formatDate, setTitle, toast } from '../ui.js';
 
 const NODES = {
     tijuana: { label: 'Tijuana', idStore: 1 },
@@ -20,129 +20,313 @@ const ORDER_STATUS = {
 
 const CHANNEL = { in_store: 'En tienda', online: 'En línea', whatsapp: 'WhatsApp' };
 
-const state = { inventoryNode: 'all' };
+const REPLICATION_STATE = {
+    sincronizado: ['Sincronizado', 'ok'],
+    diferente: ['Diferente', 'warn'],
+    sin_replicar: ['Sin replicar', 'bad']
+};
 
-function emptyRow(colspan, text) {
-    return '<tr><td class="empty" colspan="' + colspan + '">' + esc(text) + '</td></tr>';
+const SECTIONS = {
+    inventario: ['Inventario por sucursal', 'Cada pestaña lee el fragmento horizontal del nodo correspondiente.', 'tpl-panel-inventory'],
+    pedidos: ['Pedidos por nodo', 'Reconstruidos con la unión de los fragmentos de cada nodo.', 'tpl-panel-orders'],
+    distribuida: ['Base de datos distribuida', 'Nodos, fragmentación, replicación y espejo en la nube.', 'tpl-panel-distributed']
+};
+
+const panelState = { inventoryNode: 'all' };
+
+function nodeLabel(node) {
+    return NODES[node] ? NODES[node].label : node;
 }
 
-function toast(message, isError) {
-    notify(message, { error: Boolean(isError) });
+function tableMessage(text, colspan) {
+    const row = fill(clone('tpl-table-message'), { text: text });
+    row.firstElementChild.colSpan = colspan;
+    return row;
+}
+
+function cell(content, css) {
+    const td = clone('tpl-cell');
+    if (css) td.className = css;
+    if (content instanceof Node) {
+        td.append(content);
+    } else {
+        td.textContent = content === null || content === undefined ? '—' : content;
+    }
+    return td;
+}
+
+function kv(key, value) {
+    return fill(clone('tpl-kv'), { key: key, value: value === null || value === undefined ? '—' : value });
 }
 
 function sourceBadges(sources) {
     return Object.keys(sources || {}).map(function (node) {
         const s = sources[node];
-        const label = (NODES[node] ? NODES[node].label : node) + ': ';
+        const label = nodeLabel(node) + ': ';
         if (s.source === 'fragmento') {
             return badge(label + 'fragmento local (' + s.rows + ')', 'ok');
         }
-        if (String(s.source).indexOf('respaldo') === 0) {
-            return '<span class="badge warn" title="' + esc(s.error || '') + '">' +
-                esc(label + 'nodo sin conexión, leído de ' + s.source.split(':')[1]) + '</span>';
-        }
-        return '<span class="badge bad" title="' + esc(s.error || '') + '">' + esc(label + 'sin datos') + '</span>';
-    }).join('');
+        const el = String(s.source).indexOf('respaldo') === 0
+            ? badge(label + 'nodo sin conexión, leído de ' + s.source.split(':')[1], 'warn')
+            : badge(label + 'sin datos', 'bad');
+        el.title = s.error || '';
+        return el;
+    });
 }
 
-async function loadInventory(node) {
-    state.inventoryNode = node;
+/* ---------- Inventario ---------- */
+function inventoryRow(r) {
+    const row = fill(clone('tpl-inventory-row'), {
+        store: r.store_name || ('Tienda ' + r.id_store),
+        sku: r.sku || r.id_variant,
+        product: r.product_name || '',
+        size: r.size || '',
+        color: r.color || '',
+        stock: r.stock,
+        min: r.min_stock
+    });
+    const status = r.stock <= 0 ? badge('Agotado', 'bad') : (r.low_stock ? badge('Stock bajo', 'warn') : badge('Disponible', 'ok'));
+    slot(row, 'node').append(badge(nodeLabel(r.node), 'info'));
+    slot(row, 'status').append(status);
+    row.classList.toggle('low', Boolean(r.low_stock));
+    return row;
+}
 
-    document.querySelectorAll('#inventoryTabs .tab').forEach(function (tab) {
+async function loadInventory(content, node) {
+    panelState.inventoryNode = node;
+    const rows = slot(content, 'rows');
+    const sources = slot(content, 'sources');
+
+    $$('.tab', content).forEach(function (tab) {
         const active = tab.dataset.node === node;
         tab.classList.toggle('active', active);
         tab.setAttribute('aria-selected', String(active));
     });
 
-    const tbody = $('#inventoryTable tbody');
-    tbody.innerHTML = emptyRow(9, 'Cargando…');
-    $('#inventorySources').innerHTML = '';
+    rows.replaceChildren(tableMessage('Cargando…', 9));
+    sources.replaceChildren();
 
     let data;
     try {
         data = await api('/distributed/inventory' + (node !== 'all' ? '?node=' + encodeURIComponent(node) : ''));
     } catch (e) {
-        tbody.innerHTML = emptyRow(9, 'Error: ' + e.message);
+        rows.replaceChildren(tableMessage('Error: ' + e.message, 9));
         return;
     }
 
-    $('#inventorySources').innerHTML = sourceBadges(data.sources);
-
-    tbody.innerHTML = data.rows.length
-        ? data.rows.map(function (r) {
-            const status = r.stock <= 0 ? badge('Agotado', 'bad') : (r.low_stock ? badge('Stock bajo', 'warn') : badge('Disponible', 'ok'));
-            return '<tr class="' + (r.low_stock ? 'low' : '') + '">' +
-                '<td>' + badge(NODES[r.node] ? NODES[r.node].label : r.node, 'info') + '</td>' +
-                '<td>' + esc(r.store_name || ('Tienda ' + r.id_store)) + '</td>' +
-                '<td>' + esc(r.sku || r.id_variant) + '</td>' +
-                '<td>' + esc(r.product_name || '') + '</td>' +
-                '<td>' + esc(r.size || '') + '</td>' +
-                '<td>' + esc(r.color || '') + '</td>' +
-                '<td class="num">' + esc(r.stock) + '</td>' +
-                '<td class="num">' + esc(r.min_stock) + '</td>' +
-                '<td>' + status + '</td>' +
-            '</tr>';
-        }).join('')
-        : emptyRow(9, 'Sin registros en este fragmento.');
+    sources.replaceChildren(...sourceBadges(data.sources));
+    rows.replaceChildren(...(data.rows.length ? data.rows.map(inventoryRow) : [tableMessage('Sin registros en este fragmento.', 9)]));
 }
 
 /* ---------- Pedidos ---------- */
-async function loadOrders() {
-    const node = $('#orderNodeFilter').value;
-    const status = $('#orderStatusFilter').value;
-    const list = $('#orderList');
+function orderItem(text, amount, css) {
+    const item = fill(clone('tpl-panel-order-item'), { text: text, amount: amount });
+    if (css) item.classList.add(css);
+    return item;
+}
 
-    list.innerHTML = '<p class="empty">Cargando…</p>';
-    $('#orderSources').innerHTML = '';
+function panelOrder(o) {
+    const st = ORDER_STATUS[o.status] || { label: o.status, css: '' };
+    const order = fill(clone('tpl-panel-order'), {
+        id: o.id_order,
+        store: o.store_name || '',
+        date: formatDate(o.order_date),
+        total: money.format(Number(o.total))
+    });
+    slot(order, 'node').replaceWith(badge(nodeLabel(o.node), 'info'));
+    slot(order, 'status').replaceWith(badge(st.label, st.css));
+    slot(order, 'channel').replaceWith(badge(CHANNEL[o.channel] || o.channel));
+
+    const items = (o.items || []).map(function (i) {
+        return orderItem(
+            i.quantity + ' × ' + (i.product_name || i.sku || i.id_variant) + (i.size ? ' · ' + i.size : '') + (i.color ? ' · ' + i.color : ''),
+            money.format(Number(i.unit_price) * i.quantity)
+        );
+    });
+    if (!items.length) items.push(message('Sin artículos en el fragmento.'));
+    if (Number(o.discount) > 0) items.push(orderItem('Descuento', '-' + money.format(Number(o.discount)), 'muted'));
+    if (o.notes) items.push(message(o.notes));
+    slot(order, 'items').append(...items);
+    return order;
+}
+
+async function loadOrders(content) {
+    const node = $('select[name="node"]', content).value;
+    const status = $('select[name="status"]', content).value;
+    const list = slot(content, 'list');
+    const sources = slot(content, 'sources');
+
+    list.replaceChildren(message('Cargando…', 'empty'));
+    sources.replaceChildren();
 
     let data;
     try {
         data = await api('/distributed/orders' + (node !== 'all' ? '?node=' + encodeURIComponent(node) : ''));
     } catch (e) {
-        list.innerHTML = '<p class="empty">Error: ' + esc(e.message) + '</p>';
+        list.replaceChildren(message('Error: ' + e.message, 'empty'));
         return;
     }
 
-    $('#orderSources').innerHTML = sourceBadges(data.sources);
-
+    sources.replaceChildren(...sourceBadges(data.sources));
     const rows = data.rows.filter(function (o) { return !status || o.status === status; });
-    if (!rows.length) {
-        list.innerHTML = '<p class="empty">No hay pedidos con esos filtros.</p>';
-        return;
-    }
-
-    list.innerHTML = rows.map(function (o) {
-        const st = ORDER_STATUS[o.status] || { label: o.status, css: '' };
-        const items = (o.items || []).map(function (i) {
-            return '<div class="order-item"><span>' + esc(i.quantity + ' × ' + (i.product_name || i.sku || i.id_variant) +
-                (i.size ? ' · ' + i.size : '') + (i.color ? ' · ' + i.color : '')) + '</span>' +
-                '<span>' + money.format(Number(i.unit_price) * i.quantity) + '</span></div>';
-        }).join('') || '<span class="muted">Sin artículos en el fragmento.</span>';
-
-        return '<details class="order">' +
-            '<summary>' +
-                '<span class="order-id">#' + esc(o.id_order) + '</span>' +
-                '<span class="order-store">' + esc(o.store_name || '') + ' ' + badge(NODES[o.node] ? NODES[o.node].label : o.node, 'info') + '</span>' +
-                '<span class="order-date muted">' + esc(formatDate(o.order_date)) + '</span>' +
-                '<span class="order-channel">' + badge(st.label, st.css) + ' ' + badge(CHANNEL[o.channel] || o.channel) + '</span>' +
-                '<span class="order-total">' + money.format(Number(o.total)) + '</span>' +
-            '</summary>' +
-            '<div class="order-items">' + items +
-                (Number(o.discount) > 0 ? '<div class="order-item muted"><span>Descuento</span><span>-' + money.format(Number(o.discount)) + '</span></div>' : '') +
-                (o.notes ? '<div class="muted">' + esc(o.notes) + '</div>' : '') +
-            '</div>' +
-        '</details>';
-    }).join('');
+    list.replaceChildren(...(rows.length ? rows.map(panelOrder) : [message('No hay pedidos con esos filtros.', 'empty')]));
 }
 
 /* ---------- Base distribuida ---------- */
-async function loadDistributed() {
-    $('#nodeGrid').innerHTML = '<p class="empty">Consultando nodos…</p>';
-    $('#fragmentGrid').innerHTML = '';
-    $('#verticalTable thead').innerHTML = '';
-    $('#verticalTable tbody').innerHTML = emptyRow(1, 'Cargando…');
-    $('#replicationTable thead').innerHTML = '';
-    $('#replicationTable tbody').innerHTML = emptyRow(1, 'Cargando…');
+function nodeCard(n) {
+    const online = n.status === 'en_linea';
+    const mirror = n.endpoint === 'espejo';
+    const card = fill(clone('tpl-node-card'), { label: n.label, error: n.error || '' });
+    card.classList.add(!online ? 'offline' : (mirror ? 'mirror' : 'online'));
+    slot(card, 'status').replaceWith(online
+        ? badge(mirror ? 'Conectado al espejo' : 'En línea', mirror ? 'warn' : 'ok')
+        : badge('Sin conexión', 'bad'));
+    show(field(card, 'error'), Boolean(n.error));
+
+    const details = [
+        kv('Rol', n.role.replace(/_/g, ' ') + (n.is_default ? ' · por defecto' : '')),
+        kv('Base', n.database),
+        kv('Servidor', n.server_name || n.server)
+    ];
+    if (n.id_store) details.push(kv('Predicado', 'id_store = ' + n.id_store));
+    if (online) details.push(kv('Modo', n.updateability));
+    details.push(kv('Latencia', n.latency_ms !== null ? n.latency_ms + ' ms' : null));
+    (n.geo_replication || []).forEach(function (g) {
+        details.push(
+            kv('Espejo', g.partner_server),
+            kv('Rol', g.role_desc),
+            kv('Estado', g.replication_state_desc),
+            kv('Retraso', g.replication_lag_sec !== null ? g.replication_lag_sec + ' s' : null)
+        );
+    });
+    slot(card, 'details').replaceWith(...details);
+    return card;
+}
+
+function fragmentTable(t) {
+    let status = badge('sin datos');
+    if (t.rows !== null && t.expected !== null) {
+        status = badge(t.rows + ' / ' + t.expected, t.complete ? 'ok' : 'warn');
+    } else if (t.rows !== null) {
+        status = badge(t.rows + ' renglones', 'info');
+    }
+    const row = kv(t.table + ' (' + t.type + ')', '');
+    field(row, 'value').replaceChildren(status);
+    return row;
+}
+
+function fragmentCard(f) {
+    const card = fill(clone('tpl-fragment-card'), { label: f.label, error: f.error || 'Sin conexión' });
+    slot(card, 'predicate').replaceWith(badge(f.predicate, 'info'));
+    show(field(card, 'error'), f.status !== 'en_linea');
+    slot(card, 'tables').replaceWith(...f.tables.map(fragmentTable));
+    return card;
+}
+
+function legendItem(fragment, css) {
+    const item = fill(clone('tpl-legend-item'), { text: fragment.table + ' (nodo ' + fragment.node + ')' });
+    item.querySelector('.legend-swatch').classList.add(css);
+    slot(item, 'badge').replaceWith(badge(fragment.status === 'ok' ? 'OK' : 'sin conexión', fragment.status === 'ok' ? 'ok' : 'bad'));
+    return item;
+}
+
+function customerRow(r) {
+    return fill(clone('tpl-customer-row'), {
+        id: r.id_customer,
+        first: r.first_name,
+        last: r.last_name_paternal,
+        store: r.store_name,
+        level: r.id_loyalty_level,
+        marketing: r.accepts_marketing ? 'Sí' : 'No',
+        birth: formatDate(r.birth_date),
+        sex: r.sex,
+        phone: r.phone,
+        email: r.email
+    });
+}
+
+function showNodes(content, result) {
+    const grid = slot(content, 'nodes');
+    if (result.status !== 'fulfilled') {
+        grid.replaceChildren(message('Error: ' + result.reason.message, 'empty'));
+        return;
+    }
+    grid.replaceChildren(...result.value.nodes.map(nodeCard));
+}
+
+function showFragments(content, result) {
+    const grid = slot(content, 'fragments');
+    if (result.status !== 'fulfilled') {
+        grid.replaceChildren(message('Error: ' + result.reason.message, 'empty'));
+        return;
+    }
+    grid.replaceChildren(...result.value.map(fragmentCard));
+}
+
+function showVertical(content, result) {
+    const tbody = slot(content, 'customers');
+    if (result.status !== 'fulfilled') {
+        tbody.replaceChildren(tableMessage('Error: ' + result.reason.message, 10));
+        return;
+    }
+    const data = result.value;
+    slot(content, 'legend').replaceChildren(
+        legendItem(data.fragments.customer_profile, 'col-profile'),
+        legendItem(data.fragments.customer_private, 'col-private'),
+        data.source !== 'fragmentos' ? badge('Leído de ' + data.source, 'warn') : badge('Reconstruido con JOIN por id_customer', 'info')
+    );
+    tbody.replaceChildren(...(data.rows.length ? data.rows.map(customerRow) : [tableMessage('Sin clientes.', 10)]));
+}
+
+function showReplication(content, result) {
+    const head = slot(content, 'replicationHead');
+    const tbody = slot(content, 'replication');
+    if (result.status !== 'fulfilled') {
+        tbody.replaceChildren(tableMessage('Error: ' + result.reason.message, 2));
+        return;
+    }
+
+    const subs = result.value.subscribers;
+    subs.forEach(function (s) {
+        const th = clone('tpl-head-cell');
+        th.textContent = s.node === 'cloud' ? 'Azure' : nodeLabel(s.node);
+        head.append(th);
+    });
+
+    const tables = (subs.find(function (s) { return s.tables.length; }) || { tables: [] }).tables;
+    if (!tables.length) {
+        tbody.replaceChildren(tableMessage('Ningún suscriptor responde todavía.', 2 + subs.length));
+        return;
+    }
+
+    tbody.replaceChildren(...tables.map(function (t) {
+        const row = document.createElement('tr');
+        row.append(cell(t.table), cell(t.publisher_rows, 'num'));
+        subs.forEach(function (s) {
+            if (s.status === 'no_configurado') {
+                row.append(cell(badge('No configurado')));
+                return;
+            }
+            if (s.status !== 'en_linea') {
+                row.append(cell(badge('Sin conexión', 'bad')));
+                return;
+            }
+            const found = s.tables.find(function (x) { return x.table === t.table; });
+            if (!found) {
+                row.append(cell(badge('—')));
+                return;
+            }
+            const st = REPLICATION_STATE[found.state] || [found.state, ''];
+            row.append(cell(badge(st[0] + (found.subscriber_rows !== null ? ' (' + found.subscriber_rows + ')' : ''), st[1])));
+        });
+        return row;
+    }));
+}
+
+async function loadDistributed(content) {
+    slot(content, 'nodes').replaceChildren(message('Consultando nodos…', 'empty'));
+    slot(content, 'customers').replaceChildren(tableMessage('Cargando…', 10));
+    slot(content, 'replication').replaceChildren(tableMessage('Cargando…', 2));
 
     const results = await Promise.allSettled([
         api('/nodes'),
@@ -151,275 +335,60 @@ async function loadDistributed() {
         api('/replication/status')
     ]);
 
-    renderNodes(results[0]);
-    renderFragments(results[1]);
-    renderVertical(results[2]);
-    renderReplication(results[3]);
+    showNodes(content, results[0]);
+    showFragments(content, results[1]);
+    showVertical(content, results[2]);
+    showReplication(content, results[3]);
 }
 
-function kv(label, value) {
-    return '<div class="kv"><span>' + esc(label) + '</span><span>' + esc(value === null || value === undefined ? '—' : value) + '</span></div>';
-}
-
-function renderNodes(result) {
-    if (result.status !== 'fulfilled') {
-        $('#nodeGrid').innerHTML = '<p class="empty">Error: ' + esc(result.reason.message) + '</p>';
-        return;
-    }
-
-    $('#nodeGrid').innerHTML = result.value.nodes.map(function (n) {
-        const online = n.status === 'en_linea';
-        const mirror = n.endpoint === 'espejo';
-        const css = !online ? 'offline' : (mirror ? 'mirror' : 'online');
-        const geo = (n.geo_replication || []).map(function (g) {
-            return kv('Espejo', g.partner_server) +
-                kv('Rol', g.role_desc) +
-                kv('Estado', g.replication_state_desc) +
-                kv('Retraso', g.replication_lag_sec !== null ? g.replication_lag_sec + ' s' : null);
-        }).join('');
-
-        return '<article class="node-card ' + css + '">' +
-            '<header><h3>' + esc(n.label) + '</h3>' +
-                (online ? badge(mirror ? 'Conectado al espejo' : 'En línea', mirror ? 'warn' : 'ok') : badge('Sin conexión', 'bad')) +
-            '</header>' +
-            kv('Rol', n.role.replace(/_/g, ' ') + (n.is_default ? ' · por defecto' : '')) +
-            kv('Base', n.database) +
-            kv('Servidor', n.server_name || n.server) +
-            (n.id_store ? kv('Predicado', 'id_store = ' + n.id_store) : '') +
-            (online ? kv('Modo', n.updateability) : '') +
-            kv('Latencia', n.latency_ms !== null ? n.latency_ms + ' ms' : null) +
-            geo +
-            (n.error ? '<div class="node-error">' + esc(n.error) + '</div>' : '') +
-        '</article>';
-    }).join('');
-}
-
-function renderFragments(result) {
-    if (result.status !== 'fulfilled') {
-        $('#fragmentGrid').innerHTML = '<p class="empty">Error: ' + esc(result.reason.message) + '</p>';
-        return;
-    }
-
-    $('#fragmentGrid').innerHTML = result.value.map(function (f) {
-        const rows = f.tables.map(function (t) {
-            let cell = badge('sin datos', '');
-            if (t.rows !== null && t.expected !== null) {
-                cell = badge(t.rows + ' / ' + t.expected, t.complete ? 'ok' : 'warn');
-            } else if (t.rows !== null) {
-                cell = badge(t.rows + ' renglones', 'info');
-            }
-            return '<div class="kv"><span>' + esc(t.table) + ' <small>(' + esc(t.type) + ')</small></span><span>' + cell + '</span></div>';
-        }).join('');
-
-        return '<article class="fragment-card">' +
-            '<header><h3>' + esc(f.label) + '</h3>' + badge(f.predicate, 'info') + '</header>' +
-            (f.status !== 'en_linea' ? '<div class="node-error">' + esc(f.error || 'Sin conexión') + '</div>' : '') +
-            rows +
-        '</article>';
-    }).join('');
-}
-
-function renderVertical(result) {
-    const thead = $('#verticalTable thead');
-    const tbody = $('#verticalTable tbody');
-
-    if (result.status !== 'fulfilled') {
-        tbody.innerHTML = emptyRow(1, 'Error: ' + result.reason.message);
-        return;
-    }
-
-    const data = result.value;
-    const profile = data.fragments.customer_profile;
-    const priv = data.fragments.customer_private;
-
-    $('#verticalLegend').innerHTML =
-        '<span><i class="swatch col-profile"></i> ' + esc(profile.table) + ' (nodo ' + esc(profile.node) + ') ' +
-            badge(profile.status === 'ok' ? 'OK' : 'sin conexión', profile.status === 'ok' ? 'ok' : 'bad') + '</span>' +
-        '<span><i class="swatch col-private"></i> ' + esc(priv.table) + ' (nodo ' + esc(priv.node) + ') ' +
-            badge(priv.status === 'ok' ? 'OK' : 'sin conexión', priv.status === 'ok' ? 'ok' : 'bad') + '</span>' +
-        (data.source !== 'fragmentos' ? badge('Leído de ' + data.source, 'warn') : badge('Reconstruido con JOIN por id_customer', 'info'));
-
-    const columns = [
-        ['id_customer', 'ID', 'key'],
-        ['first_name', 'Nombre', 'profile'],
-        ['last_name_paternal', 'Apellido', 'profile'],
-        ['store_name', 'Sucursal', 'profile'],
-        ['id_loyalty_level', 'Nivel', 'profile'],
-        ['accepts_marketing', 'Publicidad', 'profile'],
-        ['birth_date', 'Nacimiento', 'private'],
-        ['sex', 'Sexo', 'private'],
-        ['phone', 'Teléfono', 'private'],
-        ['email', 'Correo', 'private']
-    ];
-
-    thead.innerHTML = '<tr>' + columns.map(function (c) {
-        return '<th class="' + (c[2] === 'key' ? '' : 'col-' + c[2]) + '">' + esc(c[1]) + '</th>';
-    }).join('') + '</tr>';
-
-    tbody.innerHTML = data.rows.length
-        ? data.rows.map(function (r) {
-            return '<tr>' + columns.map(function (c) {
-                let value = r[c[0]];
-                if (c[0] === 'accepts_marketing') value = value ? 'Sí' : 'No';
-                if (c[0] === 'birth_date') value = formatDate(value);
-                return '<td class="' + (c[2] === 'key' ? '' : 'col-' + c[2]) + '">' + esc(value) + '</td>';
-            }).join('') + '</tr>';
-        }).join('')
-        : emptyRow(columns.length, 'Sin clientes.');
-}
-
-function renderReplication(result) {
-    const thead = $('#replicationTable thead');
-    const tbody = $('#replicationTable tbody');
-
-    if (result.status !== 'fulfilled') {
-        tbody.innerHTML = emptyRow(1, 'Error: ' + result.reason.message);
-        return;
-    }
-
-    const subs = result.value.subscribers;
-    const STATE = {
-        sincronizado: ['Sincronizado', 'ok'],
-        diferente: ['Diferente', 'warn'],
-        sin_replicar: ['Sin replicar', 'bad']
-    };
-
-    thead.innerHTML = '<tr><th>Tabla</th><th class="num">Publicador</th>' + subs.map(function (s) {
-        return '<th>' + esc(s.node === 'cloud' ? 'Azure' : (NODES[s.node] ? NODES[s.node].label : s.node)) + '</th>';
-    }).join('') + '</tr>';
-
-    const tables = (subs.find(function (s) { return s.tables.length; }) || { tables: [] }).tables.map(function (t) {
-        return { table: t.table, publisher: t.publisher_rows };
-    });
-
-    if (!tables.length) {
-        tbody.innerHTML = emptyRow(2 + subs.length, 'Ningún suscriptor responde todavía.');
-        return;
-    }
-
-    tbody.innerHTML = tables.map(function (t) {
-        return '<tr><td>' + esc(t.table) + '</td><td class="num">' + esc(t.publisher) + '</td>' + subs.map(function (s) {
-            if (s.status === 'no_configurado') return '<td>' + badge('No configurado') + '</td>';
-            if (s.status !== 'en_linea') return '<td>' + badge('Sin conexión', 'bad') + '</td>';
-            const cell = s.tables.find(function (x) { return x.table === t.table; });
-            if (!cell) return '<td>' + badge('—') + '</td>';
-            const st = STATE[cell.state] || [cell.state, ''];
-            return '<td>' + badge(st[0] + (cell.subscriber_rows !== null ? ' (' + cell.subscriber_rows + ')' : ''), st[1]) + '</td>';
-        }).join('') + '</tr>';
-    }).join('');
-}
-
-async function syncNodes() {
-    const button = $('#syncButton');
+async function syncNodes(button, content) {
     button.disabled = true;
     try {
         const data = await api('/distributed/sync', { method: 'POST' });
         toast('Fragmentos sincronizados: ' + data.synchronized_at);
-        loadDistributed();
+        const fresh = clone('tpl-panel-distributed');
+        content.replaceWith(fresh);
+        loadDistributed(fresh);
+        return fresh;
     } catch (e) {
-        toast('No se pudo sincronizar: ' + e.message, true);
+        toast('No se pudo sincronizar: ' + e.message, { error: true });
+        return content;
     } finally {
         button.disabled = false;
     }
 }
 
-const SECTIONS = {
-    inventario: ['Inventario por sucursal', 'Cada pestaña lee el fragmento horizontal del nodo correspondiente.'],
-    pedidos: ['Pedidos por nodo', 'Reconstruidos con la unión de los fragmentos de cada nodo.'],
-    distribuida: ['Base de datos distribuida', 'Nodos, fragmentación, replicación y espejo en la nube.']
-};
-
-const MARKUP = {
-    inventario: `<div class="tabs" id="inventoryTabs" role="tablist">
-                <button role="tab" class="tab active" data-node="all" aria-selected="true">Todas</button>
-                <button role="tab" class="tab" data-node="tijuana" aria-selected="false">Tijuana</button>
-                <button role="tab" class="tab" data-node="cdmx" aria-selected="false">CDMX</button>
-                <button role="tab" class="tab" data-node="online" aria-selected="false">En línea</button>
-            </div>
-
-            <div class="sources" id="inventorySources"></div>
-
-            <div class="table-wrap">
-                <table class="table" id="inventoryTable">
-                    <thead>
-                        <tr>
-                            <th>Nodo</th><th>Sucursal</th><th>SKU</th><th>Producto</th>
-                            <th>Talla</th><th>Color</th><th class="num">Stock</th><th class="num">Mínimo</th><th>Estado</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
-            </div>`,
-    pedidos: `<div class="toolbar">
-                <select id="orderNodeFilter" class="input" aria-label="Filtrar por nodo">
-                    <option value="all">Todos los nodos</option>
-                    <option value="tijuana">Tijuana</option>
-                    <option value="cdmx">CDMX</option>
-                    <option value="online">En línea</option>
-                </select>
-                <select id="orderStatusFilter" class="input" aria-label="Filtrar por estado">
-                    <option value="">Todos los estados</option>
-                    <option value="pending">Pendiente</option>
-                    <option value="paid">Pagado</option>
-                    <option value="shipped">Enviado</option>
-                    <option value="delivered">Entregado</option>
-                    <option value="cancelled">Cancelado</option>
-                    <option value="returned">Devuelto</option>
-                </select>
-            </div>
-
-            <div class="sources" id="orderSources"></div>
-            <div class="order-list" id="orderList"></div>`,
-    distribuida: `<h2 class="section-title">Nodos</h2>
-            <div class="node-grid" id="nodeGrid"></div>
-
-            <h2 class="section-title">Fragmentación horizontal <span class="muted small">predicado id_store</span></h2>
-            <div class="fragment-grid" id="fragmentGrid"></div>
-
-            <h2 class="section-title">Fragmentación vertical <span class="muted small">customer</span></h2>
-            <div class="legend" id="verticalLegend"></div>
-            <div class="table-wrap">
-                <table class="table" id="verticalTable">
-                    <thead></thead>
-                    <tbody></tbody>
-                </table>
-            </div>
-
-            <h2 class="section-title">Replicación del catálogo</h2>
-            <div class="table-wrap">
-                <table class="table" id="replicationTable">
-                    <thead></thead>
-                    <tbody></tbody>
-                </table>
-            </div>`
-};
-
 export function renderPanel(page, section) {
     const current = SECTIONS[section] ? section : 'inventario';
-    setTitle('Panel · ' + SECTIONS[current][0]);
-    page.innerHTML = '<div class="panel">' +
-        '<div class="panel-head"><div><p class="eyebrow-dark">Panel de sucursales</p><h1>' + esc(SECTIONS[current][0]) + '</h1>' +
-            '<p class="muted">' + esc(SECTIONS[current][1]) + '</p></div>' +
-            (current === 'distribuida' ? '<button class="btn btn-dark" id="syncButton">Sincronizar fragmentos</button>' : '') +
-        '</div>' +
-        '<nav class="panel-tabs">' + Object.keys(SECTIONS).map(function (k) {
-            return '<a href="#/panel/' + k + '"' + (k === current ? ' class="active" aria-current="page"' : '') + '>' + esc(SECTIONS[k][0]) + '</a>';
-        }).join('') + '</nav>' +
-        MARKUP[current] +
-    '</div>';
+    const info = SECTIONS[current];
+    setTitle('Panel · ' + info[0]);
+
+    const panel = fill(clone('tpl-panel'), { title: info[0], subtitle: info[1] });
+    let content = clone(info[2]);
+    slot(panel, 'content').replaceWith(content);
+
+    $$('.panel-tabs a', panel).forEach(function (a) {
+        const active = a.dataset.section === current;
+        a.classList.toggle('active', active);
+        if (active) a.setAttribute('aria-current', 'page');
+    });
+
+    page.replaceChildren(panel);
 
     if (current === 'inventario') {
-        $('#inventoryTabs', page).addEventListener('click', function (e) {
+        content.addEventListener('click', function (e) {
             const tab = e.target.closest('.tab');
-            if (tab) loadInventory(tab.dataset.node);
+            if (tab) loadInventory(content, tab.dataset.node);
         });
-        loadInventory(state.inventoryNode);
+        loadInventory(content, panelState.inventoryNode);
     } else if (current === 'pedidos') {
-        $('#orderNodeFilter', page).addEventListener('change', loadOrders);
-        $('#orderStatusFilter', page).addEventListener('change', loadOrders);
-        loadOrders();
+        content.addEventListener('change', function () { loadOrders(content); });
+        loadOrders(content);
     } else {
-        $('#syncButton', page).addEventListener('click', syncNodes);
-        loadDistributed();
+        const syncButton = show($('[data-action="sync"]', panel), true);
+        syncButton.addEventListener('click', async function () {
+            content = await syncNodes(syncButton, content);
+        });
+        loadDistributed(content);
     }
 }

@@ -25,17 +25,72 @@ export function $$(selector, root) {
     return Array.from((root || document).querySelectorAll(selector));
 }
 
-export function esc(value) {
-    return String(value === null || value === undefined ? '' : value)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
+/* ---------- Plantillas de index.html ---------- */
+export function clone(id) {
+    return document.getElementById(id).content.firstElementChild.cloneNode(true);
+}
+
+export function field(root, name) {
+    return root.querySelector('[data-field="' + name + '"]');
+}
+
+export function slot(root, name) {
+    return root.querySelector('[data-slot="' + name + '"]');
+}
+
+export function fill(root, values) {
+    Object.keys(values).forEach(function (name) {
+        const el = field(root, name);
+        if (el) el.textContent = values[name] === null || values[name] === undefined ? '' : values[name];
+    });
+    return root;
+}
+
+export function show(el, visible) {
+    el.hidden = !visible;
+    return el;
+}
+
+export function sizeLabel(size) {
+    return size === 'UNI' ? 'Unitalla' : size;
 }
 
 export function badge(text, css) {
-    return '<span class="badge ' + (css || '') + '">' + esc(text) + '</span>';
+    const el = clone('tpl-badge');
+    el.textContent = text;
+    if (css) el.classList.add(css);
+    return el;
+}
+
+export function stars(rating, label) {
+    const value = Math.round(Number(rating || 0) * 2) / 2;
+    const el = clone('tpl-stars');
+    el.setAttribute('aria-label', label || (value + ' de 5 estrellas'));
+    $$('.star', el).forEach(function (star, i) {
+        star.classList.add(value >= i + 1 ? 'full' : (value >= i + 0.5 ? 'half' : 'empty'));
+    });
+    return el;
+}
+
+export function message(text, css) {
+    const el = clone('tpl-message');
+    el.textContent = text;
+    if (css) el.className = css;
+    return el;
+}
+
+export function emptyState(title, text, action) {
+    const el = fill(clone('tpl-empty'), { title: title, text: text });
+    if (action) {
+        const link = show(field(el, 'action'), true);
+        link.href = action.href;
+        link.textContent = action.label;
+    }
+    return el;
+}
+
+export function loading(text) {
+    return fill(clone('tpl-loading'), { text: text || 'Cargando…' });
 }
 
 export function formatDate(value, withTime) {
@@ -51,34 +106,20 @@ export function formatDate(value, withTime) {
     return date.toLocaleDateString('es-MX', opts);
 }
 
-export function stars(rating, label) {
-    const value = Math.round(Number(rating || 0) * 2) / 2;
-    let html = '<span class="stars" role="img" aria-label="' + esc(label || (value + ' de 5 estrellas')) + '">';
-    for (let i = 1; i <= 5; i++) {
-        const cls = value >= i ? 'full' : (value >= i - 0.5 ? 'half' : 'empty');
-        html += '<i class="star ' + cls + '"></i>';
-    }
-    return html + '</span>';
-}
-
 let toastTimer = null;
-export function toast(message, options = {}) {
+export function toast(text, options = {}) {
     const el = $('#toast');
-    el.innerHTML = '<span>' + esc(message) + '</span>' +
-        (options.action ? '<a href="' + esc(options.action.href) + '">' + esc(options.action.label) + '</a>' : '');
+    const link = field(el, 'action');
+    field(el, 'message').textContent = text;
+    show(link, Boolean(options.action));
+    if (options.action) {
+        link.href = options.action.href;
+        link.textContent = options.action.label;
+    }
     el.classList.toggle('error', Boolean(options.error));
     el.hidden = false;
     clearTimeout(toastTimer);
     toastTimer = setTimeout(function () { el.hidden = true; }, options.error ? 5000 : 3500);
-}
-
-export function emptyState(title, text, action) {
-    return '<div class="empty-state"><h2>' + esc(title) + '</h2><p>' + esc(text) + '</p>' +
-        (action ? '<a class="btn btn-dark" href="' + esc(action.href) + '">' + esc(action.label) + '</a>' : '') + '</div>';
-}
-
-export function loading(text) {
-    return '<div class="loading" role="status"><span class="spinner"></span>' + esc(text || 'Cargando…') + '</div>';
 }
 
 export function parseQuery(query) {

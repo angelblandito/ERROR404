@@ -1,7 +1,7 @@
 /* Catálogo con filtros y orden. */
-import { $, $$, esc, buildQuery, emptyState, setTitle, DEPARTMENTS, GENDERS, SEGMENTS } from '../ui.js';
+import { $, $$, clone, fill, slot, buildQuery, emptyState, setTitle, sizeLabel, DEPARTMENTS, GENDERS, SEGMENTS } from '../ui.js';
 import { productCard } from '../components.js';
-import { swatch } from '../illustrations.js';
+import { colorClass } from '../illustrations.js';
 import { state } from '../store.js';
 
 const PRICE_RANGES = {
@@ -11,14 +11,8 @@ const PRICE_RANGES = {
     gt1500: ['Más de $1,500', 1500.01, Infinity]
 };
 
-const SORTS = {
-    destacados: 'Destacados',
-    vendidos: 'Más vendidos',
-    calificacion: 'Mejor calificados',
-    nuevo: 'Novedades',
-    'precio-asc': 'Precio: menor a mayor',
-    'precio-desc': 'Precio: mayor a menor'
-};
+const RADIO_FILTERS = ['dep', 'genero', 'edad', 'precio', 'talla', 'color'];
+const CHECK_FILTERS = ['disp', 'calif'];
 
 function normalize(text) {
     return String(text || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
@@ -68,17 +62,7 @@ function pageTitle(f) {
     return parts.join(' ').replace(/^./, function (c) { return c.toUpperCase(); });
 }
 
-function radioGroup(name, label, options, current) {
-    return '<fieldset class="filter"><legend>' + esc(label) + '</legend>' +
-        '<label class="opt"><input type="radio" name="' + name + '" value=""' + (!current ? ' checked' : '') + '> Todos</label>' +
-        Object.keys(options).map(function (k) {
-            return '<label class="opt"><input type="radio" name="' + name + '" value="' + esc(k) + '"' +
-                (current === k ? ' checked' : '') + '> ' + esc(options[k]) + '</label>';
-        }).join('') +
-    '</fieldset>';
-}
-
-function filtersHtml(f) {
+function availableSizesAndColors() {
     const sizes = [];
     const colors = new Map();
     state.products.forEach(function (p) {
@@ -88,30 +72,23 @@ function filtersHtml(f) {
         });
     });
     sizes.sort(function (a, b) { return a.id - b.id; });
+    return { sizes: sizes, colors: colors };
+}
 
-    return '<form class="filters" id="filterForm">' +
-        radioGroup('dep', 'Departamento', DEPARTMENTS, f.dep) +
-        radioGroup('genero', 'Género', { F: 'Mujer', M: 'Hombre' }, f.genero) +
-        radioGroup('edad', 'Edad', { youth: SEGMENTS.youth, adult: SEGMENTS.adult }, f.edad) +
-        radioGroup('precio', 'Precio', Object.fromEntries(Object.entries(PRICE_RANGES).map(function (e) { return [e[0], e[1][0]]; })), f.precio) +
-        '<fieldset class="filter"><legend>Talla</legend><div class="size-chips">' +
-            sizes.map(function (s) {
-                return '<label class="size-chip"><input type="radio" name="talla" value="' + esc(s.size) + '"' +
-                    (f.talla === s.size ? ' checked' : '') + '><span>' + esc(s.size === 'UNI' ? 'Unitalla' : s.size) + '</span></label>';
-            }).join('') +
-        '</div></fieldset>' +
-        '<fieldset class="filter"><legend>Color</legend><div class="color-chips">' +
-            Array.from(colors.entries()).map(function (c) {
-                return '<label class="color-chip" title="' + esc(c[1]) + '"><input type="radio" name="color" value="' + esc(c[0]) + '"' +
-                    (f.color === c[0] ? ' checked' : '') + '><span style="background:' + swatch(c[0]) + '"></span><em>' + esc(c[1]) + '</em></label>';
-            }).join('') +
-        '</div></fieldset>' +
-        '<fieldset class="filter"><legend>Más filtros</legend>' +
-            '<label class="opt"><input type="checkbox" name="disp" value="1"' + (f.disp === '1' ? ' checked' : '') + '> Solo con existencias</label>' +
-            '<label class="opt"><input type="checkbox" name="calif" value="4"' + (f.calif === '4' ? ' checked' : '') + '> 4 estrellas o más</label>' +
-        '</fieldset>' +
-        '<a class="btn btn-ghost btn-block" href="#/tienda">Limpiar filtros</a>' +
-    '</form>';
+function sizeChip(size) {
+    const chip = clone('tpl-size-chip');
+    chip.querySelector('input').value = size;
+    chip.querySelector('span').textContent = sizeLabel(size);
+    return chip;
+}
+
+function colorChip(code, name) {
+    const chip = clone('tpl-color-chip');
+    chip.title = name;
+    chip.querySelector('input').value = code;
+    chip.querySelector('.dot').classList.add('swatch-' + colorClass(code));
+    chip.querySelector('em').textContent = name;
+    return chip;
 }
 
 function activeChips(f) {
@@ -124,61 +101,65 @@ function activeChips(f) {
     return Object.keys(labels).filter(function (k) { return labels[k]; }).map(function (k) {
         const rest = Object.assign({}, f);
         delete rest[k];
-        return '<a class="chip-remove" href="#/tienda' + buildQuery(rest) + '" aria-label="Quitar filtro ' + esc(labels[k]) + '">' + esc(labels[k]) + ' ✕</a>';
-    }).join('');
+        const chip = clone('tpl-chip-remove');
+        chip.href = '#/tienda' + buildQuery(rest);
+        chip.textContent = labels[k] + ' ✕';
+        chip.setAttribute('aria-label', 'Quitar filtro ' + labels[k]);
+        return chip;
+    });
 }
 
 export function renderCatalog(view, params) {
     const f = Object.assign({}, params);
     const list = sortProducts(state.products.filter(function (p) { return matches(p, f); }), f.orden);
     const title = pageTitle(f);
+    const options = availableSizesAndColors();
+    const page = clone('tpl-catalog');
+    const form = $('.filters', page);
+    const panel = $('.plp-filters', page);
     setTitle(title);
 
-    view.innerHTML = '<div class="plp">' +
-        '<div class="plp-head">' +
-            '<div><h1>' + esc(title) + ' <span class="muted">(' + list.length + ')</span></h1>' +
-            '<div class="active-filters">' + activeChips(f) + '</div></div>' +
-            '<div class="plp-tools">' +
-                '<button class="btn btn-ghost filters-toggle" id="filtersToggle" aria-expanded="false" aria-controls="filtersPanel">Filtros</button>' +
-                '<label class="sort">Ordenar por <select id="sortSelect">' +
-                    Object.keys(SORTS).map(function (k) {
-                        return '<option value="' + k + '"' + ((f.orden || 'destacados') === k ? ' selected' : '') + '>' + SORTS[k] + '</option>';
-                    }).join('') +
-                '</select></label>' +
-            '</div>' +
-        '</div>' +
-        '<div class="plp-body">' +
-            '<aside class="plp-filters" id="filtersPanel">' + filtersHtml(f) + '</aside>' +
-            '<div class="product-grid">' + (list.length
-                ? list.map(productCard).join('')
-                : emptyState('Sin resultados', 'No encontramos productos con esos filtros.', { href: '#/tienda', label: 'Ver toda la tienda' })) +
-            '</div>' +
-        '</div>' +
-    '</div>';
+    fill(page, { title: title, count: '(' + list.length + ')' });
+    slot(page, 'chips').append(...activeChips(f));
+    slot(page, 'sizes').append(...options.sizes.map(function (s) { return sizeChip(s.size); }));
+    slot(page, 'colors').append(...Array.from(options.colors.entries()).map(function (c) { return colorChip(c[0], c[1]); }));
+    slot(page, 'grid').append(...(list.length
+        ? list.map(productCard)
+        : [emptyState('Sin resultados', 'No encontramos productos con esos filtros.', { href: '#/tienda', label: 'Ver toda la tienda' })]));
+
+    $('select[name="orden"]', page).value = f.orden || 'destacados';
+    RADIO_FILTERS.forEach(function (name) {
+        const input = form.querySelector('input[name="' + name + '"][value="' + CSS.escape(f[name] || '') + '"]');
+        if (input) input.checked = true;
+    });
+    CHECK_FILTERS.forEach(function (name) {
+        form.elements[name].checked = form.elements[name].value === f[name];
+    });
+
+    view.replaceChildren(page);
 
     const go = function (next) {
         window.location.replace('#/tienda' + buildQuery(next));
     };
 
-    $('#sortSelect', view).addEventListener('change', function (e) {
+    $('select[name="orden"]', page).addEventListener('change', function (e) {
         go(Object.assign({}, f, { orden: e.target.value === 'destacados' ? '' : e.target.value }));
     });
 
-    $('#filterForm', view).addEventListener('change', function (e) {
+    form.addEventListener('change', function (e) {
         const input = e.target;
         const next = Object.assign({}, f);
         next[input.name] = input.type === 'checkbox' ? (input.checked ? input.value : '') : input.value;
         go(next);
     });
 
-    $('#filtersToggle', view).addEventListener('click', function (e) {
-        const panel = $('#filtersPanel', view);
+    $('[data-action="toggle-filters"]', page).addEventListener('click', function (e) {
         const open = !panel.classList.contains('open');
         panel.classList.toggle('open', open);
         e.currentTarget.setAttribute('aria-expanded', String(open));
     });
 
-    $$('.size-chip input, .color-chip input', view).forEach(function (input) {
+    $$('.size-chip input, .color-chip input', page).forEach(function (input) {
         input.addEventListener('click', function () {
             if (f[input.name] === input.value) go(Object.assign({}, f, { [input.name]: '' }));
         });

@@ -615,7 +615,7 @@ textarea.input { resize: vertical; }
 .pdp-block { margin-top: 1.5rem; }
 .label { margin-bottom: .6rem; }
 .swatches { display: flex; gap: .6rem; flex-wrap: wrap; }
-.swatch { width: 40px; height: 40px; border-radius: 50%; border: 1px solid #cacacb; background: var(--sw); cursor: pointer; }
+.swatch { width: 40px; height: 40px; border-radius: 50%; border: 1px solid #cacacb; cursor: pointer; }
 .swatch.active { box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--ink); }
 .sizes { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: .5rem; }
 .size {
@@ -655,8 +655,19 @@ textarea.input { resize: vertical; }
 .big-rating { font-size: 3rem; font-weight: 700; line-height: 1; }
 .reviews-summary .stars .star { width: 20px; height: 20px; }
 .bar-row { display: grid; grid-template-columns: 76px 1fr 40px; gap: .5rem; align-items: center; font-size: .85rem; margin: .4rem 0; }
-.bar { height: 8px; background: var(--line); border-radius: 999px; overflow: hidden; }
-.bar i { display: block; height: 100%; background: #f5a623; border-radius: 999px; }
+.bar-row progress, .free-ship progress {
+    appearance: none;
+    width: 100%;
+    height: 8px;
+    border: 0;
+    border-radius: 999px;
+    overflow: hidden;
+    background: var(--line);
+    color: #f5a623;
+}
+.bar-row progress::-webkit-progress-bar, .free-ship progress::-webkit-progress-bar { background: var(--line); border-radius: 999px; }
+.bar-row progress::-webkit-progress-value { background: #f5a623; border-radius: 999px; }
+.bar-row progress::-moz-progress-bar { background: #f5a623; border-radius: 999px; }
 .review { border-bottom: 1px solid var(--line); padding: 1.1rem 0; }
 .review:first-child { padding-top: 0; }
 .review-head { display: flex; gap: .75rem; align-items: center; }
@@ -673,8 +684,9 @@ textarea.input { resize: vertical; }
 .cart-page, .checkout { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 3rem; align-items: start; }
 .cart-lines h1, .checkout-form h1 { margin-bottom: 1rem; }
 .free-ship { background: var(--soft); border-radius: var(--radius); padding: 1rem 1.25rem; margin-bottom: 1rem; }
-.free-ship .bar { margin-top: .6rem; }
-.free-ship .bar i { background: var(--ok); }
+.free-ship progress { display: block; margin-top: .6rem; color: var(--ok); }
+.free-ship progress::-webkit-progress-value { background: var(--ok); border-radius: 999px; }
+.free-ship progress::-moz-progress-bar { background: var(--ok); border-radius: 999px; }
 .cart-line { display: grid; grid-template-columns: 150px 1fr; gap: 1.25rem; padding: 1.5rem 0; border-bottom: 1px solid var(--line); }
 .cart-thumb .product-art { border-radius: 6px; }
 .cart-info { display: grid; gap: .15rem; align-content: start; }
@@ -760,7 +772,7 @@ textarea.input { resize: vertical; }
 .col-private { background: rgba(255, 140, 66, .14); }
 .legend { display: flex; flex-wrap: wrap; gap: 1rem; font-size: .84rem; margin-bottom: .75rem; }
 .legend span { display: inline-flex; align-items: center; gap: .4rem; }
-.legend .swatch { width: .9rem; height: .9rem; border-radius: 4px; display: inline-block; border: 1px solid var(--line); }
+.legend-swatch { width: .9rem; height: .9rem; border-radius: 4px; display: inline-block; border: 1px solid var(--line); }
 .order-list { display: grid; gap: .75rem; }
 .order { border: 1px solid var(--line); border-radius: var(--radius); }
 .order summary { list-style: none; display: grid; grid-template-columns: 90px 1.4fr 1fr 1fr auto; gap: 1rem; align-items: center; padding: 1rem 1.1rem; cursor: pointer; }
@@ -963,3 +975,22 @@ textarea.input { resize: vertical; }
     .footer-grid { grid-template-columns: 1fr; }
     .coupon-pct { font-size: 1.4rem; }
 }
+
+/* ---------- Colores de producto (ilustraciones y muestras) ---------- */
+.art-black { --art-main: #22252b; --art-dark: #16181c; }
+.art-white { --art-main: #f4f4f2; --art-dark: #9a9a9a; }
+.art-red { --art-main: #d62828; --art-dark: #8b1a1a; }
+.art-navy { --art-main: #1d3557; --art-dark: #132239; }
+.art-gray { --art-main: #8d99ae; --art-dark: #5c6371; }
+.art-pink { --art-main: #f4a6c0; --art-dark: #9f6c7d; }
+.art-green { --art-main: #2a9d55; --art-dark: #1b6637; }
+.art-blue { --art-main: #2563eb; --art-dark: #184099; }
+
+.swatch-black { background: #22252b; }
+.swatch-white { background: #f4f4f2; }
+.swatch-red { background: #d62828; }
+.swatch-navy { background: #1d3557; }
+.swatch-gray { background: #8d99ae; }
+.swatch-pink { background: #f4a6c0; }
+.swatch-green { background: #2a9d55; }
+.swatch-blue { background: #2563eb; }
