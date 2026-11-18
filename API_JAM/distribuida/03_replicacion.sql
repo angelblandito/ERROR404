@@ -90,6 +90,8 @@ BEGIN
         WHERE t.schema_id = SCHEMA_ID(N'dbo')
           AND t.is_ms_shipped = 0
           AND (@tablas = N'*' OR t.name IN (SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@tablas, N',')))
+          /* Credenciales y sesiones nunca salen del nodo central */
+          AND t.name NOT IN (N'customer_credential', N'customer_session')
           AND NOT EXISTS (
                 SELECT 1
                 FROM dbo.sysarticles AS a

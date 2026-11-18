@@ -2,224 +2,144 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="JAM Sport: calzado, ropa y accesorios deportivos en línea y en las sucursales Tijuana y CDMX.">
-    <meta name="theme-color" content="#0b1d3a">
-    <title>JAM Sport</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="description" content="JAM Sport: calzado, ropa y accesorios deportivos para jóvenes y adultos. Compra en línea, recoge en Tijuana o CDMX.">
+    <meta name="theme-color" content="#3B1F14">
+    <title>JAM Sport · Calzado, ropa y accesorios deportivos</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23111'/%3E%3Ctext x='16' y='21' font-family='Arial' font-weight='900' font-size='12' fill='%23fff' text-anchor='middle'%3EJAM%3C/text%3E%3C/svg%3E">
     <link rel="stylesheet" href="index.css">
 </head>
 <body>
-    <header class="topbar">
-        <div class="topbar-inner">
-            <a href="#tienda" class="brand" aria-label="JAM Sport, inicio">
-                <span class="brand-mark">JAM</span>
-                <span class="brand-name">Sport</span>
-            </a>
+    <a class="skip-link" href="#view">Ir al contenido</a>
 
-            <button class="menu-toggle" id="menuToggle" aria-controls="mainNav" aria-expanded="false" aria-label="Abrir menú">
-                <span></span><span></span><span></span>
+    <div class="announcement" role="region" aria-label="Avisos">
+        <p id="announcementText">Envío gratis en compras desde $999</p>
+    </div>
+
+    <header class="site-header">
+        <div class="header-inner">
+            <button class="icon-btn menu-btn" id="menuButton" aria-label="Abrir menú" aria-controls="mobileMenu" aria-expanded="false">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
             </button>
 
-            <nav class="main-nav" id="mainNav" aria-label="Menú principal">
-                <a href="#tienda" data-view="tienda">Tienda</a>
-                <a href="#inventario" data-view="inventario">Inventario</a>
-                <a href="#pedidos" data-view="pedidos">Pedidos</a>
-                <a href="#distribuida" data-view="distribuida">Base distribuida</a>
+            <a class="logo" href="#/" aria-label="JAM Sport, inicio">
+                <span class="logo-mark">JAM</span><span class="logo-text">SPORT</span>
+            </a>
+
+            <nav class="main-nav" aria-label="Categorías">
+                <a href="#/tienda?orden=nuevo">Novedades</a>
+                <a href="#/tienda?genero=M">Hombre</a>
+                <a href="#/tienda?genero=F">Mujer</a>
+                <a href="#/tienda?edad=youth">Juvenil</a>
+                <a href="#/tienda?dep=footwear">Calzado</a>
+                <a href="#/tienda?dep=apparel">Ropa</a>
+                <a href="#/tienda?dep=accessories">Accesorios</a>
+                <a href="#/ofertas" class="nav-sale">Ofertas</a>
             </nav>
 
-            <div class="topbar-actions">
-                <span class="api-status" id="apiStatus" title="Estado de la API">
-                    <span class="dot"></span><span class="api-status-text">API</span>
-                </span>
-                <button class="cart-button" id="cartButton" aria-label="Abrir carrito">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z"/></svg>
-                    <span class="cart-count" id="cartCount">0</span>
-                </button>
+            <form class="search" id="searchForm" role="search">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                <input id="searchInput" type="search" placeholder="Buscar" autocomplete="off" aria-label="Buscar productos" aria-controls="searchSuggestions">
+                <div class="suggestions" id="searchSuggestions" role="listbox" hidden></div>
+            </form>
+
+            <div class="header-actions">
+                <a class="icon-btn" href="#/cuenta" aria-label="Mi cuenta">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>
+                </a>
+                <a class="icon-btn" href="#/favoritos" aria-label="Favoritos">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7.5-4.6-9.2-9.2C1.6 7.6 3.6 4.8 6.6 4.8c2.2 0 3.7 1.4 5.4 3.4 1.7-2 3.2-3.4 5.4-3.4 3 0 5 2.8 3.8 6C19.5 15.4 12 20 12 20z"/></svg>
+                    <span class="count" data-count="favorites" hidden>0</span>
+                </a>
+                <a class="icon-btn" href="#/carrito" aria-label="Bolsa de compras">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 8h14l-1.2 12.1a1 1 0 0 1-1 .9H7.2a1 1 0 0 1-1-.9L5 8z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>
+                    <span class="count" data-count="cart" hidden>0</span>
+                </a>
             </div>
         </div>
     </header>
 
-    <main id="app">
-        <!-- 1. Tienda -->
-        <section class="view" id="view-tienda" aria-labelledby="tituloTienda">
-            <div class="hero">
-                <div>
-                    <p class="eyebrow" id="heroEyebrow">Para jóvenes y adultos de 15 a 45 años</p>
-                    <h1 id="tituloTienda">Equípate para entrenar</h1>
-                    <p class="hero-text" id="heroText">Calzado, ropa y accesorios deportivos con disponibilidad en tiempo real en cada sucursal.</p>
-                </div>
-                <label class="season-picker">
-                    <span>Temporada</span>
-                    <select id="seasonSelect" aria-label="Paleta de temporada">
-                        <option value="auto">Automática</option>
-                    </select>
-                </label>
+    <div class="mobile-menu" id="mobileMenu" hidden>
+        <div class="mobile-menu-panel" role="dialog" aria-modal="true" aria-label="Menú">
+            <div class="mobile-menu-head">
+                <span class="logo"><span class="logo-mark">JAM</span><span class="logo-text">SPORT</span></span>
+                <button class="icon-btn" id="menuClose" aria-label="Cerrar menú">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+                </button>
             </div>
-
-            <div class="segmented" id="departmentTabs" role="tablist" aria-label="Departamento">
-                <button role="tab" class="active" data-department="all" aria-selected="true">Todo</button>
-                <button role="tab" data-department="footwear" aria-selected="false">Calzado</button>
-                <button role="tab" data-department="apparel" aria-selected="false">Ropa</button>
-                <button role="tab" data-department="accessories" aria-selected="false">Accesorios</button>
+            <nav class="mobile-links" aria-label="Menú principal">
+                <a href="#/tienda?orden=nuevo">Novedades</a>
+                <a href="#/tienda?genero=M">Hombre</a>
+                <a href="#/tienda?genero=F">Mujer</a>
+                <a href="#/tienda?edad=youth">Juvenil 15–24</a>
+                <a href="#/tienda?edad=adult">Adulto 25–45</a>
+                <a href="#/tienda?dep=footwear">Calzado</a>
+                <a href="#/tienda?dep=apparel">Ropa</a>
+                <a href="#/tienda?dep=accessories">Accesorios</a>
+                <a href="#/ofertas" class="nav-sale">Ofertas</a>
+            </nav>
+            <div class="mobile-secondary">
+                <a href="#/cuenta">Mi cuenta y pedidos</a>
+                <a href="#/sucursales">Sucursales</a>
+                <a href="#/ayuda">Ayuda</a>
+                <a href="#/panel">Panel de sucursales</a>
             </div>
-
-            <div class="toolbar">
-                <input type="search" id="searchProducts" class="input" placeholder="Buscar producto…" aria-label="Buscar producto">
-                <select id="segmentFilter" class="input" aria-label="Edad">
-                    <option value="all">Todas las edades (15–45)</option>
-                    <option value="youth">Juvenil (15–24)</option>
-                    <option value="adult">Adulto (25–45)</option>
-                </select>
-                <select id="genderFilter" class="input" aria-label="Género">
-                    <option value="all">Mujer, hombre y unisex</option>
-                    <option value="F">Mujer</option>
-                    <option value="M">Hombre</option>
-                </select>
-            </div>
-            <div class="chips" id="categoryChips" role="group" aria-label="Filtrar por categoría"></div>
-
-            <div class="product-grid" id="productGrid" aria-live="polite"></div>
-        </section>
-
-        <!-- 2. Inventario por sucursal -->
-        <section class="view" id="view-inventario" aria-labelledby="tituloInventario" hidden>
-            <div class="view-header">
-                <div>
-                    <h1 id="tituloInventario">Inventario por sucursal</h1>
-                    <p class="muted">Cada pestaña lee el fragmento horizontal del nodo correspondiente.</p>
-                </div>
-                <button class="btn btn-ghost" data-reload="inventario">Actualizar</button>
-            </div>
-
-            <div class="tabs" id="inventoryTabs" role="tablist">
-                <button role="tab" class="tab active" data-node="all" aria-selected="true">Todas</button>
-                <button role="tab" class="tab" data-node="tijuana" aria-selected="false">Tijuana</button>
-                <button role="tab" class="tab" data-node="cdmx" aria-selected="false">CDMX</button>
-                <button role="tab" class="tab" data-node="online" aria-selected="false">En línea</button>
-            </div>
-
-            <div class="sources" id="inventorySources"></div>
-
-            <div class="table-wrap">
-                <table class="table" id="inventoryTable">
-                    <thead>
-                        <tr>
-                            <th>Nodo</th><th>Sucursal</th><th>SKU</th><th>Producto</th>
-                            <th>Talla</th><th>Color</th><th class="num">Stock</th><th class="num">Mínimo</th><th>Estado</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
-            </div>
-        </section>
-
-        <!-- 3. Pedidos -->
-        <section class="view" id="view-pedidos" aria-labelledby="tituloPedidos" hidden>
-            <div class="view-header">
-                <div>
-                    <h1 id="tituloPedidos">Pedidos</h1>
-                    <p class="muted">Reconstruidos con la unión de los fragmentos de cada nodo.</p>
-                </div>
-                <button class="btn btn-ghost" data-reload="pedidos">Actualizar</button>
-            </div>
-
-            <div class="toolbar">
-                <select id="orderNodeFilter" class="input" aria-label="Filtrar por nodo">
-                    <option value="all">Todos los nodos</option>
-                    <option value="tijuana">Tijuana</option>
-                    <option value="cdmx">CDMX</option>
-                    <option value="online">En línea</option>
-                </select>
-                <select id="orderStatusFilter" class="input" aria-label="Filtrar por estado">
-                    <option value="">Todos los estados</option>
-                    <option value="pending">Pendiente</option>
-                    <option value="paid">Pagado</option>
-                    <option value="shipped">Enviado</option>
-                    <option value="delivered">Entregado</option>
-                    <option value="cancelled">Cancelado</option>
-                    <option value="returned">Devuelto</option>
-                </select>
-            </div>
-
-            <div class="sources" id="orderSources"></div>
-            <div class="order-list" id="orderList"></div>
-        </section>
-
-        <!-- 4. Base distribuida -->
-        <section class="view" id="view-distribuida" aria-labelledby="tituloDistribuida" hidden>
-            <div class="view-header">
-                <div>
-                    <h1 id="tituloDistribuida">Base de datos distribuida</h1>
-                    <p class="muted">Nodos, fragmentación, replicación y espejo en la nube.</p>
-                </div>
-                <div class="actions">
-                    <button class="btn btn-ghost" data-reload="distribuida">Actualizar</button>
-                    <button class="btn btn-primary" id="syncButton">Sincronizar fragmentos</button>
-                </div>
-            </div>
-
-            <h2 class="section-title">Nodos</h2>
-            <div class="node-grid" id="nodeGrid"></div>
-
-            <h2 class="section-title">Fragmentación horizontal <span class="muted small">predicado id_store</span></h2>
-            <div class="fragment-grid" id="fragmentGrid"></div>
-
-            <h2 class="section-title">Fragmentación vertical <span class="muted small">customer</span></h2>
-            <div class="legend" id="verticalLegend"></div>
-            <div class="table-wrap">
-                <table class="table" id="verticalTable">
-                    <thead></thead>
-                    <tbody></tbody>
-                </table>
-            </div>
-
-            <h2 class="section-title">Replicación del catálogo</h2>
-            <div class="table-wrap">
-                <table class="table" id="replicationTable">
-                    <thead></thead>
-                    <tbody></tbody>
-                </table>
-            </div>
-        </section>
-    </main>
-
-    <!-- Carrito -->
-    <div class="overlay" id="overlay" hidden></div>
-    <aside class="drawer" id="cartDrawer" aria-labelledby="tituloCarrito" aria-hidden="true">
-        <div class="drawer-header">
-            <h2 id="tituloCarrito">Tu carrito</h2>
-            <button class="icon-button" id="closeCart" aria-label="Cerrar carrito">&times;</button>
         </div>
-        <div class="drawer-body" id="cartItems"></div>
-        <form class="drawer-footer" id="checkoutForm">
-            <label class="field">
-                <span>Comprar en</span>
-                <select id="checkoutStore" class="input" required>
-                    <option value="4">Tienda en línea</option>
-                    <option value="1">Sucursal Tijuana</option>
-                    <option value="2">Sucursal CDMX</option>
+    </div>
+
+    <main id="view" tabindex="-1"></main>
+
+    <footer class="site-footer">
+        <div class="footer-grid">
+            <div>
+                <h3>Ayuda</h3>
+                <a href="#/cuenta">Estado de mi pedido</a>
+                <a href="#/ayuda">Envíos y entregas</a>
+                <a href="#/ayuda">Cambios y devoluciones</a>
+                <a href="#/ayuda">Métodos de pago</a>
+            </div>
+            <div>
+                <h3>Comprar</h3>
+                <a href="#/tienda?dep=footwear">Calzado</a>
+                <a href="#/tienda?dep=apparel">Ropa</a>
+                <a href="#/tienda?dep=accessories">Accesorios</a>
+                <a href="#/ofertas">Ofertas y cupones</a>
+            </div>
+            <div>
+                <h3>JAM Sport</h3>
+                <a href="#/sucursales">Sucursales</a>
+                <a href="#/panel">Panel de sucursales</a>
+                <a href="#/panel/distribuida">Base de datos distribuida</a>
+            </div>
+            <div>
+                <h3>Pagos aceptados</h3>
+                <div class="pay-badges">
+                    <span>Tarjeta</span><span>OXXO</span><span>Transferencia</span><span>Efectivo en sucursal</span>
+                </div>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <span>© 2026 JAM Sport · Proyecto académico de Bases de Datos Distribuidas</span>
+            <label class="season-switch">
+                Temporada
+                <select id="seasonSelect" aria-label="Paleta de temporada">
+                    <option value="auto">Automática</option>
                 </select>
             </label>
-            <label class="field">
-                <span>Cliente</span>
-                <select id="checkoutCustomer" class="input" required></select>
-            </label>
-            <label class="field">
-                <span>Cupón</span>
-                <input id="checkoutCoupon" class="input" placeholder="Ej. BIENVENIDA10" autocomplete="off">
-            </label>
-            <div class="totals">
-                <div><span>Subtotal</span><strong id="cartSubtotal">$0.00</strong></div>
-                <div><span>Descuento</span><strong id="cartDiscount">$0.00</strong></div>
-                <div class="grand"><span>Total</span><strong id="cartTotal">$0.00</strong></div>
-            </div>
-            <button type="submit" class="btn btn-primary btn-block" id="checkoutButton">Confirmar pedido</button>
-        </form>
-    </aside>
+        </div>
+    </footer>
+
+    <nav class="tabbar" aria-label="Navegación rápida">
+        <a href="#/" data-tab="home"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11 12 4l9 7v9h-6v-6H9v6H3z"/></svg><span>Inicio</span></a>
+        <a href="#/tienda" data-tab="shop"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span>Tienda</span></a>
+        <a href="#/favoritos" data-tab="favorites"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7.5-4.6-9.2-9.2C1.6 7.6 3.6 4.8 6.6 4.8c2.2 0 3.7 1.4 5.4 3.4 1.7-2 3.2-3.4 5.4-3.4 3 0 5 2.8 3.8 6C19.5 15.4 12 20 12 20z"/></svg><span>Favoritos</span><i class="count" data-count="favorites" hidden>0</i></a>
+        <a href="#/carrito" data-tab="cart"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 8h14l-1.2 12.1a1 1 0 0 1-1 .9H7.2a1 1 0 0 1-1-.9L5 8z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg><span>Bolsa</span><i class="count" data-count="cart" hidden>0</i></a>
+        <a href="#/cuenta" data-tab="account"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg><span>Cuenta</span></a>
+    </nav>
 
     <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
     <script src="config.js"></script>
-    <script src="index.js"></script>
+    <script type="module" src="js/app.js"></script>
 </body>
 </html>

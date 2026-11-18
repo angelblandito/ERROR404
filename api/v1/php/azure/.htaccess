@@ -1,0 +1,2 @@
+# Solo index.php puede incluir estos archivos
+Require all denied

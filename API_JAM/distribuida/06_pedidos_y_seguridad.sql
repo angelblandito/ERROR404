@@ -9,9 +9,10 @@
        - valida sucursal, cliente, empleado, cupón y artículos;
        - toma los precios del catálogo (nunca del cliente);
        - descuenta el inventario de la sucursal solo si alcanza el stock;
-       - inserta customer_order y order_item.
+       - inserta customer_order, order_item y payment;
+       - registra el domicilio (envío) y el pago simulado;
      Si cualquier paso falla no queda nada a medias (XACT_ABORT + TRY/CATCH).
-     Errores de negocio: THROW 50001-50010, la API los devuelve como HTTP 409.
+     Errores de negocio: THROW 50001-50015, la API los devuelve como HTTP 409.
 
    Usuario jam_api
      Login con los permisos mínimos que necesita la API. Requiere que la
@@ -29,11 +30,25 @@ CREATE OR ALTER PROCEDURE dbo.sp_crear_pedido
     @channel         VARCHAR(8),
     @items           NVARCHAR(MAX),          -- [{"id_variant": 1, "quantity": 2}, ...]
     @notes           NVARCHAR(255) = NULL,
-    @source_node     VARCHAR(20)   = 'web_node'
+    @source_node     VARCHAR(20)   = 'web_node',
+    @delivery_type   VARCHAR(8)    = 'pickup',  -- pickup: recoger en sucursal | shipping: envío a domicilio
+    @payment_method  VARCHAR(8)    = 'card',    -- card | transfer | cash | oxxo
+    @street          NVARCHAR(100) = NULL,
+    @ext_number      VARCHAR(10)   = NULL,
+    @int_number      VARCHAR(10)   = NULL,
+    @neighborhood    NVARCHAR(80)  = NULL,
+    @city            NVARCHAR(60)  = NULL,
+    @id_state        TINYINT       = NULL,
+    @zip_code        CHAR(5)       = NULL,
+    @reference       NVARCHAR(150) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
+
+    /* Envío: gratis desde $999 después del descuento; recoger en sucursal no cuesta. */
+    DECLARE @envio_gratis_desde DECIMAL(10,2) = 999.00,
+            @costo_envio        DECIMAL(8,2)  = 99.00;
 
     DECLARE @lineas TABLE (
         id_variant  INT          NOT NULL PRIMARY KEY,
@@ -73,6 +88,26 @@ BEGIN
        AND NOT EXISTS (SELECT 1 FROM dbo.employee WHERE id_employee = @id_employee AND id_store = @id_store AND deleted = 0)
         THROW 50007, N'El empleado no pertenece a la sucursal del pedido.', 1;
 
+    IF @delivery_type IS NULL OR @delivery_type NOT IN ('pickup', 'shipping')
+        THROW 50011, N'La entrega debe ser pickup (recoger en sucursal) o shipping (envío a domicilio).', 1;
+
+    IF @delivery_type = 'pickup'
+       AND EXISTS (SELECT 1 FROM dbo.store WHERE id_store = @id_store AND id_address IS NULL)
+        THROW 50012, N'La tienda en línea no tiene mostrador: elija una sucursal para recoger o envío a domicilio.', 1;
+
+    IF @delivery_type = 'shipping'
+       AND (NULLIF(LTRIM(RTRIM(@street)), '') IS NULL OR NULLIF(LTRIM(RTRIM(@ext_number)), '') IS NULL
+            OR NULLIF(LTRIM(RTRIM(@neighborhood)), '') IS NULL OR NULLIF(LTRIM(RTRIM(@city)), '') IS NULL
+            OR @zip_code IS NULL OR @zip_code NOT LIKE '[0-9][0-9][0-9][0-9][0-9]'
+            OR NOT EXISTS (SELECT 1 FROM dbo.state WHERE id_state = @id_state))
+        THROW 50013, N'El domicilio de envío está incompleto: calle, número, colonia, ciudad, estado y código postal de 5 dígitos.', 1;
+
+    IF @payment_method IS NULL OR @payment_method NOT IN ('card', 'transfer', 'cash', 'oxxo')
+        THROW 50014, N'El método de pago debe ser card, transfer, cash u oxxo.', 1;
+
+    IF @payment_method = 'cash' AND @delivery_type <> 'pickup'
+        THROW 50015, N'El pago en efectivo solo aplica al recoger en sucursal.', 1;
+
     /* Precios desde el catálogo */
     UPDATE l
     SET l.unit_price = p.base_price
@@ -103,7 +138,16 @@ BEGIN
 
     DECLARE @subtotal DECIMAL(10,2) = (SELECT SUM(unit_price * quantity) FROM @lineas);
     DECLARE @discount DECIMAL(10,2) = ROUND(@subtotal * @discount_percent / 100, 2);
-    DECLARE @id_order INT;
+    DECLARE @shipping DECIMAL(8,2) =
+        CASE WHEN @delivery_type = 'shipping' AND @subtotal - @discount < @envio_gratis_desde THEN @costo_envio ELSE 0 END;
+    DECLARE @total DECIMAL(10,2) = @subtotal - @discount + @shipping;
+
+    /* Pago simulado: la tarjeta se aprueba al momento; OXXO, transferencia
+       y efectivo quedan pendientes. Nunca se guardan datos de la tarjeta. */
+    DECLARE @payment_status VARCHAR(9) = CASE WHEN @payment_method = 'card' THEN 'completed' ELSE 'pending' END;
+    DECLARE @order_status   VARCHAR(9) = CASE WHEN @payment_method = 'card' THEN 'paid' ELSE 'pending' END;
+
+    DECLARE @id_order INT, @id_address INT = NULL;
 
     /* ---------- Transacción ---------- */
     BEGIN TRY
@@ -123,18 +167,31 @@ BEGIN
         IF (SELECT COUNT(*) FROM @descontados) <> (SELECT COUNT(*) FROM @lineas)
             THROW 50010, N'No hay existencias suficientes en la sucursal para uno o más artículos.', 1;
 
+        IF @delivery_type = 'shipping'
+        BEGIN
+            INSERT INTO dbo.address (street, ext_number, int_number, neighborhood, city, id_state, zip_code, reference, source_node)
+            VALUES (LTRIM(RTRIM(@street)), LTRIM(RTRIM(@ext_number)), NULLIF(LTRIM(RTRIM(@int_number)), ''),
+                    LTRIM(RTRIM(@neighborhood)), LTRIM(RTRIM(@city)), @id_state, @zip_code, @reference, @source_node);
+            SET @id_address = CAST(SCOPE_IDENTITY() AS INT);
+        END;
+
         INSERT INTO dbo.customer_order
             (id_store, id_customer, id_employee, id_promotion, status, channel,
-             subtotal, discount, total, notes, source_node)
+             subtotal, discount, total, delivery_type, id_address, shipping_cost, notes, source_node)
         VALUES
-            (@id_store, @id_customer, @id_employee, @id_promotion, 'pending', @channel,
-             @subtotal, @discount, @subtotal - @discount, @notes, @source_node);
+            (@id_store, @id_customer, @id_employee, @id_promotion, @order_status, @channel,
+             @subtotal, @discount, @total, @delivery_type, @id_address, @shipping, @notes, @source_node);
 
         SET @id_order = CAST(SCOPE_IDENTITY() AS INT);
 
         INSERT INTO dbo.order_item (id_order, id_variant, quantity, unit_price, source_node)
         SELECT @id_order, id_variant, quantity, unit_price, @source_node
         FROM @lineas;
+
+        INSERT INTO dbo.payment (id_order, amount, currency, method, external_reference, status, source_node)
+        VALUES (@id_order, @total, 'MXN', @payment_method,
+                CASE WHEN @payment_method = 'card' THEN CONCAT('SIM-', FORMAT(@id_order, '000000')) END,
+                @payment_status, @source_node);
 
         COMMIT TRANSACTION;
     END TRY
@@ -144,10 +201,13 @@ BEGIN
         THROW;
     END CATCH;
 
-    SELECT @id_order             AS id_order,
-           @subtotal             AS subtotal,
-           @discount             AS discount,
-           @subtotal - @discount AS total;
+    SELECT @id_order       AS id_order,
+           @order_status   AS status,
+           @payment_status AS payment_status,
+           @subtotal       AS subtotal,
+           @discount       AS discount,
+           @shipping       AS shipping_cost,
+           @total          AS total;
 END;
 GO
 

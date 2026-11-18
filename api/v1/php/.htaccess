@@ -1,0 +1,5 @@
+# Todas las rutas de la API pasan por index.php (Apache de XAMPP)
+RewriteEngine On
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^ index.php [QSA,L]

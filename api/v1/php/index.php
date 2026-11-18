@@ -14,6 +14,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 $method = $_SERVER['REQUEST_METHOD'];
 
 $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+// En Apache la API vive en .../api/v1/php/; con "php -S" o en Azure, en la raíz.
+$uri = preg_replace('#^.*?/api/v1/php(?=/|$)#', '', $uri);
+$uri = $uri === '' ? '/' : $uri;
 $resourceId = explode('/', $uri)[2] ?? null;
 $subResourceId = explode('/', $uri)[3] ?? null; // second key part (only used by store_config)
 
@@ -87,6 +90,12 @@ if ($DB_Connector === null && $uri !== '/health-check') {
         'data' => null,
         'message' => $DB_ConnectionError
     ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+require_once("models/storefront.php"); // Tienda en línea: catálogo, cuentas y reseñas
+
+if (store_handle($method, $uri, $body)) {
     exit;
 }
 

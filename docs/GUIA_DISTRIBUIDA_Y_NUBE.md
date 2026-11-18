@@ -111,23 +111,47 @@ En SSMS, conectado a la instancia Developer, ejecutar en orden:
 
 ### 2.4 API (PHP)
 
+La API y la página se sirven juntas desde **Apache de XAMPP**: ya no hace falta `php -S`.
+
 1. Copiar `api/v1/php/config/settings.example.php` como `settings.php` y ajustar `JAM_LOCAL_SERVER` (p. ej. `localhost`), `JAM_LOCAL_USER` = `jam_api` y `JAM_LOCAL_PASSWORD`.
-2. Abrir una terminal en `C:\xampp\htdocs\ERROR404\api\v1\php` y ejecutar:
-   ```
-   C:\xampp\php\php.exe -S localhost:8080 index.php
-   ```
-3. Probar en el navegador `http://localhost:8080/health-check` → `"database": "en_linea"` y `"pdo_sqlsrv": true`.
+2. Encender **Apache** en el panel de XAMPP.
+3. Probar `http://localhost/ERROR404/api/v1/php/health-check` → `"database": "en_linea"` y `"pdo_sqlsrv": true`.
 
-### 2.5 Frontend
+> Si Apache corre como servicio de Windows, la autenticación de Windows usa la cuenta del servicio y no la tuya: usa el usuario `jam_api` del script 06.
+> Los archivos `.htaccess` mandan todas las rutas a `index.php` y bloquean el acceso directo a `config/`, `core/`, `models/`, `.git`, `API_JAM/` y `docs/`.
 
-Con Apache de XAMPP encendido: `http://localhost/ERROR404/index.html`.
+### 2.5 Tienda en línea
 
-| Menú | Qué muestra |
-|------|-------------|
-| **Tienda** | Calzado, ropa y accesorios con filtros Juvenil (15–24) / Adulto (25–45) y por género; disponibilidad por sucursal, carrito, cupón y pedidos. La paleta de colores cambia sola según la temporada (selector *Temporada* para mostrarlas en la presentación, o `?temporada=black_friday` en la URL) |
-| **Inventario** | Fragmento de `inventory` de cada nodo (pestañas Tijuana, CDMX, En línea) |
-| **Pedidos** | Pedidos reconstruidos desde los fragmentos, con sus artículos |
-| **Base distribuida** | Estado de nodos, completitud de fragmentos, reconstrucción vertical, replicación y espejo |
+Abrir `http://localhost/ERROR404/`.
+
+| Sección | Qué incluye |
+|---------|-------------|
+| **Inicio** | Banner de la temporada, beneficios, departamentos, lo más vendido, Juvenil / Adulto, cupones vigentes, novedades y mejor calificados |
+| **Tienda** | Menú Novedades / Hombre / Mujer / Juvenil / Calzado / Ropa / Accesorios / Ofertas, buscador con sugerencias, filtros (departamento, género, edad, precio, talla, color, existencias, calificación) y orden (más vendidos, mejor calificados, precio, novedades) |
+| **Producto** | Imagen que cambia con el color, tallas agotadas deshabilitadas, cantidad, favoritos, disponibilidad para envío y por sucursal, descripción, detalles, reseñas con estrellas y compra verificada, productos relacionados |
+| **Bolsa** | Cantidades, mover a favoritos, barra de avance para envío gratis |
+| **Pago** | Inicio de sesión o registro, envío a domicilio o recoger en sucursal (con existencias por tienda), pago simulado con tarjeta, OXXO, transferencia o efectivo, cupón, confirmación con instrucciones de pago |
+| **Mi cuenta** | Nivel de lealtad y pedidos con estado, artículos, entrega y pago |
+| **Panel de sucursales** | Inventario por nodo, pedidos por fragmento y estado de la base distribuida (enlace en el pie de página) |
+
+La paleta cambia sola según la temporada; el selector **Temporada** del pie de página permite mostrar cualquiera en la presentación.
+
+### 2.6 Entrar desde el celular
+
+**En la misma red Wi-Fi que la computadora**
+
+1. En la computadora, abrir `cmd` y ejecutar `ipconfig`. Anotar la **Dirección IPv4** del adaptador Wi-Fi (p. ej. `192.168.1.70`).
+2. Si Windows pregunta si permite a Apache HTTP Server comunicarse en redes privadas, aceptar. Si no aparece: *Firewall de Windows → Permitir una aplicación* → `C:\xampp\apache\bin\httpd.exe` en redes **privadas**.
+3. En el celular abrir `http://192.168.1.70/ERROR404/`.
+
+**Desde cualquier lugar (internet) para la presentación**
+
+1. Instalar Cloudflare Tunnel: `winget install Cloudflare.cloudflared`.
+2. Con Apache encendido, ejecutar `cloudflared tunnel --url http://localhost:80`.
+3. Copiar la dirección `https://<algo>.trycloudflare.com` que aparece y abrir `https://<algo>.trycloudflare.com/ERROR404/` en cualquier celular.
+4. Cerrar la ventana al terminar: la dirección deja de funcionar. Mientras está abierta, cualquiera con el enlace entra a la tienda y al panel, que no tiene inicio de sesión.
+
+La versión en Azure (sección 5) también se abre desde el celular, en modo consulta.
 
 ---
 
@@ -144,6 +168,11 @@ Con Apache de XAMPP encendido: `http://localhost/ERROR404/index.html`.
 | POST | `/distributed/sync` | Ejecuta `dist.sp_sincronizar_nodos` |
 | GET | `/season_theme` | Temporadas y campañas con su paleta de colores |
 | GET | `/season_theme/current?date=AAAA-MM-DD` | Temporada vigente para esa fecha (campaña > estación) |
+| GET | `/store/catalog` | Catálogo con variantes, existencias por tienda, calificación y unidades vendidas |
+| GET | `/store/products/{id}/reviews` | Reseñas y distribución de estrellas |
+| POST | `/store/reviews` | Publicar reseña (sesión; marca compra verificada) |
+| POST | `/auth/register`, `/auth/login`, `/auth/logout` | Cuentas de cliente con contraseña bcrypt, bloqueo tras 5 intentos y token de sesión |
+| GET | `/auth/me`, `/me/orders` | Perfil y pedidos del cliente con sesión |
 | POST | `/orders/checkout` | Registra un pedido completo con `dbo.sp_crear_pedido` (precios, cupón, total y stock se calculan en la base) |
 
 Todos los `GET` de catálogo aceptan paginación: `?page=1&page_size=100` (máximo 500) y no devuelven registros con `deleted = 1`.
@@ -177,6 +206,8 @@ Si un nodo fragmento no responde, la API lee sus datos del nodo por defecto filt
 | `dbo.sp_crear_pedido` en una transacción | Pedido, artículos y descuento de stock se guardan completos o no se guardan; el `UPDATE ... WHERE stock >= cantidad` evita vender la misma pieza dos veces |
 | Tabla `season_theme` (estaciones y campañas con colores validados por `CHECK`) | La paleta de la página es un dato: se cambia una campaña o sus colores con un `UPDATE`, sin tocar el código, y se replica a las sucursales con el catálogo |
 | `category.department` y `product.age_segment` | Separan Calzado / Ropa / Accesorios y el público Juvenil (15–24) / Adulto (25–45) con valores controlados por `CHECK` |
+| `product_review`, `customer_credential`, `customer_session` | Reseñas con una por cliente y producto (índice único filtrado); contraseñas solo como hash bcrypt y sesiones guardadas como SHA-256 del token, que además no se replican a la nube |
+| `customer_order.delivery_type`, `shipping_cost`, `id_address` | Envío a domicilio (surte la tienda en línea) o recoger en sucursal (surte esa sucursal y su fragmento) |
 | `ROWVERSION` en `product`, `inventory` y `customer_order` | Control de concurrencia optimista: un `PUT` con `row_version` viejo responde 409 en vez de sobrescribir |
 | Índices en todas las FK no cubiertas | Evita recorridos completos de tabla en JOIN y en la validación de FK |
 | Usuario `jam_api` sin permisos de DDL | Principio de mínimo privilegio para la aplicación |
