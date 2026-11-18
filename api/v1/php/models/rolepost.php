@@ -1,0 +1,23 @@
+<?php
+try {
+    $SQL_Query = 'INSERT INTO role (id_role, code, name) VALUES (
+        :id_role, 
+        :code, 
+        :name)';
+        
+    $SQL_Sentence = $DB_Connector->prepare($SQL_Query);
+    $SQL_Sentence->bindParam(':id_role', $body['id_role'], PDO::PARAM_INT);
+    $SQL_Sentence->bindParam(':code', $body['code'], PDO::PARAM_STR);
+    $SQL_Sentence->bindParam(':name', $body['name'], PDO::PARAM_STR);
+    $SQL_Sentence->execute();
+    
+    if ($SQL_Sentence->rowCount() != 0) {
+        $RoleId = $body['id_role']; // PK is set manually (no AUTO_INCREMENT)
+    } else {
+        $RoleId = 'Error: Cannot create new record';
+    };
+}
+catch (PDOException $ex) {
+    $RoleId = 'Error: ' . $ex->getMessage();
+};
+?>
