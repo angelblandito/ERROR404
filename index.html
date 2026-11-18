@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="JAM Sport: ropa deportiva en línea y en sucursales Tijuana y CDMX.">
+    <title>JAM Sport</title>
+    <link rel="stylesheet" href="index.css">
+</head>
+<body>
+    <header class="topbar">
+        <div class="topbar-inner">
+            <a href="#tienda" class="brand" aria-label="JAM Sport, inicio">
+                <span class="brand-mark">JAM</span>
+                <span class="brand-name">Sport</span>
+            </a>
+
+            <button class="menu-toggle" id="menuToggle" aria-controls="mainNav" aria-expanded="false" aria-label="Abrir menú">
+                <span></span><span></span><span></span>
+            </button>
+
+            <nav class="main-nav" id="mainNav" aria-label="Menú principal">
+                <a href="#tienda" data-view="tienda">Tienda</a>
+                <a href="#inventario" data-view="inventario">Inventario</a>
+                <a href="#pedidos" data-view="pedidos">Pedidos</a>
+                <a href="#distribuida" data-view="distribuida">Base distribuida</a>
+            </nav>
+
+            <div class="topbar-actions">
+                <span class="api-status" id="apiStatus" title="Estado de la API">
+                    <span class="dot"></span><span class="api-status-text">API</span>
+                </span>
+                <button class="cart-button" id="cartButton" aria-label="Abrir carrito">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z"/></svg>
+                    <span class="cart-count" id="cartCount">0</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main id="app">
+        <!-- 1. Tienda -->
+        <section class="view" id="view-tienda" aria-labelledby="tituloTienda">
+            <div class="hero">
+                <div>
+                    <p class="eyebrow">Tienda en línea · Tijuana · CDMX</p>
+                    <h1 id="tituloTienda">Equípate para entrenar</h1>
+                    <p class="hero-text">Ropa y calzado deportivo con disponibilidad en tiempo real en cada sucursal.</p>
+                </div>
+            </div>
+
+            <div class="toolbar">
+                <input type="search" id="searchProducts" class="input" placeholder="Buscar producto…" aria-label="Buscar producto">
+                <div class="chips" id="categoryChips" role="group" aria-label="Filtrar por categoría"></div>
+            </div>
+
+            <div class="product-grid" id="productGrid" aria-live="polite"></div>
+        </section>
+
+        <!-- 2. Inventario por sucursal -->
+        <section class="view" id="view-inventario" aria-labelledby="tituloInventario" hidden>
+            <div class="view-header">
+                <div>
+                    <h1 id="tituloInventario">Inventario por sucursal</h1>
+                    <p class="muted">Cada pestaña lee el fragmento horizontal del nodo correspondiente.</p>
+                </div>
+                <button class="btn btn-ghost" data-reload="inventario">Actualizar</button>
+            </div>
+
+            <div class="tabs" id="inventoryTabs" role="tablist">
+                <button role="tab" class="tab active" data-node="all" aria-selected="true">Todas</button>
+                <button role="tab" class="tab" data-node="tijuana" aria-selected="false">Tijuana</button>
+                <button role="tab" class="tab" data-node="cdmx" aria-selected="false">CDMX</button>
+                <button role="tab" class="tab" data-node="online" aria-selected="false">En línea</button>
+            </div>
+
+            <div class="sources" id="inventorySources"></div>
+
+            <div class="table-wrap">
+                <table class="table" id="inventoryTable">
+                    <thead>
+                        <tr>
+                            <th>Nodo</th><th>Sucursal</th><th>SKU</th><th>Producto</th>
+                            <th>Talla</th><th>Color</th><th class="num">Stock</th><th class="num">Mínimo</th><th>Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- 3. Pedidos -->
+        <section class="view" id="view-pedidos" aria-labelledby="tituloPedidos" hidden>
+            <div class="view-header">
+                <div>
+                    <h1 id="tituloPedidos">Pedidos</h1>
+                    <p class="muted">Reconstruidos con la unión de los fragmentos de cada nodo.</p>
+                </div>
+                <button class="btn btn-ghost" data-reload="pedidos">Actualizar</button>
+            </div>
+
+            <div class="toolbar">
+                <select id="orderNodeFilter" class="input" aria-label="Filtrar por nodo">
+                    <option value="all">Todos los nodos</option>
+                    <option value="tijuana">Tijuana</option>
+                    <option value="cdmx">CDMX</option>
+                    <option value="online">En línea</option>
+                </select>
+                <select id="orderStatusFilter" class="input" aria-label="Filtrar por estado">
+                    <option value="">Todos los estados</option>
+                    <option value="pending">Pendiente</option>
+                    <option value="paid">Pagado</option>
+                    <option value="shipped">Enviado</option>
+                    <option value="delivered">Entregado</option>
+                    <option value="cancelled">Cancelado</option>
+                    <option value="returned">Devuelto</option>
+                </select>
+            </div>
+
+            <div class="sources" id="orderSources"></div>
+            <div class="order-list" id="orderList"></div>
+        </section>
+
+        <!-- 4. Base distribuida -->
+        <section class="view" id="view-distribuida" aria-labelledby="tituloDistribuida" hidden>
+            <div class="view-header">
+                <div>
+                    <h1 id="tituloDistribuida">Base de datos distribuida</h1>
+                    <p class="muted">Nodos, fragmentación, replicación y espejo en la nube.</p>
+                </div>
+                <div class="actions">
+                    <button class="btn btn-ghost" data-reload="distribuida">Actualizar</button>
+                    <button class="btn btn-primary" id="syncButton">Sincronizar fragmentos</button>
+                </div>
+            </div>
+
+            <h2 class="section-title">Nodos</h2>
+            <div class="node-grid" id="nodeGrid"></div>
+
+            <h2 class="section-title">Fragmentación horizontal <span class="muted small">predicado id_store</span></h2>
+            <div class="fragment-grid" id="fragmentGrid"></div>
+
+            <h2 class="section-title">Fragmentación vertical <span class="muted small">customer</span></h2>
+            <div class="legend" id="verticalLegend"></div>
+            <div class="table-wrap">
+                <table class="table" id="verticalTable">
+                    <thead></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+
+            <h2 class="section-title">Replicación del catálogo</h2>
+            <div class="table-wrap">
+                <table class="table" id="replicationTable">
+                    <thead></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <!-- Carrito -->
+    <div class="overlay" id="overlay" hidden></div>
+    <aside class="drawer" id="cartDrawer" aria-labelledby="tituloCarrito" aria-hidden="true">
+        <div class="drawer-header">
+            <h2 id="tituloCarrito">Tu carrito</h2>
+            <button class="icon-button" id="closeCart" aria-label="Cerrar carrito">&times;</button>
+        </div>
+        <div class="drawer-body" id="cartItems"></div>
+        <form class="drawer-footer" id="checkoutForm">
+            <label class="field">
+                <span>Comprar en</span>
+                <select id="checkoutStore" class="input" required>
+                    <option value="4">Tienda en línea</option>
+                    <option value="1">Sucursal Tijuana</option>
+                    <option value="2">Sucursal CDMX</option>
+                </select>
+            </label>
+            <label class="field">
+                <span>Cliente</span>
+                <select id="checkoutCustomer" class="input" required></select>
+            </label>
+            <label class="field">
+                <span>Cupón</span>
+                <input id="checkoutCoupon" class="input" placeholder="Ej. BIENVENIDA10" autocomplete="off">
+            </label>
+            <div class="totals">
+                <div><span>Subtotal</span><strong id="cartSubtotal">$0.00</strong></div>
+                <div><span>Descuento</span><strong id="cartDiscount">$0.00</strong></div>
+                <div class="grand"><span>Total</span><strong id="cartTotal">$0.00</strong></div>
+            </div>
+            <button type="submit" class="btn btn-primary btn-block" id="checkoutButton">Confirmar pedido</button>
+        </form>
+    </aside>
+
+    <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+    <script src="config.js"></script>
+    <script src="index.js"></script>
+</body>
+</html>

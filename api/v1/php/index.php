@@ -49,6 +49,35 @@ $StoreId = null;
 $StoreTypeId = null;
 $VerificationCodeId = null;
 
+require_once("models/distributed.php"); // Endpoints de la base de datos distribuida
+
+if (dist_handle($method, $uri)) {
+    exit;
+}
+
+// En la nube la base es una réplica: solo se permiten lecturas.
+if ((string)jam_env('JAM_READ_ONLY', '0') === '1' && $method !== 'GET') {
+    http_response_code(405);
+
+    echo json_encode([
+        'success' => false,
+        'data' => null,
+        'message' => 'Este nodo es una réplica de solo lectura. Los pedidos se registran en el nodo central.'
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+if ($DB_Connector === null && $uri !== '/health-check') {
+    http_response_code(503);
+
+    echo json_encode([
+        'success' => false,
+        'data' => null,
+        'message' => $DB_ConnectionError
+    ]);
+    exit;
+}
+
 if ($method === 'GET' && $uri === '/health-check') {
 
     http_response_code(200);
@@ -56,7 +85,10 @@ if ($method === 'GET' && $uri === '/health-check') {
     echo json_encode([
         'success' => true,
         'data' => [
-            'language' => 'php'
+            'language' => 'php',
+            'node' => JAM_DEFAULT_NODE,
+            'database' => $DB_Connector !== null ? 'en_linea' : 'sin_conexion',
+            'pdo_sqlsrv' => extension_loaded('pdo_sqlsrv')
         ],
         'message' => 'API online'
     ]);
