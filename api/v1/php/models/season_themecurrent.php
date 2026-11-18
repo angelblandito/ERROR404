@@ -10,7 +10,7 @@ try {
     $MonthDay = (int)substr($Date, 5, 2) * 100 + (int)substr($Date, 8, 2);
 
     $SQL_Query = 'SELECT TOP (1) id_theme, code, name, theme_type, color_primary, color_secondary,
-               color_accent, color_accent_text, hero_title, hero_text
+               color_accent, color_accent_text, hero_title, hero_text, effect
         FROM season_theme
         CROSS APPLY (SELECT CAST(:month_day AS INT) AS md,
                             start_month * 100 + start_day AS start_md,

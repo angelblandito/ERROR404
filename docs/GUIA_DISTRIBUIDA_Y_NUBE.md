@@ -136,6 +136,22 @@ Abrir `http://localhost/ERROR404/`.
 
 La paleta cambia sola según la temporada; el selector **Temporada** del pie de página permite mostrar cualquiera en la presentación.
 
+Cada temporada también tiene una animación de fondo, guardada en la columna `season_theme.effect`:
+
+| Temporada | Efecto |
+|---|---|
+| Invierno | Nieve (`snow`) |
+| Navidad | Nieve con luces de colores (`festive`) |
+| Otoño | Hojas cayendo (`leaves`) |
+| Primavera | Pétalos (`petals`) |
+| Verano | Burbujas de luz que suben (`sun`) |
+| Regreso a clases y El Buen Fin | Confeti con los colores de la campaña (`confetti`) |
+| Black Friday | Chispas de neón (`sparks`) |
+
+Las partículas se apartan del cursor (o del dedo en el celular) y el viento cambia de dirección al hacer scroll. La animación no recibe clics, se pausa cuando la pestaña no está visible y se puede apagar con **Animación de temporada** en el pie de página; si el sistema tiene activado "reducir movimiento", empieza apagada.
+
+Para la presentación se puede abrir una temporada directamente: `http://localhost/ERROR404/?temporada=winter`.
+
 ### 2.6 Entrar desde el celular
 
 **En la misma red Wi-Fi que la computadora**
@@ -204,7 +220,7 @@ Si un nodo fragmento no responde, la API lee sus datos del nodo por defecto filt
 | Borrado lógico (`deleted`) con índices únicos filtrados (`WHERE deleted = 0`) | Conserva el historial y permite volver a registrar un correo o SKU de un registro eliminado |
 | `CHECK (total = subtotal - discount)` | El total nunca puede quedar inconsistente, venga de donde venga el dato |
 | `dbo.sp_crear_pedido` en una transacción | Pedido, artículos y descuento de stock se guardan completos o no se guardan; el `UPDATE ... WHERE stock >= cantidad` evita vender la misma pieza dos veces |
-| Tabla `season_theme` (estaciones y campañas con colores validados por `CHECK`) | La paleta de la página es un dato: se cambia una campaña o sus colores con un `UPDATE`, sin tocar el código, y se replica a las sucursales con el catálogo |
+| Tabla `season_theme` (estaciones y campañas con colores y efecto validados por `CHECK`) | La paleta y la animación de la página son datos: se cambia una campaña, sus colores o su efecto con un `UPDATE`, sin tocar el código, y se replica a las sucursales con el catálogo |
 | `category.department` y `product.age_segment` | Separan Calzado / Ropa / Accesorios y el público Juvenil (15–24) / Adulto (25–45) con valores controlados por `CHECK` |
 | `product_review`, `customer_credential`, `customer_session` | Reseñas con una por cliente y producto (índice único filtrado); contraseñas solo como hash bcrypt y sesiones guardadas como SHA-256 del token, que además no se replican a la nube |
 | `customer_order.delivery_type`, `shipping_cost`, `id_address` | Envío a domicilio (surte la tienda en línea) o recoger en sucursal (surte esa sucursal y su fragmento) |

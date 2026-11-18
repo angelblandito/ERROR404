@@ -207,9 +207,11 @@ CREATE TABLE season_theme (
     color_accent_text CHAR(7)       NOT NULL,
     hero_title        NVARCHAR(80)  NOT NULL,
     hero_text         NVARCHAR(160) NOT NULL,
+    effect            VARCHAR(10)   NOT NULL DEFAULT 'none',
     active            BIT           NOT NULL DEFAULT 1,
     CONSTRAINT uq_season_theme_code UNIQUE (code),
     CONSTRAINT ck_season_theme_type CHECK (theme_type IN ('season','campaign')),
+    CONSTRAINT ck_season_theme_effect CHECK (effect IN ('none','snow','leaves','petals','sun','confetti','sparks','festive')),
     CONSTRAINT ck_season_theme_months CHECK (start_month BETWEEN 1 AND 12 AND end_month BETWEEN 1 AND 12),
     CONSTRAINT ck_season_theme_days CHECK (start_day BETWEEN 1 AND 31 AND end_day BETWEEN 1 AND 31),
     CONSTRAINT ck_season_theme_colors CHECK (
@@ -221,15 +223,15 @@ CREATE TABLE season_theme (
 GO
 
 INSERT INTO season_theme (id_theme, code, name, theme_type, start_month, start_day, end_month, end_day, priority,
-                          color_primary, color_secondary, color_accent, color_accent_text, hero_title, hero_text) VALUES
-(1, 'spring',        'Primavera',          'season',    3, 20,  6, 20, 1, '#1D4D3A', '#2A6B50', '#FFB3C7', '#1D4D3A', 'Renueva tu rutina',          'Colores frescos y prendas ligeras para entrenar al aire libre.'),
-(2, 'summer',        'Verano',             'season',    6, 21,  9, 22, 1, '#0B3D5C', '#0E5A85', '#FFD23F', '#0B3D5C', 'Verano en movimiento',       'Shorts, tops y tenis transpirables para los días de más calor.'),
-(3, 'autumn',        'Otoño',              'season',    9, 23, 12, 20, 1, '#3B1F14', '#5A2E1B', '#FF8C42', '#3B1F14', 'Entrena en otoño',           'Capas ligeras, rompevientos y tenis para correr con el clima fresco.'),
-(4, 'winter',        'Invierno',           'season',   12, 21,  3, 19, 1, '#0F1D3D', '#1C2F5E', '#9BE7FF', '#0F1D3D', 'Invierno sin pausa',         'Sudaderas, chamarras y leggings térmicos para no dejar de moverte.'),
-(5, 'back_to_school','Regreso a clases',   'campaign',  8,  1,  8, 31, 5, '#1E1B4B', '#312E81', '#FACC15', '#1E1B4B', 'Regreso a clases',           'Mochilas, tenis y uniformes deportivos para el nuevo ciclo escolar.'),
-(6, 'buen_fin',      'El Buen Fin',        'campaign', 11, 13, 11, 17, 9, '#7A0019', '#A3001F', '#FFD000', '#3A0010', 'El Buen Fin JAM',            'Descuentos en calzado, ropa y accesorios del 13 al 17 de noviembre.'),
-(7, 'black_friday',  'Black Friday',       'campaign', 11, 20, 11, 30, 9, '#0A0A0A', '#262626', '#FF2D55', '#FFFFFF', 'Black Friday',               'Hasta 25% de descuento con el cupón BLACKFRIDAY.'),
-(8, 'christmas',     'Navidad',            'campaign', 12,  1,  1,  6, 8, '#14351F', '#1E4D2B', '#E63946', '#FFFFFF', 'Regala movimiento',          'Ideas de regalo deportivas para jóvenes y adultos.');
+                          color_primary, color_secondary, color_accent, color_accent_text, hero_title, hero_text, effect) VALUES
+(1, 'spring',        'Primavera',          'season',    3, 20,  6, 20, 1, '#1D4D3A', '#2A6B50', '#FFB3C7', '#1D4D3A', 'Renueva tu rutina',          'Colores frescos y prendas ligeras para entrenar al aire libre.', 'petals'),
+(2, 'summer',        'Verano',             'season',    6, 21,  9, 22, 1, '#0B3D5C', '#0E5A85', '#FFD23F', '#0B3D5C', 'Verano en movimiento',       'Shorts, tops y tenis transpirables para los días de más calor.', 'sun'),
+(3, 'autumn',        'Otoño',              'season',    9, 23, 12, 20, 1, '#3B1F14', '#5A2E1B', '#FF8C42', '#3B1F14', 'Entrena en otoño',           'Capas ligeras, rompevientos y tenis para correr con el clima fresco.', 'leaves'),
+(4, 'winter',        'Invierno',           'season',   12, 21,  3, 19, 1, '#0F1D3D', '#1C2F5E', '#9BE7FF', '#0F1D3D', 'Invierno sin pausa',         'Sudaderas, chamarras y leggings térmicos para no dejar de moverte.', 'snow'),
+(5, 'back_to_school','Regreso a clases',   'campaign',  8,  1,  8, 31, 5, '#1E1B4B', '#312E81', '#FACC15', '#1E1B4B', 'Regreso a clases',           'Mochilas, tenis y uniformes deportivos para el nuevo ciclo escolar.', 'confetti'),
+(6, 'buen_fin',      'El Buen Fin',        'campaign', 11, 13, 11, 17, 9, '#7A0019', '#A3001F', '#FFD000', '#3A0010', 'El Buen Fin JAM',            'Descuentos en calzado, ropa y accesorios del 13 al 17 de noviembre.', 'confetti'),
+(7, 'black_friday',  'Black Friday',       'campaign', 11, 20, 11, 30, 9, '#0A0A0A', '#262626', '#FF2D55', '#FFFFFF', 'Black Friday',               'Hasta 25% de descuento con el cupón BLACKFRIDAY.', 'sparks'),
+(8, 'christmas',     'Navidad',            'campaign', 12,  1,  1,  6, 8, '#14351F', '#1E4D2B', '#E63946', '#FFFFFF', 'Regala movimiento',          'Ideas de regalo deportivas para jóvenes y adultos.', 'festive');
 GO
 
 

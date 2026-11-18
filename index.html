@@ -11,6 +11,7 @@
 </head>
 <body>
     <a class="skip-link" href="#view">Ir al contenido</a>
+    <canvas class="season-fx" id="seasonFx" aria-hidden="true" hidden></canvas>
 
     <!-- ===================== Encabezado ===================== -->
     <div class="announcement" role="region" aria-label="Avisos">
@@ -123,12 +124,18 @@
         </div>
         <div class="footer-bottom">
             <span>© 2026 JAM Sport · Proyecto académico de Bases de Datos Distribuidas</span>
-            <label class="season-switch">
-                Temporada
-                <select id="seasonSelect" aria-label="Paleta de temporada">
-                    <option value="auto">Automática (según la fecha)</option>
-                </select>
-            </label>
+            <div class="footer-settings">
+                <label class="fx-switch" id="fxSwitch" hidden>
+                    <input type="checkbox" id="fxToggle">
+                    Animación de temporada
+                </label>
+                <label class="season-switch">
+                    Temporada
+                    <select id="seasonSelect" aria-label="Paleta de temporada">
+                        <option value="auto">Automática (según la fecha)</option>
+                    </select>
+                </label>
+            </div>
         </div>
     </footer>
 

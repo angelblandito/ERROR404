@@ -2,7 +2,8 @@
 try {
     [$Offset, $PageSize] = api_page();
 
-    $SQL_Query = 'SELECT id_theme, code, name, theme_type, start_month, start_day, end_month, end_day, priority, color_primary, color_secondary, color_accent, color_accent_text, hero_title, hero_text, active, color_primary, color_secondary, color_accent, color_accent_text
+    $SQL_Query = 'SELECT id_theme, code, name, theme_type, start_month, start_day, end_month, end_day, priority,
+               color_primary, color_secondary, color_accent, color_accent_text, hero_title, hero_text, effect, active
         FROM season_theme
         ORDER BY priority DESC, id_theme
         OFFSET :offset ROWS FETCH NEXT :page_size ROWS ONLY';

@@ -4,6 +4,7 @@ import { productArt, handleMissingPhoto } from './illustrations.js';
 import { setFavState } from './components.js';
 import { cartCount, colorsOf, loadCatalog, loadCustomer, state, toggleFavorite } from './store.js';
 import { initTheme, currentTheme } from './theme.js';
+import { initEffects } from './effects.js';
 import { closeMiniCart } from './minicart.js';
 import { renderHome } from './views/home.js';
 import { renderCatalog } from './views/catalog.js';
@@ -133,6 +134,10 @@ function rotateAnnouncements() {
         ];
     };
     el.textContent = messages()[0];
+    document.addEventListener('jam:theme', function () {
+        i = 0;
+        el.textContent = messages()[0];
+    });
     setInterval(function () {
         i = (i + 1) % messages().length;
         el.textContent = messages()[i];
@@ -190,5 +195,6 @@ window.addEventListener('hashchange', route);
 bindHeader();
 updateCounts();
 rotateAnnouncements();
+initEffects();
 initTheme();
 loadCustomer().finally(route);
