@@ -1,5 +1,5 @@
-/* Panel de sucursales (personal): inventario por nodo, pedidos por fragmento
-   y estado de la base de datos distribuida. */
+/* Panel de sucursales: inventario por nodo, pedidos por fragmento y estado
+   de la base de datos distribuida. */
 import { api } from '../api.js';
 import { $, esc, badge, money, formatDate, setTitle, toast as notify } from '../ui.js';
 
@@ -86,9 +86,7 @@ async function loadInventory(node) {
         : emptyRow(9, 'Sin registros en este fragmento.');
 }
 
-/* ---------------------------------------------------------------------
-   3. Pedidos
-   --------------------------------------------------------------------- */
+/* ---------- Pedidos ---------- */
 async function loadOrders() {
     const node = $('#orderNodeFilter').value;
     const status = $('#orderStatusFilter').value;
@@ -137,9 +135,7 @@ async function loadOrders() {
     }).join('');
 }
 
-/* ---------------------------------------------------------------------
-   4. Base distribuida
-   --------------------------------------------------------------------- */
+/* ---------- Base distribuida ---------- */
 async function loadDistributed() {
     $('#nodeGrid').innerHTML = '<p class="empty">Consultando nodos…</p>';
     $('#fragmentGrid').innerHTML = '';

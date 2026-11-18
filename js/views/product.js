@@ -1,4 +1,4 @@
-/* Página de producto: galería por color, tallas, disponibilidad por sucursal y reseñas. */
+/* Página de producto: colores, tallas, disponibilidad y reseñas. */
 import { api } from '../api.js';
 import { $, $$, esc, money, stars, toast, emptyState, formatDate, setTitle, DEPARTMENTS, GENDERS, SEGMENTS } from '../ui.js';
 import { productArt, swatch } from '../illustrations.js';

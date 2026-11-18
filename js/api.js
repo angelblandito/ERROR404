@@ -20,7 +20,7 @@ export function setToken(token) {
             localStorage.removeItem(TOKEN_KEY);
         }
     } catch (e) {
-        /* Sin almacenamiento la sesión dura lo que la pestaña. */
+        /* sin localStorage */
     }
 }
 

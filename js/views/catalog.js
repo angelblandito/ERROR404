@@ -1,4 +1,4 @@
-/* Catálogo con filtros laterales y orden (estilo tienda deportiva). */
+/* Catálogo con filtros y orden. */
 import { $, $$, esc, buildQuery, emptyState, setTitle, DEPARTMENTS, GENDERS, SEGMENTS } from '../ui.js';
 import { productCard } from '../components.js';
 import { swatch } from '../illustrations.js';

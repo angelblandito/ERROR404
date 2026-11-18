@@ -1,6 +1,6 @@
-/* Arranque de la tienda: rutas, encabezado, búsqueda, contadores y favoritos. */
+/* Rutas de la tienda, encabezado, búsqueda y favoritos. */
 import { $, $$, esc, money, toast, emptyState, loading, parseQuery } from './ui.js';
-import { productArt } from './illustrations.js';
+import { productArt, handleMissingPhoto } from './illustrations.js';
 import { cartCount, colorsOf, loadCatalog, loadCustomer, state, toggleFavorite } from './store.js';
 import { initTheme, currentTheme } from './theme.js';
 import { renderHome } from './views/home.js';
@@ -29,7 +29,6 @@ const ROUTES = [
     [/^\/panel(?:\/(\w+))?$/, '', function (page, m) { return renderPanel(page, m[1]); }]
 ];
 
-/* Las vistas del panel no dependen del catálogo de la tienda. */
 const NEEDS_CATALOG = function (path) { return !/^\/panel/.test(path); };
 
 async function route() {
@@ -158,7 +157,6 @@ function bindHeader() {
         if (!e.target.closest('#searchForm')) closeSuggestions();
     });
 
-    /* Favoritos desde cualquier tarjeta o página de producto */
     document.addEventListener('click', function (e) {
         const btn = e.target.closest('[data-fav]');
         if (!btn) return;
@@ -172,6 +170,12 @@ function bindHeader() {
         toast(active ? 'Guardado en favoritos' : 'Se quitó de favoritos', active ? { action: { href: '#/favoritos', label: 'Ver' } } : {});
     });
 }
+
+document.addEventListener('error', function (e) {
+    if (e.target.classList && e.target.classList.contains('product-photo')) {
+        handleMissingPhoto(e.target);
+    }
+}, true);
 
 document.addEventListener('jam:change', updateCounts);
 window.addEventListener('hashchange', route);

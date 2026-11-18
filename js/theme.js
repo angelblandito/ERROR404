@@ -83,7 +83,7 @@ export async function initTheme() {
         try {
             localStorage.setItem('jam_theme', selectEl.value);
         } catch (e) {
-            /* La elección dura solo esta visita. */
+            /* sin localStorage */
         }
         select(selectEl.value);
     });

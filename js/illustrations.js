@@ -1,8 +1,16 @@
 /*
- * Ilustraciones vectoriales de los productos. Se dibujan con el color de la
- * variante elegida, así la imagen cambia cuando el cliente cambia de color.
- * Si el producto tiene image_url en la base, se muestra esa foto en su lugar.
+ * Imágenes de producto.
+ * 1. Foto propia: img/productos/<id_producto>-<color>.jpg  (ejemplo: 6-black.jpg)
+ *    También se aceptan .png y .webp. La API informa qué fotos existen.
+ * 2. Foto de la base de datos: columna product.image_url
+ * 3. Si no hay foto, se dibuja una ilustración con el color de la variante.
  */
+
+import { state } from './store.js';
+
+const PHOTO_FOLDER = 'img/productos/';
+const PHOTO_TYPES = ['jpg', 'jpeg', 'png', 'webp'];
+const missingPhotos = new Set();
 
 export const COLOR_HEX = {
     black: '#22252b',
@@ -132,17 +140,46 @@ export function productKind(product) {
     return BY_CATEGORY[product.category_code] || 'tee';
 }
 
-export function productArt(product, colorCode, extraClass) {
-    const cls = 'product-art ' + (extraClass || '');
-    if (product.image_url) {
-        return '<div class="' + cls + '"><img src="' + String(product.image_url).replace(/"/g, '&quot;') +
-            '" alt="" loading="lazy"></div>';
+function photoSources(product, colorCode) {
+    const sources = [];
+    if (product.id_product) {
+        PHOTO_TYPES.forEach(function (type) {
+            const file = product.id_product + '-' + colorCode + '.' + type;
+            if (state.photos.has(file)) sources.push(PHOTO_FOLDER + file);
+        });
     }
+    if (product.image_url) {
+        sources.push(product.image_url);
+    }
+    return sources.filter(function (src) { return !missingPhotos.has(src); });
+}
+
+export function productArt(product, colorCode, extraClass) {
+    const name = String(product.name || '').replace(/"/g, '&quot;');
     const base = COLOR_HEX[colorCode] || COLOR_HEX.black;
     const dark = colorCode === 'white' ? '#9a9a9a' : shade(base, -0.35);
     const draw = SHAPES[productKind(product)] || SHAPES.tee;
-    return '<div class="' + cls + '"><svg viewBox="0 0 240 180" role="img" aria-label="' +
-        String(product.name || '').replace(/"/g, '&quot;') + '">' + draw(base, dark) + '</svg></div>';
+    const sources = photoSources(product, colorCode);
+
+    let html = '<div class="product-art ' + (extraClass || '') + '">';
+    html += '<svg viewBox="0 0 240 180" role="img" aria-label="' + name + '">' + draw(base, dark) + '</svg>';
+    if (sources.length) {
+        html += '<img class="product-photo" src="' + sources[0] + '" data-next="' + sources.slice(1).join('|') +
+            '" alt="' + name + '" loading="lazy">';
+    }
+    return html + '</div>';
+}
+
+/* Si una foto no existe se prueba la siguiente; al final queda la ilustración. */
+export function handleMissingPhoto(img) {
+    missingPhotos.add(img.getAttribute('src'));
+    const next = (img.dataset.next || '').split('|').filter(Boolean);
+    if (next.length) {
+        img.dataset.next = next.slice(1).join('|');
+        img.src = next[0];
+    } else {
+        img.remove();
+    }
 }
 
 export function swatch(colorCode) {

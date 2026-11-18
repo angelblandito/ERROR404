@@ -14,7 +14,7 @@ function saveJSON(key, value) {
     try {
         localStorage.setItem(key, JSON.stringify(value));
     } catch (e) {
-        /* Sin almacenamiento, los datos duran lo que la pestaña. */
+        /* sin localStorage */
     }
 }
 
@@ -27,7 +27,8 @@ export const state = {
     cart: loadJSON('jam_cart_v2', []),
     favorites: loadJSON('jam_favorites', []),
     customer: null,
-    promotions: null
+    promotions: null,
+    photos: new Set()
 };
 
 function emit() {
@@ -45,6 +46,7 @@ export function loadCatalog(force) {
             state.stores = data.stores;
             state.onlineStore = data.online_store;
             state.shipping = data.shipping;
+            state.photos = new Set(data.photos || []);
             pruneCart();
             return state.products;
         }).catch(function (error) {
@@ -227,7 +229,7 @@ export async function logout() {
     try {
         await api('/auth/logout', { method: 'POST', body: {} });
     } catch (e) {
-        /* El token se borra de todas formas. */
+        /* se cierra la sesión local de todos modos */
     }
     setToken(null);
     state.customer = null;

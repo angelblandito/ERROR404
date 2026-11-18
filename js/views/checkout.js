@@ -1,5 +1,4 @@
-/* Pago: entrega, método de pago y confirmación. El pedido se registra con
-   POST /orders/checkout, que ejecuta dbo.sp_crear_pedido en una transacción. */
+/* Pago: entrega, método de pago y confirmación del pedido. */
 import { api } from '../api.js';
 import { $, esc, money, toast, emptyState, setTitle, PAYMENT_METHODS } from '../ui.js';
 import { productArt } from '../illustrations.js';
@@ -245,10 +244,10 @@ export async function renderCheckout(page) {
                     store: (state.stores.find(function (s) { return s.id_store === fulfillingStore(); }) || {}).store_name
                 })));
             } catch (e) {
-                /* La confirmación se muestra con los datos mínimos. */
+                /* sin sessionStorage */
             }
             clearCart();
-            api('/distributed/sync', { method: 'POST' }).catch(function () { /* el job de sincronización lo hará */ });
+            api('/distributed/sync', { method: 'POST' }).catch(function () {});
             loadCatalog(true).catch(function () {});
             window.location.hash = '#/pedido/' + order.id_order;
         } catch (err) {

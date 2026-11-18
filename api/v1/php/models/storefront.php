@@ -186,6 +186,23 @@ function store_validate_registration(array $body): array
 /* ---------------------------------------------------------------------
    Catálogo
    --------------------------------------------------------------------- */
+const STORE_PHOTO_FOLDER = __DIR__ . '/../../../../img/productos';
+
+/* Fotos disponibles en img/productos con el formato <id>-<color>.<extensión>. */
+function store_photo_files(): array
+{
+    $files = glob(STORE_PHOTO_FOLDER . '/*') ?: [];
+    $names = [];
+    foreach ($files as $file) {
+        $name = basename($file);
+        if (preg_match('/^\d+-[a-z]+\.(jpg|jpeg|png|webp)$/', $name)) {
+            $names[] = $name;
+        }
+    }
+    sort($names);
+    return $names;
+}
+
 function store_catalog(): array
 {
     $pdo = store_db();
@@ -291,6 +308,7 @@ function store_catalog(): array
         'stores' => $stores,
         'online_store' => STORE_ONLINE_ID,
         'shipping' => ['free_from' => STORE_FREE_SHIPPING_FROM, 'cost' => STORE_SHIPPING_COST],
+        'photos' => store_photo_files(),
     ];
 }
 
