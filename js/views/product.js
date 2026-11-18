@@ -3,6 +3,7 @@ import { api } from '../api.js';
 import { $, $$, esc, money, stars, toast, emptyState, formatDate, setTitle, DEPARTMENTS, GENDERS, SEGMENTS } from '../ui.js';
 import { productArt, swatch } from '../illustrations.js';
 import { favButton, productRail } from '../components.js';
+import { openMiniCart } from '../minicart.js';
 import { addToCart, colorsOf, physicalStores, product, state, stockAt } from '../store.js';
 
 function availabilityHtml(variant) {
@@ -104,7 +105,7 @@ export function renderProduct(view, id, params) {
                 '<div class="pdp-block"><p class="label">Talla</p><div class="sizes" id="sizes"></div><p class="field-error" id="sizeError" hidden>Selecciona una talla.</p></div>' +
                 '<div class="pdp-actions">' +
                     '<div class="qty" aria-label="Cantidad"><button type="button" data-q="-1" aria-label="Menos">−</button><span id="qty">1</span><button type="button" data-q="1" aria-label="Más">+</button></div>' +
-                    '<button class="btn btn-dark btn-lg" id="addBtn">Agregar a la bolsa</button>' +
+                    '<button class="btn btn-dark btn-lg" id="addBtn">Agregar al carrito</button>' +
                     favButton(p.id_product, 'pdp-fav') +
                 '</div>' +
                 '<div id="availability"></div>' +
@@ -187,7 +188,7 @@ export function renderProduct(view, id, params) {
             return;
         }
         addToCart(selected, quantity);
-        toast(p.name + ' se agregó a tu bolsa', { action: { href: '#/carrito', label: 'Ver bolsa' } });
+        openMiniCart(selected, quantity);
     });
 
     pickColor(color);

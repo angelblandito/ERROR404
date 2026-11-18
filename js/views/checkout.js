@@ -51,12 +51,12 @@ export async function renderCheckout(page) {
     setTitle('Pagar');
     const lines = cartLines();
     if (!lines.length) {
-        page.innerHTML = emptyState('Tu bolsa está vacía', 'Agrega productos para continuar con el pago.', { href: '#/tienda', label: 'Ir a la tienda' });
+        page.innerHTML = emptyState('Tu carrito está vacío', 'Agrega productos para continuar con el pago.', { href: '#/tienda', label: 'Ir a la tienda' });
         return;
     }
 
     if (!state.customer) {
-        page.innerHTML = '<div class="narrow"><h1>Pagar</h1>' + authPanel('Inicia sesión o crea tu cuenta para terminar tu compra. Tu bolsa se conserva.') + '</div>';
+        page.innerHTML = '<div class="narrow"><h1>Pagar</h1>' + authPanel('Inicia sesión o crea tu cuenta para terminar tu compra. Tu carrito se conserva.') + '</div>';
         bindAuth($('.narrow', page), function () { renderCheckout(page); });
         return;
     }

@@ -1,4 +1,4 @@
-/* Bolsa de compras. */
+/* Carrito de compras. */
 import { $, esc, money, toast, emptyState, setTitle } from '../ui.js';
 import { productArt } from '../illustrations.js';
 import { productRail } from '../components.js';
@@ -9,11 +9,11 @@ export function shippingEstimate(subtotalAfterDiscount) {
 }
 
 function draw(page) {
-    setTitle('Bolsa');
+    setTitle('Carrito');
     const lines = cartLines();
 
     if (!lines.length) {
-        page.innerHTML = emptyState('Tu bolsa está vacía', 'Cuando agregues productos aparecerán aquí.', { href: '#/tienda', label: 'Ir a la tienda' }) +
+        page.innerHTML = emptyState('Tu carrito está vacío', 'Cuando agregues productos aparecerán aquí.', { href: '#/tienda', label: 'Ir a la tienda' }) +
             productRail('Lo más vendido', state.products.slice().sort(function (a, b) { return b.sold - a.sold; }).slice(0, 8));
         return;
     }
@@ -25,7 +25,7 @@ function draw(page) {
 
     page.innerHTML = '<div class="cart-page">' +
         '<section class="cart-lines">' +
-            '<h1>Bolsa <span class="muted">(' + lines.reduce(function (s, l) { return s + l.quantity; }, 0) + ')</span></h1>' +
+            '<h1>Carrito <span class="muted">(' + lines.reduce(function (s, l) { return s + l.quantity; }, 0) + ')</span></h1>' +
             '<div class="free-ship">' +
                 (missing > 0
                     ? '<p>Te faltan <strong>' + money.format(missing) + '</strong> para el envío gratis.</p>'

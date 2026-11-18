@@ -1,4 +1,4 @@
-/* Estado de la tienda: catálogo, bolsa de compras, favoritos y sesión del cliente. */
+/* Estado de la tienda: catálogo, carrito de compras, favoritos y sesión del cliente. */
 import { api, getToken, setToken } from './api.js';
 
 function loadJSON(key, fallback) {
@@ -90,7 +90,7 @@ export function newestIds(count) {
         .slice(0, count).map(function (p) { return p.id_product; });
 }
 
-/* ---------- Bolsa de compras ---------- */
+/* ---------- Carrito de compras ---------- */
 function pruneCart() {
     const before = state.cart.length;
     state.cart = state.cart.filter(function (line) { return findVariant(line.id_variant); });

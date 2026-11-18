@@ -3,6 +3,7 @@ import { $, $$, esc, money, toast, emptyState, loading, parseQuery } from './ui.
 import { productArt, handleMissingPhoto } from './illustrations.js';
 import { cartCount, colorsOf, loadCatalog, loadCustomer, state, toggleFavorite } from './store.js';
 import { initTheme, currentTheme } from './theme.js';
+import { closeMiniCart } from './minicart.js';
 import { renderHome } from './views/home.js';
 import { renderCatalog } from './views/catalog.js';
 import { renderProduct } from './views/product.js';
@@ -38,6 +39,7 @@ async function route() {
 
     closeMenu();
     closeSuggestions();
+    closeMiniCart();
 
     const page = document.createElement('div');
     page.className = 'page';
@@ -134,6 +136,8 @@ function rotateAnnouncements() {
 function bindHeader() {
     $('#menuButton').addEventListener('click', openMenu);
     $('#menuClose').addEventListener('click', closeMenu);
+    $('#miniCartClose').addEventListener('click', closeMiniCart);
+    $('#miniCartBackdrop').addEventListener('click', closeMiniCart);
     $('#mobileMenu').addEventListener('click', function (e) {
         if (e.target === e.currentTarget) closeMenu();
     });
@@ -141,6 +145,7 @@ function bindHeader() {
         if (e.key === 'Escape') {
             closeMenu();
             closeSuggestions();
+            closeMiniCart();
         }
     });
 

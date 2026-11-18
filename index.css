@@ -796,6 +796,28 @@ textarea.input { resize: vertical; }
 /* ---------- Barra inferior (celular) ---------- */
 .tabbar { display: none; }
 
+/* ---------- Carrito lateral ---------- */
+.drawer-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, .35); z-index: 55; }
+.mini-cart {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: min(400px, 100%);
+    background: #fff;
+    z-index: 56;
+    padding: 1rem 1.5rem 1.5rem;
+    box-shadow: -10px 0 30px rgba(0, 0, 0, .15);
+    border-radius: 0 0 0 16px;
+    transform: translateX(110%);
+    transition: transform .25s ease;
+}
+.mini-cart.open { transform: translateX(0); }
+.mini-cart-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: .75rem; }
+.mini-cart-item { display: grid; grid-template-columns: 72px 1fr; gap: 1rem; padding-bottom: 1rem; border-bottom: 1px solid var(--line); }
+.mini-cart-item .product-art.mini { width: 72px; height: 72px; }
+.mini-cart-total { display: flex; justify-content: space-between; margin: 1rem 0 .3rem; }
+.mini-cart-actions { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; margin-top: 1rem; }
+
 /* ---------- Avisos ---------- */
 .toast {
     position: fixed;
