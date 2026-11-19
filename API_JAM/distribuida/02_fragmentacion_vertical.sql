@@ -9,7 +9,7 @@
 
    Fragmento V1  customer_profile  -> JAM_online (nodo de la tienda en línea)
        Datos de perfil que necesita la tienda: nombre, nivel de lealtad,
-       sucursal de registro y si acepta publicidad.
+       tipo de cuenta, antigüedad, sucursal de registro y si acepta publicidad.
 
    Fragmento V2  customer_private  -> JAM_db, esquema dist (nodo central)
        Datos personales sensibles: fecha de nacimiento, sexo, teléfono,
@@ -24,16 +24,26 @@ IF OBJECT_ID(N'dbo.customer_profile', N'U') IS NULL
 CREATE TABLE dbo.customer_profile (
     id_customer         INT          NOT NULL,
     id_loyalty_level    TINYINT      NOT NULL,
+    id_account_tier     TINYINT      NOT NULL,
     id_store            INT          NOT NULL,
     first_name          NVARCHAR(50)  NOT NULL,
     last_name_paternal  NVARCHAR(50)  NOT NULL,
     last_name_maternal  NVARCHAR(50)  NULL,
     accepts_marketing   BIT          NOT NULL,
+    customer_since      DATE         NOT NULL,
     source_node         VARCHAR(20)  NOT NULL,
     updated_at          DATETIME2(3)     NOT NULL,
     deleted             BIT          NOT NULL,
     CONSTRAINT pk_customer_profile PRIMARY KEY (id_customer)
 );
+GO
+
+/* Si el fragmento ya existía de una versión anterior, se agregan las columnas
+   nuevas; el contenido se vuelve a copiar completo en cada sincronización. */
+IF COL_LENGTH(N'dbo.customer_profile', N'id_account_tier') IS NULL
+    ALTER TABLE dbo.customer_profile ADD
+        id_account_tier TINYINT NOT NULL CONSTRAINT df_customer_profile_account_tier DEFAULT 1,
+        customer_since  DATE    NOT NULL CONSTRAINT df_customer_profile_since DEFAULT '2000-01-01';
 GO
 
 USE JAM_db;
@@ -65,10 +75,10 @@ BEGIN
     DELETE FROM dist.customer_private;
 
     INSERT INTO JAM_online.dbo.customer_profile
-        (id_customer, id_loyalty_level, id_store, first_name, last_name_paternal, last_name_maternal,
-         accepts_marketing, source_node, updated_at, deleted)
-    SELECT id_customer, id_loyalty_level, id_store, first_name, last_name_paternal, last_name_maternal,
-           accepts_marketing, source_node, updated_at, deleted
+        (id_customer, id_loyalty_level, id_account_tier, id_store, first_name, last_name_paternal, last_name_maternal,
+         accepts_marketing, customer_since, source_node, updated_at, deleted)
+    SELECT id_customer, id_loyalty_level, id_account_tier, id_store, first_name, last_name_paternal, last_name_maternal,
+           accepts_marketing, customer_since, source_node, updated_at, deleted
     FROM dbo.customer;
 
     INSERT INTO dist.customer_private
@@ -87,6 +97,7 @@ CREATE OR ALTER VIEW dist.vw_customer_reconstruido AS
     SELECT
         p.id_customer,
         p.id_loyalty_level,
+        p.id_account_tier,
         p.id_store,
         v.id_address,
         p.first_name,
@@ -97,6 +108,7 @@ CREATE OR ALTER VIEW dist.vw_customer_reconstruido AS
         v.phone,
         v.email,
         p.accepts_marketing,
+        p.customer_since,
         p.source_node,
         p.updated_at,
         p.deleted

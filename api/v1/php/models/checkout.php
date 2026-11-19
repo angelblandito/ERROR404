@@ -10,7 +10,8 @@
  *   "items": [{"id_variant": 1, "quantity": 2}]
  * }
  * El cliente sale de la sesión, nunca del cuerpo de la petición. Precios,
- * descuento, envío, total, stock y pago se resuelven en dbo.sp_crear_pedido.
+ * descuento (cupón + tipo de cuenta), envío, total, stock y pago se resuelven
+ * en dbo.sp_crear_pedido.
  */
 $CheckoutCustomer = null;
 try {
@@ -71,6 +72,15 @@ if ($DB_Error === null) {
             $DB_Error = api_error(500, 'El pedido no devolvió resultado.');
         } else {
             $Checkout['id_order'] = (int)$Checkout['id_order'];
+            $Checkout['priority_shipping'] = (bool)$Checkout['priority_shipping'];
+
+            /* El pedido ya quedó en el nodo central; los fragmentos se refrescan
+               aquí mismo. Si un nodo no responde, el job de sincronización lo pondrá al día. */
+            try {
+                dist_sync();
+            } catch (Throwable $syncError) {
+                error_log('Sincronización después del pedido: ' . $syncError->getMessage());
+            }
         }
     }
     catch (PDOException $ex) {

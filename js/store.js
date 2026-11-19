@@ -27,6 +27,7 @@ export const state = {
     cart: loadJSON('jam_cart_v2', []),
     favorites: loadJSON('jam_favorites', []),
     customer: null,
+    accountTiers: [],
     promotions: null,
     photos: new Set()
 };
@@ -47,6 +48,7 @@ export function loadCatalog(force) {
             state.onlineStore = data.online_store;
             state.shipping = data.shipping;
             state.photos = new Set(data.photos || []);
+            state.accountTiers = data.account_tiers || [];
             pruneCart();
             return state.products;
         }).catch(function (error) {
@@ -90,11 +92,72 @@ export function newestIds(count) {
         .slice(0, count).map(function (p) { return p.id_product; });
 }
 
+/* ---------- Tipo de cuenta ---------- */
+const STANDARD_ACCOUNT = {
+    tier: 'standard',
+    name: 'Estándar',
+    discount_percent: 0,
+    delivery_days: '3 a 5 días hábiles',
+    max_units_per_item: 10,
+    support_minutes: 1440,
+    can_manage_store: false
+};
+
+/* Beneficios de la cuenta con sesión; sin sesión aplican los de Estándar. */
+export function account() {
+    if (state.customer && state.customer.account) return state.customer.account;
+    return tierInfo('standard') || Object.assign({ free_shipping_from: state.shipping.free_from }, STANDARD_ACCOUNT);
+}
+
+export function tierInfo(code) {
+    return state.accountTiers.find(function (t) { return t.tier === code; }) || null;
+}
+
+export function isPriority() {
+    return account().tier === 'priority' || account().tier === 'admin';
+}
+
+export function isAdmin() {
+    return Boolean(account().can_manage_store);
+}
+
+export function memberPrice(price) {
+    return Math.round(price * (100 - account().discount_percent)) / 100;
+}
+
+/* Mismas reglas que dbo.sp_crear_pedido: cupón + descuento de la cuenta (tope 90 %)
+   y envío gratis según el tipo de cuenta. */
+export function orderTotals(subtotal, couponPercent, delivery) {
+    const acc = account();
+    const percent = Math.min(90, Number(couponPercent || 0) + acc.discount_percent);
+    const discount = Math.round(subtotal * percent) / 100;
+    const tierDiscount = Math.round(subtotal * acc.discount_percent) / 100;
+    const shipping = delivery === 'shipping' && subtotal - discount < acc.free_shipping_from ? state.shipping.cost : 0;
+    return {
+        subtotal: subtotal,
+        discount: discount,
+        tierDiscount: tierDiscount,
+        couponDiscount: Math.round((discount - tierDiscount) * 100) / 100,
+        shipping: shipping,
+        total: subtotal - discount + shipping
+    };
+}
+
 /* ---------- Carrito de compras ---------- */
 function pruneCart() {
     const before = state.cart.length;
     state.cart = state.cart.filter(function (line) { return findVariant(line.id_variant); });
     if (state.cart.length !== before) saveCart();
+    clampCart();
+}
+
+/* Ajusta las cantidades al máximo de piezas por artículo de la cuenta. */
+function clampCart() {
+    const max = account().max_units_per_item;
+    if (state.cart.some(function (line) { return line.quantity > max; })) {
+        state.cart.forEach(function (line) { line.quantity = Math.min(max, line.quantity); });
+        saveCart();
+    }
 }
 
 function saveCart() {
@@ -105,9 +168,9 @@ function saveCart() {
 export function addToCart(idVariant, quantity) {
     const line = state.cart.find(function (l) { return l.id_variant === idVariant; });
     if (line) {
-        line.quantity = Math.min(10, line.quantity + quantity);
+        line.quantity = Math.min(account().max_units_per_item, line.quantity + quantity);
     } else {
-        state.cart.push({ id_variant: idVariant, quantity: Math.min(10, quantity) });
+        state.cart.push({ id_variant: idVariant, quantity: Math.min(account().max_units_per_item, quantity) });
     }
     saveCart();
 }
@@ -119,7 +182,7 @@ export function setQuantity(idVariant, quantity) {
     }
     const line = state.cart.find(function (l) { return l.id_variant === idVariant; });
     if (line) {
-        line.quantity = Math.min(10, quantity);
+        line.quantity = Math.min(account().max_units_per_item, quantity);
         saveCart();
     }
 }
@@ -170,6 +233,15 @@ export function toggleFavorite(idProduct) {
     return isFavorite(id);
 }
 
+/* ---------- Comunicados ---------- */
+export async function loadAnnouncements() {
+    try {
+        return await api('/store/announcements');
+    } catch (e) {
+        return [];
+    }
+}
+
 /* ---------- Cupones ---------- */
 export async function activePromotions() {
     if (state.promotions === null) {
@@ -198,6 +270,7 @@ export function loadCustomer(force) {
     if (!customerPromise || force) {
         customerPromise = api('/auth/me').then(function (customer) {
             state.customer = customer;
+            clampCart();
             emit();
             return customer;
         }).catch(function () {
@@ -234,5 +307,6 @@ export async function logout() {
     setToken(null);
     state.customer = null;
     customerPromise = null;
+    clampCart();
     emit();
 }

@@ -2,7 +2,7 @@
 import { $, $$, clone, fill, slot, money, toast, emptyState, loading, parseQuery } from './ui.js';
 import { productArt, handleMissingPhoto } from './illustrations.js';
 import { setFavState } from './components.js';
-import { cartCount, colorsOf, loadCatalog, loadCustomer, state, toggleFavorite } from './store.js';
+import { account, cartCount, colorsOf, isAdmin, loadCatalog, loadCustomer, state, toggleFavorite } from './store.js';
 import { initTheme, currentTheme } from './theme.js';
 import { initEffects } from './effects.js';
 import { closeMiniCart } from './minicart.js';
@@ -11,7 +11,9 @@ import { renderCatalog } from './views/catalog.js';
 import { renderProduct } from './views/product.js';
 import { renderCart } from './views/cart.js';
 import { renderCheckout, renderConfirmation } from './views/checkout.js';
-import { renderAccount } from './views/account.js';
+import { authPanel, renderAccount } from './views/account.js';
+import { renderSupport } from './views/support.js';
+import { renderAdmin } from './views/admin.js';
 import { renderFavorites, renderOffers, renderStores, renderHelp } from './views/pages.js';
 import { renderPanel } from './views/panel.js';
 
@@ -29,10 +31,25 @@ const ROUTES = [
     [/^\/ofertas$/, 'shop', function (page) { return renderOffers(page); }],
     [/^\/sucursales$/, '', function (page) { return renderStores(page); }],
     [/^\/ayuda$/, '', function (page) { return renderHelp(page); }],
-    [/^\/panel(?:\/(\w+))?$/, '', function (page, m) { return renderPanel(page, m[1]); }]
+    [/^\/soporte$/, 'account', function (page) { return renderSupport(page); }],
+    [/^\/admin(?:\/(\w+))?$/, '', adminOnly(function (page, m) { return renderAdmin(page, m[1]); })],
+    [/^\/panel(?:\/(\w+))?$/, '', adminOnly(function (page, m) { return renderPanel(page, m[1]); })]
 ];
 
 const NEEDS_CATALOG = function (path) { return !/^\/panel/.test(path); };
+
+/* La administración y el panel distribuido solo se muestran a cuentas de administrador. */
+function adminOnly(render) {
+    return function (page, m, q) {
+        if (isAdmin()) return render(page, m, q);
+        if (state.customer) {
+            page.replaceChildren(emptyState('Acceso solo para administradores', 'Tu cuenta no tiene permisos para esta sección.', { href: '#/', label: 'Ir al inicio' }));
+            return null;
+        }
+        page.replaceChildren(authPanel('Administración', 'Inicia sesión con una cuenta de administrador.', route));
+        return null;
+    };
+}
 
 async function route() {
     const hash = window.location.hash.replace(/^#/, '') || '/';
@@ -70,6 +87,18 @@ async function route() {
 }
 
 /* ---------- Encabezado ---------- */
+function updateAccount() {
+    const acc = account();
+    const chip = $('#tierChip');
+    const signedIn = Boolean(state.customer);
+    chip.hidden = !signedIn || acc.tier === 'standard';
+    chip.textContent = acc.name;
+    chip.href = acc.can_manage_store ? '#/admin' : '#/cuenta';
+    chip.className = 'tier-chip tier-' + acc.tier;
+    document.body.classList.toggle('tier-priority', signedIn && acc.tier !== 'standard');
+    $$('[data-role="admin"]').forEach(function (el) { el.hidden = !acc.can_manage_store; });
+}
+
 function updateCounts() {
     const counts = { cart: cartCount(), favorites: state.favorites.length };
     $$('[data-count]').forEach(function (el) {
@@ -128,7 +157,9 @@ function rotateAnnouncements() {
     const messages = function () {
         return [
             currentTheme.name + ': ' + currentTheme.hero_title,
-            'Envío gratis en compras desde ' + money.format(state.shipping.free_from),
+            account().free_shipping_from === 0
+                ? 'Cliente ' + account().name + ': envío gratis y prioritario en todos tus pedidos'
+                : 'Envío gratis en compras desde ' + money.format(account().free_shipping_from),
             'Recoge sin costo en Tijuana o CDMX',
             '30 días para cambios y devoluciones'
         ];
@@ -190,6 +221,7 @@ document.addEventListener('error', function (e) {
 }, true);
 
 document.addEventListener('jam:change', updateCounts);
+document.addEventListener('jam:change', updateAccount);
 window.addEventListener('hashchange', route);
 
 bindHeader();

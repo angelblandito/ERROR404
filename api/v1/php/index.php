@@ -65,6 +65,38 @@ $StoreTypeId = null;
 $VerificationCodeId = null;
 
 require_once("models/distributed.php"); // Endpoints de la base de datos distribuida
+require_once("models/storefront.php");  // Tienda en línea: catálogo, cuentas y reseñas
+require_once("models/accounts.php");    // Comunicados y soporte según el tipo de cuenta
+require_once("models/admin.php");       // Administración de la tienda
+
+/* Rutas abiertas sin sesión; el resto del CRUD genérico es solo para administradores. */
+function api_public_route(string $method, string $uri): bool
+{
+    if ($uri === '/health-check' || ($method === 'POST' && $uri === '/orders/checkout')) {
+        return true;
+    }
+    return $method === 'GET' && in_array($uri, ['/season_theme', '/season_theme/current', '/promotion', '/state'], true);
+}
+
+function api_distributed_route(string $uri): bool
+{
+    return $uri === '/nodes' || strpos($uri, '/distributed/') === 0 || strpos($uri, '/replication/') === 0;
+}
+
+/* Si la sesión no es de administrador responde 401/403 y devuelve false. */
+function api_admin_allowed(): bool
+{
+    $allowed = false;
+    store_run('auth', function () use (&$allowed) {
+        store_require_admin(store_db());
+        $allowed = true;
+    });
+    return $allowed;
+}
+
+if (api_distributed_route($uri) && !api_admin_allowed()) {
+    exit;
+}
 
 if (dist_handle($method, $uri)) {
     exit;
@@ -93,9 +125,11 @@ if ($DB_Connector === null && $uri !== '/health-check') {
     exit;
 }
 
-require_once("models/storefront.php"); // Tienda en línea: catálogo, cuentas y reseñas
+if (store_handle($method, $uri, $body) || account_handle($method, $uri, $body) || admin_handle($method, $uri, $body)) {
+    exit;
+}
 
-if (store_handle($method, $uri, $body)) {
+if (!api_public_route($method, $uri) && !api_admin_allowed()) {
     exit;
 }
 

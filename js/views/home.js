@@ -1,8 +1,8 @@
 /* Inicio: banner de temporada, departamentos, carruseles y cupones. */
 import { clone, fill, slot, money, setTitle } from '../ui.js';
 import { productArt } from '../illustrations.js';
-import { productRail } from '../components.js';
-import { activePromotions, newestIds, state } from '../store.js';
+import { announcementsSection, productRail } from '../components.js';
+import { activePromotions, isPriority, loadAnnouncements, newestIds, state } from '../store.js';
 import { currentTheme } from '../theme.js';
 
 function showTheme(root, theme) {
@@ -51,6 +51,10 @@ export async function renderHome(view) {
         showTheme(home, e.detail);
     };
     document.addEventListener('jam:theme', onTheme);
+
+    loadAnnouncements().then(function (list) {
+        slot(home, 'announcements').replaceWith(announcementsSection(list, isPriority() ? 'Para nuestros clientes Prioritarios' : 'Avisos'));
+    });
 
     const promos = await activePromotions();
     const strip = slot(home, 'coupons');

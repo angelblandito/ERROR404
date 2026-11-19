@@ -2,11 +2,7 @@
 import { $, clone, field, fill, show, slot, money, toast, emptyState, setTitle } from '../ui.js';
 import { productArt } from '../illustrations.js';
 import { productRail } from '../components.js';
-import { cartLines, cartSubtotal, removeFromCart, setQuantity, state, toggleFavorite, isFavorite } from '../store.js';
-
-export function shippingEstimate(subtotalAfterDiscount) {
-    return subtotalAfterDiscount >= state.shipping.free_from ? 0 : state.shipping.cost;
-}
+import { account, cartLines, cartSubtotal, orderTotals, removeFromCart, setQuantity, state, toggleFavorite, isFavorite } from '../store.js';
 
 function cartLine(l) {
     const line = clone('tpl-cart-line');
@@ -27,7 +23,9 @@ function cartLine(l) {
         lowStock: 'Solo quedan ' + l.variant.stock_total + ' piezas.'
     });
     show(field(line, 'lowStock'), l.variant.stock_total < l.quantity);
-    $('[data-action="quantity"]', line).value = String(l.quantity);
+    const quantity = $('[data-action="quantity"]', line);
+    quantity.max = account().max_units_per_item;
+    quantity.value = String(l.quantity);
     return line;
 }
 
@@ -43,19 +41,25 @@ function draw(page) {
         return;
     }
 
-    const subtotal = cartSubtotal();
-    const shipping = shippingEstimate(subtotal);
-    const missing = Math.max(0, state.shipping.free_from - subtotal);
+    const acc = account();
+    const t = orderTotals(cartSubtotal(), 0, 'shipping');
+    const freeFrom = acc.free_shipping_from;
+    const missing = Math.max(0, freeFrom - (t.subtotal - t.discount));
     const cart = clone('tpl-cart');
 
     fill(cart, {
         cartCount: '(' + lines.reduce(function (s, l) { return s + l.quantity; }, 0) + ')',
-        freeShipText: missing > 0 ? 'Te faltan ' + money.format(missing) + ' para el envío gratis.' : '¡Tienes envío gratis!',
-        cartSubtotal: money.format(subtotal),
-        cartShipping: shipping ? money.format(shipping) : 'Gratis',
-        cartTotal: money.format(subtotal + shipping)
+        freeShipText: freeFrom === 0
+            ? 'Envío gratis y prioritario por ser cliente ' + acc.name + ': llega en ' + acc.delivery_days + '.'
+            : (missing > 0 ? 'Te faltan ' + money.format(missing) + ' para el envío gratis.' : '¡Tienes envío gratis!'),
+        cartSubtotal: money.format(t.subtotal),
+        cartTierName: acc.name + ' (' + acc.discount_percent + ' %)',
+        cartTierDiscount: '−' + money.format(t.tierDiscount),
+        cartShipping: t.shipping ? money.format(t.shipping) : 'Gratis',
+        cartTotal: money.format(t.total)
     });
-    $('.free-ship progress', cart).value = Math.min(100, Math.round(subtotal * 100 / state.shipping.free_from));
+    show(field(cart, 'cartTierRow'), t.tierDiscount > 0);
+    $('.free-ship progress', cart).value = freeFrom === 0 ? 100 : Math.min(100, Math.round((t.subtotal - t.discount) * 100 / freeFrom));
     slot(cart, 'lines').append(...lines.map(cartLine));
 
     page.replaceChildren(cart);
@@ -67,7 +71,7 @@ export function renderCart(page) {
     page.addEventListener('change', function (e) {
         const select = e.target.closest('[data-action="quantity"]');
         if (select) {
-            setQuantity(Number(select.closest('.cart-line').dataset.variant), Number(select.value));
+            setQuantity(Number(select.closest('.cart-line').dataset.variant), Math.max(1, Math.floor(Number(select.value)) || 1));
             draw(page);
         }
     });

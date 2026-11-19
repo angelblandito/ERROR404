@@ -4,7 +4,7 @@ import { $, clone, field, fill, show, slot, money, stars, message, toast, emptyS
 import { productArt, colorClass } from '../illustrations.js';
 import { favButton, productRail } from '../components.js';
 import { openMiniCart } from '../minicart.js';
-import { addToCart, colorsOf, physicalStores, product, state, stockAt } from '../store.js';
+import { account, addToCart, colorsOf, isPriority, memberPrice, physicalStores, product, state, stockAt } from '../store.js';
 
 function stockLabel(el, text, css) {
     el.textContent = text;
@@ -125,6 +125,7 @@ export function renderProduct(view, id, params) {
     let color = colors.some(function (c) { return c.color_code === params.color; }) ? params.color : (colors[0] || {}).color_code;
     let selected = null;
     let quantity = 1;
+    const acc = account();
 
     const variantsOf = function (c) {
         return p.variants.filter(function (v) { return v.color_code === c; });
@@ -146,7 +147,16 @@ export function renderProduct(view, id, params) {
         shippingCost: money.format(state.shipping.cost)
     });
     field(page, 'department').href = '#/tienda?dep=' + encodeURIComponent(p.department);
-    show(field(page, 'freeShipping'), p.base_price >= state.shipping.free_from);
+    show(field(page, 'freeShipping'), memberPrice(p.base_price) >= acc.free_shipping_from);
+    if (isPriority()) {
+        const note = show(field(page, 'memberNote'), true);
+        note.textContent = 'Tu precio ' + acc.name + ': ' + money.format(memberPrice(p.base_price)) + ' (' + acc.discount_percent + ' % de descuento)';
+        field(page, 'price').classList.add('was');
+        const wholesale = show(field(page, 'wholesale'), true);
+        wholesale.textContent = 'Compra de mayoreo: hasta ' + acc.max_units_per_item + ' piezas por artículo, con envío prioritario de ' + acc.delivery_days + '.';
+    }
+    const qtyInput = $('input[name="quantity"]', page);
+    qtyInput.max = acc.max_units_per_item;
     if (p.reviews) {
         const link = show(field(page, 'ratingLink'), true);
         slot(link, 'stars').replaceWith(stars(p.rating));
@@ -167,9 +177,9 @@ export function renderProduct(view, id, params) {
         slot(page, 'sizes').replaceChildren(...variantsOf(color).map(function (v) { return sizeButton(v, v.id_variant === selected); }));
         fill(page, {
             colorName: (colors.find(function (c) { return c.color_code === color; }) || {}).color || '',
-            sku: variant ? variant.sku : 'elige una talla',
-            qty: quantity
+            sku: variant ? variant.sku : 'elige una talla'
         });
+        qtyInput.value = quantity;
         showAvailability(page, variant);
     };
 
@@ -195,8 +205,8 @@ export function renderProduct(view, id, params) {
         }
         const q = e.target.closest('[data-q]');
         if (q) {
-            quantity = Math.max(1, Math.min(10, quantity + Number(q.dataset.q)));
-            field(page, 'qty').textContent = quantity;
+            quantity = Math.max(1, Math.min(acc.max_units_per_item, quantity + Number(q.dataset.q)));
+            qtyInput.value = quantity;
             return;
         }
         if (e.target.closest('[data-action="scroll-reviews"]')) {
@@ -204,6 +214,11 @@ export function renderProduct(view, id, params) {
             const reviews = document.getElementById('resenas');
             if (reviews) reviews.scrollIntoView({ behavior: 'smooth' });
         }
+    });
+
+    qtyInput.addEventListener('change', function () {
+        quantity = Math.max(1, Math.min(acc.max_units_per_item, Math.floor(Number(qtyInput.value)) || 1));
+        qtyInput.value = quantity;
     });
 
     $('[data-action="add"]', page).addEventListener('click', function () {

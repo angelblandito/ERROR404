@@ -127,7 +127,7 @@ GO
 EXEC dist.sp_crear_publicacion
     @publicacion = N'pub_catalogo',
     @descripcion = N'Catálogo JAM replicado a las sucursales y a la tienda en línea',
-    @tablas      = N'role, store_type, category, size, color, loyalty_level, absence_type, state, season_theme, store, store_config, product, product_variant, promotion';
+    @tablas      = N'role, store_type, category, size, color, loyalty_level, account_tier, absence_type, state, season_theme, store, store_config, product, product_variant, promotion';
 GO
 
 EXEC dist.sp_crear_publicacion

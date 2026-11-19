@@ -1,7 +1,7 @@
 /* Panel lateral que confirma lo que se agregó al carrito. */
 import { $, field, fill, slot, money } from './ui.js';
 import { productArt } from './illustrations.js';
-import { cartCount, cartSubtotal, findVariant, state } from './store.js';
+import { account, cartCount, cartSubtotal, findVariant, memberPrice, orderTotals } from './store.js';
 
 export function openMiniCart(idVariant, quantity) {
     const found = findVariant(idVariant);
@@ -10,15 +10,16 @@ export function openMiniCart(idVariant, quantity) {
     const v = found.variant;
     const panel = $('#miniCart');
     const subtotal = cartSubtotal();
-    const missing = Math.max(0, state.shipping.free_from - subtotal);
+    const t = orderTotals(subtotal, 0, 'shipping');
+    const missing = Math.max(0, account().free_shipping_from - (t.subtotal - t.discount));
 
     slot(panel, 'art').replaceChildren(productArt(p, v.color_code, 'mini'));
     fill(panel, {
         name: p.name,
         detail: v.color + ' · ' + (v.size === 'UNI' ? 'Unitalla' : 'Talla ' + v.size) + ' · ' + quantity + ' pza',
-        price: money.format(p.base_price * quantity),
+        price: money.format(memberPrice(p.base_price) * quantity),
         count: 'Carrito (' + cartCount() + ')',
-        subtotal: money.format(subtotal),
+        subtotal: money.format(t.subtotal - t.discount),
         shipping: missing ? 'Te faltan ' + money.format(missing) + ' para el envío gratis.' : '¡Tu pedido ya tiene envío gratis!'
     });
     const shipping = field(panel, 'shipping');

@@ -2,7 +2,7 @@
 import { api } from '../api.js';
 import { $, clone, field, fill, show, slot, money, toast, emptyState, setTitle } from '../ui.js';
 import { productArt } from '../illustrations.js';
-import { activePromotions, cartLines, cartSubtotal, clearCart, loadCatalog, physicalStores, state, stockAt } from '../store.js';
+import { account, activePromotions, cartLines, cartSubtotal, clearCart, loadCatalog, orderTotals, physicalStores, state, stockAt } from '../store.js';
 import { authPanel } from './account.js';
 
 let statesCache = null;
@@ -103,11 +103,9 @@ export async function renderCheckout(page) {
     const pickupStore = function () { return Number((form.querySelector('input[name="pickup_store"]:checked') || {}).value || 0); };
     const fulfillingStore = function () { return delivery() === 'shipping' ? state.onlineStore : pickupStore(); };
 
+    const acc = account();
     const totals = function () {
-        const subtotal = cartSubtotal();
-        const discount = coupon ? Math.round(subtotal * Number(coupon.discount_percent)) / 100 : 0;
-        const shipping = delivery() === 'shipping' && subtotal - discount < state.shipping.free_from ? state.shipping.cost : 0;
-        return { subtotal: subtotal, discount: discount, shipping: shipping, total: subtotal - discount + shipping };
+        return orderTotals(cartSubtotal(), coupon ? coupon.discount_percent : 0, delivery());
     };
 
     const missingAt = function (idStore) {
@@ -135,16 +133,19 @@ export async function renderCheckout(page) {
 
         const t = totals();
         fill(checkout, {
-            shipLabel: t.subtotal - t.discount >= state.shipping.free_from
-                ? 'Gratis · 3 a 5 días hábiles'
-                : money.format(state.shipping.cost) + ' · gratis desde ' + money.format(state.shipping.free_from),
+            shipLabel: t.subtotal - t.discount >= acc.free_shipping_from
+                ? (acc.free_shipping_from === 0 ? 'Gratis y prioritario' : 'Gratis') + ' · ' + acc.delivery_days
+                : money.format(state.shipping.cost) + ' · gratis desde ' + money.format(acc.free_shipping_from),
             orderSubtotal: money.format(t.subtotal),
+            tierName: acc.name + ' (' + acc.discount_percent + ' %)',
+            tierDiscount: '−' + money.format(t.tierDiscount),
             couponCode: coupon ? coupon.code : '',
-            orderDiscount: '−' + money.format(t.discount),
+            orderDiscount: '−' + money.format(t.couponDiscount),
             orderShipping: t.shipping ? money.format(t.shipping) : 'Gratis',
             orderTotal: money.format(t.total)
         });
-        show(field(checkout, 'discountRow'), t.discount > 0);
+        show(field(checkout, 'tierRow'), t.tierDiscount > 0);
+        show(field(checkout, 'discountRow'), t.couponDiscount > 0);
     };
 
     form.addEventListener('change', refresh);
@@ -214,13 +215,13 @@ export async function renderCheckout(page) {
                 sessionStorage.setItem('jam_last_order', JSON.stringify(Object.assign({}, order, {
                     payment_method: form.payment.value,
                     delivery_type: delivery(),
+                    delivery_days: acc.delivery_days,
                     store: (state.stores.find(function (s) { return s.id_store === fulfillingStore(); }) || {}).store_name
                 })));
             } catch (e) {
                 /* sin sessionStorage */
             }
             clearCart();
-            api('/distributed/sync', { method: 'POST' }).catch(function () {});
             loadCatalog(true).catch(function () {});
             window.location.hash = '#/pedido/' + order.id_order;
         } catch (err) {
@@ -262,5 +263,7 @@ export function renderConfirmation(page, id) {
     show(field(confirm, 'instructions'), Boolean(instructions));
     show(field(confirm, 'pickup'), order.delivery_type === 'pickup' && Boolean(order.store));
     show(field(confirm, 'shipping'), order.delivery_type === 'shipping');
+    field(confirm, 'shipping').textContent = (order.priority_shipping ? 'Envío prioritario: llega en ' : 'Llegará en ')
+        + (order.delivery_days || '3 a 5 días hábiles') + '.';
     page.replaceChildren(confirm);
 }

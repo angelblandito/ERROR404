@@ -67,12 +67,12 @@ SELECT
     (SELECT COUNT(*) FROM dbo.customer) AS renglones_original,
     (SELECT COUNT(*) FROM dist.vw_customer_reconstruido) AS renglones_reconstruidos,
     (SELECT COUNT(*) FROM (
-        SELECT id_customer, id_loyalty_level, id_store, id_address, first_name, last_name_paternal,
-               last_name_maternal, birth_date, sex, phone, email, accepts_marketing
+        SELECT id_customer, id_loyalty_level, id_account_tier, id_store, id_address, first_name, last_name_paternal,
+               last_name_maternal, birth_date, sex, phone, email, accepts_marketing, customer_since
         FROM dbo.customer
         EXCEPT
-        SELECT id_customer, id_loyalty_level, id_store, id_address, first_name, last_name_paternal,
-               last_name_maternal, birth_date, sex, phone, email, accepts_marketing
+        SELECT id_customer, id_loyalty_level, id_account_tier, id_store, id_address, first_name, last_name_paternal,
+               last_name_maternal, birth_date, sex, phone, email, accepts_marketing, customer_since
         FROM dist.vw_customer_reconstruido
     ) AS faltantes) AS diferencias;
 GO

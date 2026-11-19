@@ -18,6 +18,8 @@ const ORDER_STATUS = {
     returned: { label: 'Devuelto', css: 'bad' }
 };
 
+const TIER_NAMES = { 1: 'Estándar', 2: 'Prioritario', 3: 'Administrador' };
+
 const CHANNEL = { in_store: 'En tienda', online: 'En línea', whatsapp: 'WhatsApp' };
 
 const REPLICATION_STATE = {
@@ -237,6 +239,8 @@ function customerRow(r) {
         last: r.last_name_paternal,
         store: r.store_name,
         level: r.id_loyalty_level,
+        tier: TIER_NAMES[r.id_account_tier] || r.id_account_tier,
+        since: formatDate(r.customer_since),
         marketing: r.accepts_marketing ? 'Sí' : 'No',
         birth: formatDate(r.birth_date),
         sex: r.sex,
@@ -266,7 +270,7 @@ function showFragments(content, result) {
 function showVertical(content, result) {
     const tbody = slot(content, 'customers');
     if (result.status !== 'fulfilled') {
-        tbody.replaceChildren(tableMessage('Error: ' + result.reason.message, 10));
+        tbody.replaceChildren(tableMessage('Error: ' + result.reason.message, 12));
         return;
     }
     const data = result.value;
@@ -275,7 +279,7 @@ function showVertical(content, result) {
         legendItem(data.fragments.customer_private, 'col-private'),
         data.source !== 'fragmentos' ? badge('Leído de ' + data.source, 'warn') : badge('Reconstruido con JOIN por id_customer', 'info')
     );
-    tbody.replaceChildren(...(data.rows.length ? data.rows.map(customerRow) : [tableMessage('Sin clientes.', 10)]));
+    tbody.replaceChildren(...(data.rows.length ? data.rows.map(customerRow) : [tableMessage('Sin clientes.', 12)]));
 }
 
 function showReplication(content, result) {
@@ -325,7 +329,7 @@ function showReplication(content, result) {
 
 async function loadDistributed(content) {
     slot(content, 'nodes').replaceChildren(message('Consultando nodos…', 'empty'));
-    slot(content, 'customers').replaceChildren(tableMessage('Cargando…', 10));
+    slot(content, 'customers').replaceChildren(tableMessage('Cargando…', 12));
     slot(content, 'replication').replaceChildren(tableMessage('Cargando…', 2));
 
     const results = await Promise.allSettled([

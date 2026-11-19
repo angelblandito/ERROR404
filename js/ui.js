@@ -96,7 +96,11 @@ export function loading(text) {
 export function formatDate(value, withTime) {
     if (!value) return '';
     const iso = String(value).replace(' ', 'T');
-    const date = new Date(/Z|[+-]\d\d:?\d\d$/.test(iso) ? iso : iso + 'Z');
+    const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(iso);
+    /* Una fecha sin hora (DATE) es un día del calendario; las fechas con hora vienen en UTC. */
+    const date = dateOnly
+        ? new Date(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)) - 1, Number(iso.slice(8, 10)))
+        : new Date(/Z|[+-]\d\d:?\d\d$/.test(iso) ? iso : iso + 'Z');
     if (isNaN(date)) return String(value);
     const opts = { day: '2-digit', month: 'short', year: 'numeric' };
     if (withTime) {

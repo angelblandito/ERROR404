@@ -1,6 +1,6 @@
 ﻿/* =====================================================================
    JAM - Base de datos distribuida
-   06. Registro de pedidos transaccional y usuario de la API
+   06. Pedidos, tipos de cuenta y usuario de la API
    ---------------------------------------------------------------------
    Requisitos: db_jam.sql y 01_fragmentacion_horizontal.sql ejecutados.
 
@@ -11,8 +11,14 @@
        - descuenta el inventario de la sucursal solo si alcanza el stock;
        - inserta customer_order, order_item y payment;
        - registra el domicilio (envío) y el pago simulado;
+       - aplica los beneficios del tipo de cuenta (account_tier): descuento,
+         envío gratis y prioritario, y piezas permitidas por artículo.
      Si cualquier paso falla no queda nada a medias (XACT_ABORT + TRY/CATCH).
-     Errores de negocio: THROW 50001-50015, la API los devuelve como HTTP 409.
+     Errores de negocio: THROW 50001-50016, la API los devuelve como HTTP 409.
+
+   dbo.sp_evaluar_clientes_prioritarios
+     Sube a Prioritario a los clientes Estándar con al menos un año de
+     antigüedad y compras de mayoreo en los últimos 12 meses.
 
    Usuario jam_api
      Login con los permisos mínimos que necesita la API. Requiere que la
@@ -46,9 +52,14 @@ BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
 
-    /* Envío: gratis desde $999 después del descuento; recoger en sucursal no cuesta. */
-    DECLARE @envio_gratis_desde DECIMAL(10,2) = 999.00,
-            @costo_envio        DECIMAL(8,2)  = 99.00;
+    /* El envío cuesta $99; el monto para envío gratis depende del tipo de cuenta.
+       Recoger en sucursal no cuesta. */
+    DECLARE @costo_envio DECIMAL(8,2) = 99.00;
+
+    DECLARE @tier_code          VARCHAR(10),
+            @tier_discount      DECIMAL(4,2),
+            @envio_gratis_desde DECIMAL(10,2),
+            @max_piezas         SMALLINT;
 
     DECLARE @lineas TABLE (
         id_variant  INT          NOT NULL PRIMARY KEY,
@@ -81,8 +92,23 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM dbo.store WHERE id_store = @id_store AND active = 1 AND deleted = 0)
         THROW 50005, N'La sucursal no existe o no está activa.', 1;
 
-    IF NOT EXISTS (SELECT 1 FROM dbo.customer WHERE id_customer = @id_customer AND deleted = 0)
+    SELECT @tier_code = t.code,
+           @tier_discount = t.discount_percent,
+           @envio_gratis_desde = t.free_shipping_from,
+           @max_piezas = t.max_units_per_item
+    FROM dbo.customer AS c
+    JOIN dbo.account_tier AS t ON t.id_account_tier = c.id_account_tier
+    WHERE c.id_customer = @id_customer AND c.deleted = 0;
+
+    IF @tier_code IS NULL
         THROW 50006, N'El cliente no existe.', 1;
+
+    IF EXISTS (SELECT 1 FROM @lineas WHERE quantity > @max_piezas)
+    BEGIN
+        DECLARE @msg_piezas NVARCHAR(200) = CONCAT(N'Tu cuenta permite hasta ', @max_piezas,
+            N' piezas por artículo. Para compras de mayoreo solicita la cuenta Prioritaria.');
+        THROW 50016, @msg_piezas, 1;
+    END;
 
     IF @id_employee IS NOT NULL
        AND NOT EXISTS (SELECT 1 FROM dbo.employee WHERE id_employee = @id_employee AND id_store = @id_store AND deleted = 0)
@@ -136,11 +162,18 @@ BEGIN
             THROW 50009, N'El cupón no existe o no está vigente.', 1;
     END;
 
+    /* Cupón + descuento del tipo de cuenta, con tope de 90 %. */
+    DECLARE @porcentaje DECIMAL(5,2) =
+        CASE WHEN @discount_percent + @tier_discount > 90 THEN 90 ELSE @discount_percent + @tier_discount END;
+
     DECLARE @subtotal DECIMAL(10,2) = (SELECT SUM(unit_price * quantity) FROM @lineas);
-    DECLARE @discount DECIMAL(10,2) = ROUND(@subtotal * @discount_percent / 100, 2);
+    DECLARE @discount DECIMAL(10,2) = ROUND(@subtotal * @porcentaje / 100, 2);
+    DECLARE @tier_amount DECIMAL(10,2) = ROUND(@subtotal * @tier_discount / 100, 2);
     DECLARE @shipping DECIMAL(8,2) =
         CASE WHEN @delivery_type = 'shipping' AND @subtotal - @discount < @envio_gratis_desde THEN @costo_envio ELSE 0 END;
     DECLARE @total DECIMAL(10,2) = @subtotal - @discount + @shipping;
+    DECLARE @priority_shipping BIT =
+        CASE WHEN @delivery_type = 'shipping' AND @tier_code IN ('priority', 'admin') THEN 1 ELSE 0 END;
 
     /* Pago simulado: la tarjeta se aprueba al momento; OXXO, transferencia
        y efectivo quedan pendientes. Nunca se guardan datos de la tarjeta. */
@@ -177,10 +210,10 @@ BEGIN
 
         INSERT INTO dbo.customer_order
             (id_store, id_customer, id_employee, id_promotion, status, channel,
-             subtotal, discount, total, delivery_type, id_address, shipping_cost, notes, source_node)
+             subtotal, discount, total, delivery_type, id_address, shipping_cost, priority_shipping, notes, source_node)
         VALUES
             (@id_store, @id_customer, @id_employee, @id_promotion, @order_status, @channel,
-             @subtotal, @discount, @total, @delivery_type, @id_address, @shipping, @notes, @source_node);
+             @subtotal, @discount, @total, @delivery_type, @id_address, @shipping, @priority_shipping, @notes, @source_node);
 
         SET @id_order = CAST(SCOPE_IDENTITY() AS INT);
 
@@ -206,10 +239,52 @@ BEGIN
            @payment_status AS payment_status,
            @subtotal       AS subtotal,
            @discount       AS discount,
+           @tier_amount    AS tier_discount,
            @shipping       AS shipping_cost,
-           @total          AS total;
+           @total          AS total,
+           @priority_shipping AS priority_shipping;
 END;
 GO
+
+/* ---------------------------------------------------------------------
+   Regla para ser cliente Prioritario
+   --------------------------------------------------------------------- */
+CREATE OR ALTER PROCEDURE dbo.sp_evaluar_clientes_prioritarios
+    @dias_minimos   INT = 365,   -- antigüedad mínima como cliente
+    @piezas_minimas INT = 50     -- piezas compradas en los últimos 12 meses
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @prioritario TINYINT = (SELECT id_account_tier FROM dbo.account_tier WHERE code = 'priority'),
+            @estandar    TINYINT = (SELECT id_account_tier FROM dbo.account_tier WHERE code = 'standard');
+
+    DECLARE @promovidos TABLE (id_customer INT NOT NULL PRIMARY KEY);
+
+    UPDATE c
+    SET c.id_account_tier = @prioritario
+    OUTPUT inserted.id_customer INTO @promovidos (id_customer)
+    FROM dbo.customer AS c
+    WHERE c.deleted = 0
+      AND c.id_account_tier = @estandar
+      AND DATEDIFF(DAY, c.customer_since, CAST(SYSUTCDATETIME() AS DATE)) >= @dias_minimos
+      AND (SELECT ISNULL(SUM(oi.quantity), 0)
+           FROM dbo.customer_order AS co
+           JOIN dbo.order_item AS oi ON oi.id_order = co.id_order AND oi.deleted = 0
+           WHERE co.id_customer = c.id_customer
+             AND co.deleted = 0
+             AND co.status NOT IN ('cancelled', 'returned')
+             AND co.order_date >= DATEADD(MONTH, -12, SYSUTCDATETIME())) >= @piezas_minimas;
+
+    SELECT c.id_customer, c.first_name, c.last_name_paternal, c.email
+    FROM @promovidos AS p
+    JOIN dbo.customer AS c ON c.id_customer = p.id_customer
+    ORDER BY c.id_customer;
+END;
+GO
+
+/* Prueba: devuelve los clientes que cambiaron a Prioritario */
+-- EXEC dbo.sp_evaluar_clientes_prioritarios;
 
 /* Prueba: debe devolver el número de pedido y descontar 1 pieza del inventario 1 */
 -- EXEC dbo.sp_crear_pedido @id_store = 1, @id_customer = 1, @channel = 'in_store',

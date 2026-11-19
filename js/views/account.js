@@ -1,8 +1,9 @@
 /* Cuenta del cliente: inicio de sesión, registro y mis pedidos. */
 import { api } from '../api.js';
-import { $, $$, clone, field, fill, slot, money, badge, message, toast, formatDate, loading, setTitle, ORDER_STATUS, PAYMENT_METHODS } from '../ui.js';
+import { $, $$, clone, field, fill, show, slot, money, badge, message, toast, formatDate, loading, setTitle, ORDER_STATUS, PAYMENT_METHODS } from '../ui.js';
 import { productArt } from '../illustrations.js';
-import { login, logout, register, state } from '../store.js';
+import { announcementsSection, benefitItems } from '../components.js';
+import { account, loadAnnouncements, login, logout, register, state, tierInfo } from '../store.js';
 
 export function authPanel(title, intro, onSuccess) {
     const panel = fill(clone('tpl-auth'), { title: title, intro: intro });
@@ -72,6 +73,9 @@ function orderCard(o) {
         total: money.format(Number(o.total))
     });
     slot(card, 'status').replaceWith(badge(st.label, st.css));
+    if (o.priority_shipping) {
+        slot(card, 'items').before(badge('Envío prioritario', 'gold'));
+    }
     slot(card, 'items').append(...o.items.map(orderLine));
     return card;
 }
@@ -92,16 +96,32 @@ export async function renderAccount(page, params) {
     }
 
     const c = state.customer;
-    const account = fill(clone('tpl-account'), {
+    const acc = account();
+    const view = fill(clone('tpl-account'), {
         name: c.first_name,
         contact: c.email + ' · ' + c.phone,
-        level: c.loyalty_level
+        since: formatDate(c.customer_since),
+        tier: acc.name
     });
-    const orders = slot(account, 'orders');
-    orders.append(loading('Cargando tus pedidos…'));
-    page.replaceChildren(account);
+    view.classList.add('account-' + acc.tier);
+    slot(view, 'benefits').append(...benefitItems(acc));
+    show(field(view, 'adminLink'), acc.can_manage_store);
 
-    $('[data-action="logout"]', account).addEventListener('click', async function () {
+    const priority = tierInfo('priority');
+    if (acc.tier === 'standard' && priority) {
+        show(field(view, 'upgrade'), true);
+        slot(view, 'priorityBenefits').append(...benefitItems(priority));
+    }
+
+    const orders = slot(view, 'orders');
+    orders.append(loading('Cargando tus pedidos…'));
+    page.replaceChildren(view);
+
+    loadAnnouncements().then(function (list) {
+        slot(view, 'announcements').replaceWith(announcementsSection(list, acc.tier === 'standard' ? 'Comunicados' : 'Comunicados exclusivos'));
+    });
+
+    $('[data-action="logout"]', view).addEventListener('click', async function () {
         await logout();
         toast('Cerraste sesión');
         renderAccount(page, {});

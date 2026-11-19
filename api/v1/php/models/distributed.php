@@ -25,7 +25,7 @@ const DIST_FRAGMENTS = [
 const DIST_FRAGMENT_TABLES = ['employee', 'inventory', 'customer_order', 'order_item', 'payment'];
 
 const DIST_REPLICATED_TABLES = [
-    'role', 'store_type', 'category', 'size', 'color', 'loyalty_level', 'absence_type',
+    'role', 'store_type', 'category', 'size', 'color', 'loyalty_level', 'account_tier', 'absence_type',
     'state', 'season_theme', 'store', 'store_config', 'product', 'product_variant', 'promotion',
 ];
 
@@ -305,7 +305,7 @@ function dist_mask_phone(?string $phone): ?string
  */
 function dist_customers(): array
 {
-    $profileColumns = ['id_customer', 'id_loyalty_level', 'id_store', 'first_name', 'last_name_paternal', 'last_name_maternal', 'accepts_marketing'];
+    $profileColumns = ['id_customer', 'id_loyalty_level', 'id_account_tier', 'id_store', 'first_name', 'last_name_paternal', 'last_name_maternal', 'accepts_marketing', 'customer_since'];
     $privateColumns = ['id_customer', 'id_address', 'birth_date', 'sex', 'phone', 'email'];
 
     $fragments = [
@@ -337,8 +337,8 @@ function dist_customers(): array
     if ($fragments['customer_profile']['status'] !== 'ok' || $fragments['customer_private']['status'] !== 'ok') {
         try {
             $all = dist_query(jam_node(JAM_DEFAULT_NODE), '
-                SELECT id_customer, id_loyalty_level, id_store, id_address, first_name, last_name_paternal,
-                       last_name_maternal, birth_date, sex, phone, email, accepts_marketing
+                SELECT id_customer, id_loyalty_level, id_account_tier, id_store, id_address, first_name, last_name_paternal,
+                       last_name_maternal, birth_date, sex, phone, email, accepts_marketing, customer_since
                 FROM dbo.customer WHERE deleted = 0');
             $profiles = [];
             $private = [];
@@ -366,6 +366,8 @@ function dist_customers(): array
             'last_name_paternal' => $p['last_name_paternal'],
             'last_name_maternal' => $p['last_name_maternal'],
             'id_loyalty_level' => (int)$p['id_loyalty_level'],
+            'id_account_tier' => (int)$p['id_account_tier'],
+            'customer_since' => $p['customer_since'],
             'id_store' => (int)$p['id_store'],
             'store_name' => dist_catalog()['stores'][(int)$p['id_store']] ?? null,
             'accepts_marketing' => (bool)$p['accepts_marketing'],

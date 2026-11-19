@@ -129,10 +129,11 @@ Abrir `http://localhost/ERROR404/`.
 | **Inicio** | Banner de la temporada, beneficios, departamentos, lo más vendido, Juvenil / Adulto, cupones vigentes, novedades y mejor calificados |
 | **Tienda** | Menú Novedades / Hombre / Mujer / Juvenil / Calzado / Ropa / Accesorios / Ofertas, buscador con sugerencias, filtros (departamento, género, edad, precio, talla, color, existencias, calificación) y orden (más vendidos, mejor calificados, precio, novedades) |
 | **Producto** | Imagen que cambia con el color, tallas agotadas deshabilitadas, cantidad, favoritos, disponibilidad para envío y por sucursal, descripción, detalles, reseñas con estrellas y compra verificada, productos relacionados |
-| **Bolsa** | Cantidades, mover a favoritos, barra de avance para envío gratis |
+| **Carrito** | Cantidades, mover a favoritos, barra de avance para envío gratis, descuento de la cuenta |
 | **Pago** | Inicio de sesión o registro, envío a domicilio o recoger en sucursal (con existencias por tienda), pago simulado con tarjeta, OXXO, transferencia o efectivo, cupón, confirmación con instrucciones de pago |
-| **Mi cuenta** | Nivel de lealtad y pedidos con estado, artículos, entrega y pago |
-| **Panel de sucursales** | Inventario por nodo, pedidos por fragmento y estado de la base distribuida (enlace en el pie de página) |
+| **Mi cuenta** | Tipo de cuenta y sus beneficios, comunicados, pedidos con estado, artículos, entrega y pago |
+| **Soporte** | Tickets con plazo de respuesta según el tipo de cuenta |
+| **Administración** | Solo cuentas Administrador: resumen de ventas, pedidos, clientes, precios, inventario, soporte, comunicados y panel de la base distribuida |
 
 La paleta cambia sola según la temporada; el selector **Temporada** del pie de página permite mostrar cualquiera en la presentación.
 
@@ -152,7 +153,39 @@ Las partículas se apartan del cursor (o del dedo en el celular) y el viento cam
 
 Para la presentación se puede abrir una temporada directamente: `http://localhost/ERROR404/?temporada=winter`.
 
-### 2.6 Entrar desde el celular
+### 2.6 Tipos de usuario
+
+La tabla `account_tier` define tres tipos de cuenta. Los beneficios son datos de la tabla: cambiar un descuento o un tiempo de respuesta es un `UPDATE`.
+
+| | Estándar | Prioritario | Administrador |
+|---|---|---|---|
+| Quién | Cualquier cliente que se registra | Cliente de mayoreo con más de un año | Personal de la tienda |
+| Descuento permanente | — | 12 % | 12 % |
+| Envío | Gratis desde $999, 3 a 5 días | Siempre gratis y prioritario, 1 a 2 días | Igual que Prioritario |
+| Piezas por artículo | 10 | 200 (mayoreo) | 200 |
+| Soporte | Respuesta en menos de 24 h | Atención inmediata, menos de 15 min | Igual que Prioritario |
+| Comunicados | Generales | Generales y exclusivos | Todos, y los publica |
+| Administración | — | — | Pedidos, clientes, precios, inventario, soporte, comunicados y base distribuida |
+
+Cómo funciona en la base:
+
+- `dbo.sp_crear_pedido` lee el tipo de cuenta del cliente: suma el descuento de la cuenta al del cupón (tope de 90 %), da envío gratis según `free_shipping_from`, rechaza más piezas de las permitidas (error 50016) y marca `customer_order.priority_shipping`.
+- `dbo.sp_evaluar_clientes_prioritarios` sube a Prioritario a los clientes Estándar con al menos 365 días (`customer.customer_since`) y 50 piezas compradas en los últimos 12 meses. El botón **Aplicar regla** de Administración → Clientes lo ejecuta.
+- `support_ticket.priority` y `respond_by` se calculan con el tipo de cuenta al abrir el ticket; la cola del administrador ordena primero los prioritarios y los que están por vencer.
+- `announcement.audience = 'priority'` solo se entrega a cuentas Prioritario y Administrador.
+- `customer.id_account_tier` y `customer_since` viajan en el fragmento vertical `customer_profile`; `account_tier` se replica con el catálogo.
+
+Cuentas de demostración:
+
+| Tipo | Correo | Contraseña |
+|---|---|---|
+| Estándar | `ana.ruiz@email.com` | `Estandar2026` |
+| Prioritario | `luis.gomez@email.com` | `Prioritario2026` |
+| Administrador | `admin@jamsport.mx` | `Admin2026JAM` |
+
+> Cambia la contraseña del administrador si publicas la tienda en internet.
+
+### 2.7 Entrar desde el celular
 
 **En la misma red Wi-Fi que la computadora**
 
@@ -165,7 +198,7 @@ Para la presentación se puede abrir una temporada directamente: `http://localho
 1. Instalar Cloudflare Tunnel: `winget install Cloudflare.cloudflared`.
 2. Con Apache encendido, ejecutar `cloudflared tunnel --url http://localhost:80`.
 3. Copiar la dirección `https://<algo>.trycloudflare.com` que aparece y abrir `https://<algo>.trycloudflare.com/ERROR404/` en cualquier celular.
-4. Cerrar la ventana al terminar: la dirección deja de funcionar. Mientras está abierta, cualquiera con el enlace entra a la tienda y al panel, que no tiene inicio de sesión.
+4. Cerrar la ventana al terminar: la dirección deja de funcionar. Mientras está abierta, cualquiera con el enlace entra a la tienda; la administración y el panel distribuido piden una cuenta de Administrador.
 
 La versión en Azure (sección 5) también se abre desde el celular, en modo consulta.
 
@@ -189,7 +222,20 @@ La versión en Azure (sección 5) también se abre desde el celular, en modo con
 | POST | `/store/reviews` | Publicar reseña (sesión; marca compra verificada) |
 | POST | `/auth/register`, `/auth/login`, `/auth/logout` | Cuentas de cliente con contraseña bcrypt, bloqueo tras 5 intentos y token de sesión |
 | GET | `/auth/me`, `/me/orders` | Perfil y pedidos del cliente con sesión |
-| POST | `/orders/checkout` | Registra un pedido completo con `dbo.sp_crear_pedido` (precios, cupón, total y stock se calculan en la base) |
+| POST | `/orders/checkout` | Registra un pedido completo con `dbo.sp_crear_pedido` (precios, cupón, descuento de la cuenta, total y stock se calculan en la base) |
+| GET | `/store/announcements` | Comunicados vigentes; los exclusivos solo con sesión Prioritario o Administrador |
+| GET, POST | `/support/tickets` | Tickets del cliente con sesión / abrir un ticket |
+| GET | `/admin/summary` | Ventas, pedidos por surtir, tickets y clientes por tipo de cuenta |
+| GET | `/admin/customers` | Clientes con tipo de cuenta, antigüedad y compras de 12 meses |
+| PUT | `/admin/customers/{id}/tier` | Cambiar entre Estándar y Prioritario |
+| POST | `/admin/customers/evaluate` | Ejecuta `dbo.sp_evaluar_clientes_prioritarios` |
+| GET | `/admin/orders?status=` | Pedidos del nodo central, envío prioritario primero |
+| PUT | `/admin/orders/{id}/status` | Cambiar estado; cancelar o devolver regresa el stock y reembolsa el pago |
+| PUT | `/admin/products/{id}`, `/admin/inventory` | Precio de lista y existencias por sucursal |
+| GET, PUT | `/admin/tickets`, `/admin/tickets/{id}` | Cola de soporte y respuesta |
+| GET, POST, DELETE | `/admin/announcements` | Comunicados |
+
+**Permisos:** las rutas `/admin/*`, `/nodes`, `/distributed/*`, `/replication/*` y el CRUD genérico de tablas requieren una sesión de Administrador (401 sin sesión, 403 con otra cuenta). Sin sesión solo quedan abiertos el catálogo, las reseñas, las temporadas, los cupones, los estados y el registro o inicio de sesión.
 
 Todos los `GET` de catálogo aceptan paginación: `?page=1&page_size=100` (máximo 500) y no devuelven registros con `deleted = 1`.
 Los `DELETE` de tablas con columna `deleted` hacen borrado lógico.
@@ -200,6 +246,7 @@ Códigos de respuesta:
 |--------|--------|
 | 200 / 201 | Consulta, actualización o creación correcta |
 | 400 | JSON inválido, campo obligatorio faltante o formato incorrecto |
+| 401 / 403 | Sin sesión, o la cuenta no es de Administrador |
 | 404 | El registro no existe o fue eliminado |
 | 405 | Escritura en la réplica de solo lectura (Azure) |
 | 409 | Duplicado, violación de FK o CHECK, cupón no vigente, sin stock, o registro modificado por otro usuario (`row_version`) |
@@ -227,6 +274,8 @@ Si un nodo fragmento no responde, la API lee sus datos del nodo por defecto filt
 | `ROWVERSION` en `product`, `inventory` y `customer_order` | Control de concurrencia optimista: un `PUT` con `row_version` viejo responde 409 en vez de sobrescribir |
 | Índices en todas las FK no cubiertas | Evita recorridos completos de tabla en JOIN y en la validación de FK |
 | Usuario `jam_api` sin permisos de DDL | Principio de mínimo privilegio para la aplicación |
+| Tabla `account_tier` en lugar de valores fijos en el código | Los beneficios de cada tipo de cuenta se cambian con un `UPDATE` y el procedimiento de pedidos los aplica siempre igual |
+| `customer_order.priority_shipping` guardado al crear el pedido | Si el cliente cambia de tipo de cuenta, sus pedidos anteriores conservan la prioridad con la que se compraron |
 
 ---
 
@@ -315,12 +364,13 @@ En la nube la tienda funciona en modo consulta: el catálogo, el inventario y lo
 ## 6. Guion para la presentación (≈ 6 min)
 
 1. **Tienda** (móvil y escritorio): mostrar el menú hamburguesa y la cuadrícula adaptable (media queries).
-2. **Fragmentación horizontal**: menú **Inventario** → pestañas por nodo. En SSMS, `SELECT * FROM JAM_cdmx.dbo.inventory` muestra solo `id_store = 2`, e intentar insertar `id_store = 1` ahí falla por el `CHECK`.
-3. **Pedido distribuido**: comprar en la tienda eligiendo *Sucursal Tijuana* → el pedido aparece en **Pedidos** dentro del fragmento de Tijuana.
-4. **Fragmentación vertical**: **Base distribuida** → tabla de clientes con las columnas de cada fragmento en distinto color.
-5. **Transparencia ante fallos**: desconectar una sucursal (`ALTER DATABASE JAM_cdmx SET OFFLINE WITH ROLLBACK IMMEDIATE;`), actualizar **Inventario** → CDMX aparece como “nodo sin conexión, leído de central”. Volver con `SET ONLINE`.
-6. **Replicación**: cambiar un precio en `JAM_db` → la matriz de **Replicación del catálogo** pasa a “Sincronizado” en todos los nodos.
-7. **Espejo**: `az sql failover-group set-primary --name jam-fog-<sufijo> --resource-group rg-jam --server jam-sql-espejo-<sufijo>` → en la API de Azure, **Base distribuida** muestra el otro servidor como principal.
+2. **Tipos de usuario**: entrar como Estándar y como Prioritario y comparar precio, envío, piezas permitidas y plazo de soporte; luego entrar como Administrador, responder el ticket y aplicar la regla de Prioritarios.
+3. **Fragmentación horizontal**: Administración → **Base distribuida** → **Inventario** → pestañas por nodo. En SSMS, `SELECT * FROM JAM_cdmx.dbo.inventory` muestra solo `id_store = 2`, e intentar insertar `id_store = 1` ahí falla por el `CHECK`.
+4. **Pedido distribuido**: comprar en la tienda eligiendo *Sucursal Tijuana* → el pedido aparece en **Pedidos** dentro del fragmento de Tijuana.
+5. **Fragmentación vertical**: **Base distribuida** → tabla de clientes con las columnas de cada fragmento en distinto color.
+6. **Transparencia ante fallos**: desconectar una sucursal (`ALTER DATABASE JAM_cdmx SET OFFLINE WITH ROLLBACK IMMEDIATE;`), actualizar **Inventario** → CDMX aparece como “nodo sin conexión, leído de central”. Volver con `SET ONLINE`.
+7. **Replicación**: cambiar un precio en `JAM_db` → la matriz de **Replicación del catálogo** pasa a “Sincronizado” en todos los nodos.
+8. **Espejo**: `az sql failover-group set-primary --name jam-fog-<sufijo> --resource-group rg-jam --server jam-sql-espejo-<sufijo>` → en la API de Azure, **Base distribuida** muestra el otro servidor como principal.
 
 ---
 

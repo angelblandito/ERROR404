@@ -8,11 +8,14 @@
  *   POST /auth/register                 Crear cuenta de cliente (devuelve token de sesión)
  *   POST /auth/login                    Iniciar sesión (devuelve token de sesión)
  *   POST /auth/logout                   Cerrar la sesión actual
- *   GET  /auth/me                       Datos del cliente con sesión
+ *   GET  /auth/me                       Datos del cliente con sesión y su tipo de cuenta
  *   GET  /me/orders                     Pedidos del cliente con sesión
  *
  * La sesión viaja en el encabezado "Authorization: Bearer <token>". En la base
  * solo se guarda el SHA-256 del token.
+ *
+ * Tipos de cuenta (tabla account_tier): standard, priority y admin. Los
+ * beneficios se leen de la base y sp_crear_pedido los aplica al cobrar.
  */
 
 const STORE_SESSION_DAYS = 7;
@@ -44,6 +47,21 @@ function store_ok(int $status, $data, string $message): void
     ], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
 }
 
+/* Ejecuta un endpoint y convierte cualquier error en la respuesta JSON correspondiente. */
+function store_run(string $uri, callable $action): void
+{
+    try {
+        $action();
+    } catch (StoreHttpException $e) {
+        api_send_error(api_error($e->status, $e->getMessage()));
+    } catch (PDOException $e) {
+        api_send_error(api_db_error($e));
+    } catch (Throwable $e) {
+        error_log('Error en ' . $uri . ': ' . $e->getMessage());
+        api_send_error(api_error(500, 'Error interno de la tienda.'));
+    }
+}
+
 function store_db(): PDO
 {
     return jam_node(JAM_DEFAULT_NODE);
@@ -72,20 +90,36 @@ function store_bearer_token(): ?string
     return preg_match('/^Bearer\s+([a-f0-9]{64})$/i', trim($header), $m) ? strtolower($m[1]) : null;
 }
 
-function store_current_customer(PDO $pdo): ?int
+/* Cliente de la sesión y su tipo de cuenta, o null si no hay sesión válida. */
+function store_current_account(PDO $pdo): ?array
 {
     $token = store_bearer_token();
     if ($token === null) {
         return null;
     }
     $rows = store_rows($pdo, '
-        SELECT s.id_customer
+        SELECT s.id_customer, t.code AS tier, t.can_manage_store, t.support_minutes
         FROM dbo.customer_session AS s
         JOIN dbo.customer AS c ON c.id_customer = s.id_customer AND c.deleted = 0
+        JOIN dbo.account_tier AS t ON t.id_account_tier = c.id_account_tier
         WHERE s.token_hash = :token_hash
           AND s.revoked = 0
           AND s.expires_at > SYSUTCDATETIME()', [':token_hash' => hash('sha256', $token)]);
-    return $rows ? (int)$rows[0]['id_customer'] : null;
+    if (!$rows) {
+        return null;
+    }
+    return [
+        'id_customer' => (int)$rows[0]['id_customer'],
+        'tier' => $rows[0]['tier'],
+        'can_manage' => (bool)$rows[0]['can_manage_store'],
+        'support_minutes' => (int)$rows[0]['support_minutes'],
+    ];
+}
+
+function store_current_customer(PDO $pdo): ?int
+{
+    $account = store_current_account($pdo);
+    return $account !== null ? $account['id_customer'] : null;
 }
 
 function store_require_customer(PDO $pdo): int
@@ -95,6 +129,23 @@ function store_require_customer(PDO $pdo): int
         throw new StoreHttpException(401, 'Inicia sesión para continuar.');
     }
     return $id;
+}
+
+function store_require_admin(PDO $pdo): array
+{
+    $account = store_current_account($pdo);
+    if ($account === null) {
+        throw new StoreHttpException(401, 'Inicia sesión con una cuenta de administrador.');
+    }
+    if (!$account['can_manage']) {
+        throw new StoreHttpException(403, 'Esta sección es solo para administradores.');
+    }
+    return $account;
+}
+
+function store_is_priority(?array $account): bool
+{
+    return $account !== null && in_array($account['tier'], ['priority', 'admin'], true);
 }
 
 function store_create_session(PDO $pdo, int $idCustomer): string
@@ -114,17 +165,42 @@ function store_profile(PDO $pdo, int $idCustomer): array
 {
     $rows = store_rows($pdo, '
         SELECT c.id_customer, c.first_name, c.last_name_paternal, c.last_name_maternal, c.email, c.phone,
-               c.birth_date, c.sex, c.accepts_marketing, ll.name AS loyalty_level, ll.discount_percent AS loyalty_discount
+               c.birth_date, c.sex, c.accepts_marketing, c.customer_since,
+               ll.name AS loyalty_level, ll.discount_percent AS loyalty_discount,
+               t.code AS tier, t.name AS tier_name, t.discount_percent AS tier_discount, t.free_shipping_from,
+               t.delivery_days, t.max_units_per_item, t.support_minutes, t.can_manage_store
         FROM dbo.customer AS c
         JOIN dbo.loyalty_level AS ll ON ll.id_loyalty_level = c.id_loyalty_level
+        JOIN dbo.account_tier AS t ON t.id_account_tier = c.id_account_tier
         WHERE c.id_customer = :id AND c.deleted = 0', [':id' => $idCustomer]);
     if (!$rows) {
         throw new StoreHttpException(404, 'La cuenta no existe.');
     }
-    $profile = $rows[0];
-    $profile['id_customer'] = (int)$profile['id_customer'];
-    $profile['accepts_marketing'] = (bool)$profile['accepts_marketing'];
-    return $profile;
+    $row = $rows[0];
+    return [
+        'id_customer' => (int)$row['id_customer'],
+        'first_name' => $row['first_name'],
+        'last_name_paternal' => $row['last_name_paternal'],
+        'last_name_maternal' => $row['last_name_maternal'],
+        'email' => $row['email'],
+        'phone' => $row['phone'],
+        'birth_date' => $row['birth_date'],
+        'sex' => $row['sex'],
+        'accepts_marketing' => (bool)$row['accepts_marketing'],
+        'customer_since' => $row['customer_since'],
+        'loyalty_level' => $row['loyalty_level'],
+        'loyalty_discount' => (float)$row['loyalty_discount'],
+        'account' => [
+            'tier' => $row['tier'],
+            'name' => $row['tier_name'],
+            'discount_percent' => (float)$row['tier_discount'],
+            'free_shipping_from' => (float)$row['free_shipping_from'],
+            'delivery_days' => $row['delivery_days'],
+            'max_units_per_item' => (int)$row['max_units_per_item'],
+            'support_minutes' => (int)$row['support_minutes'],
+            'can_manage_store' => (bool)$row['can_manage_store'],
+        ],
+    ];
 }
 
 /* ---------------------------------------------------------------------
@@ -303,12 +379,30 @@ function store_catalog(): array
     }
     unset($s);
 
+    $tiers = array_map(function ($t) {
+        return [
+            'tier' => $t['code'],
+            'name' => $t['name'],
+            'discount_percent' => (float)$t['discount_percent'],
+            'free_shipping_from' => (float)$t['free_shipping_from'],
+            'delivery_days' => $t['delivery_days'],
+            'max_units_per_item' => (int)$t['max_units_per_item'],
+            'support_minutes' => (int)$t['support_minutes'],
+            'can_manage_store' => (bool)$t['can_manage_store'],
+        ];
+    }, store_rows($pdo, '
+        SELECT code, name, discount_percent, free_shipping_from, delivery_days, max_units_per_item,
+               support_minutes, can_manage_store
+        FROM dbo.account_tier
+        ORDER BY id_account_tier'));
+
     return [
         'products' => $products,
         'stores' => $stores,
         'online_store' => STORE_ONLINE_ID,
         'shipping' => ['free_from' => STORE_FREE_SHIPPING_FROM, 'cost' => STORE_SHIPPING_COST],
         'photos' => store_photo_files(),
+        'account_tiers' => $tiers,
     ];
 }
 
@@ -505,7 +599,7 @@ function store_my_orders(): array
 
     $orders = store_rows($pdo, "
         SELECT co.id_order, co.order_date, co.status, co.channel, co.delivery_type, co.subtotal, co.discount,
-               co.shipping_cost, co.total, s.store_name, pr.code AS promotion_code,
+               co.shipping_cost, co.total, co.priority_shipping, s.store_name, pr.code AS promotion_code,
                pay.method AS payment_method, pay.status AS payment_status,
                a.street, a.ext_number, a.neighborhood, a.city, a.zip_code
         FROM dbo.customer_order AS co
@@ -545,6 +639,7 @@ function store_my_orders(): array
     }
     foreach ($orders as &$o) {
         $o['id_order'] = (int)$o['id_order'];
+        $o['priority_shipping'] = (bool)$o['priority_shipping'];
         $o['items'] = $byOrder[$o['id_order']] ?? [];
     }
     unset($o);

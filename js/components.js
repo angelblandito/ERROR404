@@ -1,7 +1,65 @@
 /* Piezas de interfaz reutilizadas por varias vistas. */
-import { clone, field, fill, show, slot, money, stars, DEPARTMENTS, GENDERS } from './ui.js';
+import { clone, field, fill, show, slot, money, badge, stars, DEPARTMENTS, GENDERS } from './ui.js';
 import { productArt } from './illustrations.js';
-import { colorsOf, isFavorite, newestIds, state } from './store.js';
+import { account, colorsOf, isFavorite, isPriority, memberPrice, newestIds, state } from './store.js';
+
+const TIER_BADGES = {
+    standard: ['Estándar', ''],
+    priority: ['Prioritario', 'gold'],
+    admin: ['Administrador', 'info']
+};
+
+export function tierBadge(tier) {
+    const info = TIER_BADGES[tier] || [tier, ''];
+    return badge(info[0], info[1]);
+}
+
+/* Lista de beneficios de un tipo de cuenta, armada con sus valores de account_tier. */
+export function benefitItems(acc) {
+    const texts = [];
+    if (acc.discount_percent > 0) {
+        texts.push(acc.discount_percent + ' % de descuento permanente en toda la tienda');
+    }
+    texts.push(acc.free_shipping_from > 0
+        ? 'Envío gratis desde ' + money.format(acc.free_shipping_from) + ' · llega en ' + acc.delivery_days
+        : 'Envío gratis y prioritario en todos tus pedidos · llega en ' + acc.delivery_days);
+    texts.push('Hasta ' + acc.max_units_per_item + ' piezas por artículo' + (acc.max_units_per_item > 10 ? ' (compras de mayoreo)' : ''));
+    texts.push(acc.support_minutes < 60
+        ? 'Atención inmediata de soporte: respuesta en menos de ' + acc.support_minutes + ' minutos'
+        : 'Soporte con respuesta en menos de ' + Math.round(acc.support_minutes / 60) + ' horas');
+    if (acc.tier !== 'standard') {
+        texts.push('Comunicados y preventas exclusivas');
+    }
+    if (acc.can_manage_store) {
+        texts.push('Administración de la tienda: pedidos, clientes, precios, inventario, soporte y comunicados');
+    }
+    return texts.map(function (text) {
+        const li = clone('tpl-benefit');
+        li.textContent = text;
+        return li;
+    });
+}
+
+function announcementCard(a) {
+    const card = fill(clone('tpl-announcement'), { title: a.title, body: a.body });
+    card.classList.toggle('exclusive', a.audience === 'priority');
+    slot(card, 'badge').replaceWith(a.audience === 'priority' ? badge('Exclusivo Prioritario', 'gold') : badge('Aviso', 'info'));
+    return card;
+}
+
+export function announcementsSection(list, title) {
+    const section = fill(clone('tpl-announcements'), { title: title });
+    slot(section, 'items').append(...list.map(announcementCard));
+    section.hidden = !list.length;
+    return section;
+}
+
+export function showMemberPrice(el, price) {
+    show(el, isPriority());
+    if (isPriority()) {
+        el.textContent = account().name + ' ' + money.format(memberPrice(price));
+    }
+}
 
 export function setFavState(button, active) {
     button.classList.toggle('active', active);
@@ -55,6 +113,8 @@ export function productCard(p) {
         colors: colors.length + (colors.length === 1 ? ' color' : ' colores'),
         price: money.format(p.base_price)
     });
+    field(card, 'price').classList.toggle('was', isPriority());
+    showMemberPrice(field(card, 'memberPrice'), p.base_price);
 
     if (p.reviews) {
         show(field(card, 'rating'), true);

@@ -126,6 +126,34 @@ INSERT INTO loyalty_level (id_loyalty_level, code, name, discount_percent, min_s
 (3, 'gold',   'Oro',    10.00, 8000.00);
 GO
 
+-- Tipos de cuenta de la tienda en línea. Los beneficios son datos: cambiar el
+-- descuento o el tiempo de respuesta de soporte es un UPDATE, no un cambio de código.
+CREATE TABLE account_tier (
+    id_account_tier     TINYINT       NOT NULL PRIMARY KEY,
+    code                VARCHAR(10)   NOT NULL,
+    name                NVARCHAR(20)  NOT NULL,
+    discount_percent    DECIMAL(4,2)  NOT NULL,
+    free_shipping_from  DECIMAL(10,2) NOT NULL,   -- 0 = envío siempre gratis
+    delivery_days       NVARCHAR(30)  NOT NULL,
+    max_units_per_item  SMALLINT      NOT NULL,   -- piezas por artículo en un pedido (mayoreo)
+    support_minutes     SMALLINT      NOT NULL,   -- tiempo máximo de respuesta de soporte
+    can_manage_store    BIT           NOT NULL,
+    CONSTRAINT uq_account_tier_code UNIQUE (code),
+    CONSTRAINT ck_account_tier_code CHECK (code IN ('standard','priority','admin')),
+    CONSTRAINT ck_account_tier_discount CHECK (discount_percent BETWEEN 0 AND 50),
+    CONSTRAINT ck_account_tier_shipping CHECK (free_shipping_from >= 0),
+    CONSTRAINT ck_account_tier_units CHECK (max_units_per_item BETWEEN 1 AND 999),
+    CONSTRAINT ck_account_tier_support CHECK (support_minutes > 0)
+);
+GO
+
+INSERT INTO account_tier (id_account_tier, code, name, discount_percent, free_shipping_from, delivery_days,
+                          max_units_per_item, support_minutes, can_manage_store) VALUES
+(1, 'standard', 'Estándar',      0.00, 999.00, '3 a 5 días hábiles',  10, 1440, 0),
+(2, 'priority', 'Prioritario',  12.00,   0.00, '1 a 2 días hábiles', 200,   15, 0),
+(3, 'admin',    'Administrador', 12.00,   0.00, '1 a 2 días hábiles', 200,   15, 1);
+GO
+
 CREATE TABLE absence_type (
     id_absence_type TINYINT NOT NULL PRIMARY KEY,
     code            VARCHAR(11) NOT NULL,
@@ -465,6 +493,7 @@ GO
 CREATE TABLE customer (
     id_customer         INT IDENTITY(1,1) PRIMARY KEY,
     id_loyalty_level    TINYINT NOT NULL DEFAULT 1,
+    id_account_tier     TINYINT NOT NULL CONSTRAINT df_customer_account_tier DEFAULT 1,
     id_store            INT NOT NULL, -- ref. logica a store (otro servicio: Sucursales)
     id_address          INT NULL,     -- ref. logica a address (otro servicio: Sucursales)
     first_name          NVARCHAR(50) NOT NULL,
@@ -475,11 +504,13 @@ CREATE TABLE customer (
     phone               VARCHAR(15) NOT NULL,
     email               VARCHAR(100) NOT NULL,
     accepts_marketing   BIT NOT NULL DEFAULT 0,
+    customer_since      DATE NOT NULL CONSTRAINT df_customer_since DEFAULT CAST(SYSUTCDATETIME() AS DATE),
     -- columnas de consolidación
     source_node         VARCHAR(20) NOT NULL,
     updated_at          DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
     deleted             BIT NOT NULL DEFAULT 0,
     CONSTRAINT fk_customer_loyalty_level FOREIGN KEY (id_loyalty_level) REFERENCES loyalty_level (id_loyalty_level),
+    CONSTRAINT fk_customer_account_tier FOREIGN KEY (id_account_tier) REFERENCES account_tier (id_account_tier),
     CONSTRAINT ck_customer_sex CHECK (sex IN ('M','F','X'))
 );
 GO
@@ -488,12 +519,15 @@ CREATE INDEX ix_customer_store ON customer (id_store);
 CREATE INDEX ix_customer_address ON customer (id_address);
 GO
 
-INSERT INTO customer (id_loyalty_level, id_store, id_address, first_name, last_name_paternal, last_name_maternal, birth_date, sex, phone, email, accepts_marketing, source_node) VALUES
-(1, 1, NULL, 'María Fernanda', 'López',     'Hidalgo', '1996-04-12', 'F', '6647770001', 'mariaf.lopez@email.com',  1, 'customers_node'),
-(2, 4, NULL, 'Luis Alberto',   'Gómez',     'Nava',    '1990-08-23', 'M', '6647770002', 'luis.gomez@email.com',   1, 'customers_node'),
-(3, 3, 5,    'Daniela',        'Herrera',   'Campos',  '1993-01-30', 'F', '8187770003', 'daniela.herrera@email.com', 1, 'customers_node'),
-(1, 5, NULL, 'Jorge',          'Escamilla', 'Pardo',   '1988-11-05', 'M', '6647770004', 'jorge.escamilla@email.com', 0, 'customers_node'),
-(1, 4, NULL, 'Ana Patricia',   'Ruiz',      'Montes',  '1999-06-18', 'F', '6647770005', 'ana.ruiz@email.com',      1, 'customers_node');
+-- Luis Alberto es cliente de mayoreo desde 2022 (cuenta Prioritaria);
+-- el registro 6 es la cuenta del administrador de la tienda.
+INSERT INTO customer (id_loyalty_level, id_account_tier, id_store, id_address, first_name, last_name_paternal, last_name_maternal, birth_date, sex, phone, email, accepts_marketing, customer_since, source_node) VALUES
+(1, 1, 1, NULL, 'María Fernanda', 'López',     'Hidalgo', '1996-04-12', 'F', '6647770001', 'mariaf.lopez@email.com',     1, '2024-03-15', 'customers_node'),
+(2, 2, 4, NULL, 'Luis Alberto',   'Gómez',     'Nava',    '1990-08-23', 'M', '6647770002', 'luis.gomez@email.com',       1, '2022-05-10', 'customers_node'),
+(3, 1, 3, 5,    'Daniela',        'Herrera',   'Campos',  '1993-01-30', 'F', '8187770003', 'daniela.herrera@email.com',  1, '2023-09-02', 'customers_node'),
+(1, 1, 5, NULL, 'Jorge',          'Escamilla', 'Pardo',   '1988-11-05', 'M', '6647770004', 'jorge.escamilla@email.com',  0, '2025-07-21', 'customers_node'),
+(1, 1, 4, NULL, 'Ana Patricia',   'Ruiz',      'Montes',  '1999-06-18', 'F', '6647770005', 'ana.ruiz@email.com',         1, '2026-02-08', 'customers_node'),
+(1, 3, 4, NULL, 'Administrador',  'JAM',       NULL,      '1990-01-01', 'X', '6640000000', 'admin@jamsport.mx',          0, '2021-01-01', 'customers_node');
 GO
 
 
@@ -1136,6 +1170,7 @@ CREATE TABLE customer_order (
     delivery_type  VARCHAR(8) NOT NULL CONSTRAINT df_customer_order_delivery_type DEFAULT 'pickup',
     id_address     INT NULL,          -- domicilio de entrega cuando delivery_type = 'shipping'
     shipping_cost  DECIMAL(8,2) NOT NULL CONSTRAINT df_customer_order_shipping_cost DEFAULT 0,
+    priority_shipping BIT NOT NULL CONSTRAINT df_customer_order_priority_shipping DEFAULT 0,
     notes          NVARCHAR(255) NULL,
     -- columnas de consolidación
     source_node    VARCHAR(20) NOT NULL,
@@ -1383,6 +1418,91 @@ GO
 CREATE INDEX ix_customer_session_customer ON customer_session (id_customer);
 GO
 
+-- Cuentas de demostración (contraseñas en docs/GUIA_DISTRIBUIDA_Y_NUBE.md):
+-- 2 Prioritario, 5 Estándar, 6 Administrador.
+INSERT INTO customer_credential (id_customer, password_hash) VALUES
+(2, '$2y$10$LDms8HUAs32X0f71yGG97O/Pu.KMdrT60igDgm.22wExN7IQ8QWsa'),
+(5, '$2y$10$HlWoiHfBwHaSKS8kof0jV.zVxSFarI9TVuFqnRlOOInEID2ozl98G'),
+(6, '$2y$10$olHQB0hN51RjcJPq/vaXaO6ey7O1vlK21MFQc.sVUzMmfAjRz5m4e');
+GO
+
+
+-- =====================================================================
+-- 10. Servicio Atención a clientes: comunicados y soporte
+-- =====================================================================
+
+-- Comunicados de la tienda. audience = 'priority' solo lo ven las cuentas
+-- Prioritario y Administrador.
+CREATE TABLE announcement (
+    id_announcement  INT IDENTITY(1,1) PRIMARY KEY,
+    audience         VARCHAR(8) NOT NULL,
+    title            NVARCHAR(80) NOT NULL,
+    body             NVARCHAR(600) NOT NULL,
+    starts_on        DATE NOT NULL,
+    ends_on          DATE NULL,
+    id_author        INT NULL,
+    -- columnas de consolidación
+    source_node      VARCHAR(20) NOT NULL,
+    created_at       DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
+    updated_at       DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
+    deleted          BIT NOT NULL DEFAULT 0,
+    CONSTRAINT fk_announcement_author FOREIGN KEY (id_author) REFERENCES customer (id_customer),
+    CONSTRAINT ck_announcement_audience CHECK (audience IN ('all','priority')),
+    CONSTRAINT ck_announcement_dates CHECK (ends_on IS NULL OR ends_on >= starts_on)
+);
+GO
+
+CREATE INDEX ix_announcement_author ON announcement (id_author);
+GO
+
+INSERT INTO announcement (audience, title, body, starts_on, ends_on, id_author, source_node) VALUES
+('priority', 'Preventa Black Friday', 'Como cliente Prioritario puedes comprar la colección de invierno desde hoy con tu descuento permanente, antes que nadie.', '2026-11-01', '2026-11-30', 6, 'web_node'),
+('priority', 'Nueva línea de uniformes para equipos', 'Ya puedes pedir playeras y shorts de equipo en volumen. Escríbenos a soporte y te cotizamos en menos de 15 minutos.', '2026-10-15', NULL, 6, 'web_node'),
+('all', 'Recoge en sucursal sin costo', 'Compra en línea y recoge el mismo día en Tijuana o CDMX.', '2026-01-01', NULL, 6, 'web_node');
+GO
+
+-- Tickets de soporte. La prioridad y el plazo de respuesta (respond_by) se
+-- calculan con el tipo de cuenta del cliente al abrir el ticket.
+CREATE TABLE support_ticket (
+    id_ticket      INT IDENTITY(1,1) PRIMARY KEY,
+    id_customer    INT NOT NULL,
+    id_order       INT NULL,
+    subject        NVARCHAR(100) NOT NULL,
+    message        NVARCHAR(1000) NOT NULL,
+    priority       VARCHAR(6) NOT NULL,
+    status         VARCHAR(8) NOT NULL CONSTRAINT df_support_ticket_status DEFAULT 'open',
+    response       NVARCHAR(1000) NULL,
+    id_responder   INT NULL,
+    respond_by     DATETIME2(3) NOT NULL,
+    answered_at    DATETIME2(3) NULL,
+    -- columnas de consolidación
+    source_node    VARCHAR(20) NOT NULL,
+    created_at     DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
+    updated_at     DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
+    deleted        BIT NOT NULL DEFAULT 0,
+    CONSTRAINT fk_support_ticket_customer FOREIGN KEY (id_customer) REFERENCES customer (id_customer),
+    CONSTRAINT fk_support_ticket_order FOREIGN KEY (id_order) REFERENCES customer_order (id_order),
+    CONSTRAINT fk_support_ticket_responder FOREIGN KEY (id_responder) REFERENCES customer (id_customer),
+    CONSTRAINT ck_support_ticket_priority CHECK (priority IN ('normal','high')),
+    CONSTRAINT ck_support_ticket_status CHECK (status IN ('open','answered','closed')),
+    CONSTRAINT ck_support_ticket_answer CHECK (status = 'open' OR response IS NOT NULL)
+);
+GO
+
+CREATE INDEX ix_support_ticket_queue ON support_ticket (status, priority, respond_by);
+CREATE INDEX ix_support_ticket_customer ON support_ticket (id_customer);
+CREATE INDEX ix_support_ticket_order ON support_ticket (id_order);
+CREATE INDEX ix_support_ticket_responder ON support_ticket (id_responder);
+GO
+
+INSERT INTO support_ticket (id_customer, id_order, subject, message, priority, status, response, id_responder, respond_by, answered_at, source_node) VALUES
+(2, 2, 'Factura del pedido', 'Necesito la factura del pedido 2 a nombre del club deportivo.', 'high', 'answered',
+ 'Listo, la factura se envió a tu correo. Gracias por tu confianza.', 6,
+ DATEADD(MINUTE, 15, SYSUTCDATETIME()), SYSUTCDATETIME(), 'web_node'),
+(5, 5, 'Reembolso de pedido cancelado', '¿En cuántos días se refleja el reembolso del pedido 5?', 'normal', 'open', NULL, NULL,
+ DATEADD(MINUTE, 1440, SYSUTCDATETIME()), NULL, 'web_node');
+GO
+
 
 -- =====================================================================
 -- INTEGRIDAD DEL NODO CENTRAL
@@ -1432,6 +1552,7 @@ CREATE INDEX ix_employee_role           ON employee (id_role);
 CREATE INDEX ix_employee_absence_type   ON employee_absence (id_absence_type);
 CREATE INDEX ix_verification_code_employee ON verification_code (id_employee);
 CREATE INDEX ix_customer_loyalty_level  ON customer (id_loyalty_level);
+CREATE INDEX ix_customer_account_tier   ON customer (id_account_tier);
 CREATE INDEX ix_product_category        ON product (id_category);
 CREATE INDEX ix_product_variant_product ON product_variant (id_product);
 CREATE INDEX ix_product_variant_size    ON product_variant (id_size);
@@ -1573,6 +1694,22 @@ BEGIN
     SET NOCOUNT ON;
     UPDATE t SET t.updated_at = SYSUTCDATETIME()
     FROM payment AS t INNER JOIN inserted AS i ON t.id_payment = i.id_payment;
+END;
+GO
+
+CREATE TRIGGER trg_announcement_touch ON announcement AFTER UPDATE AS
+BEGIN
+    SET NOCOUNT ON;
+    UPDATE t SET t.updated_at = SYSUTCDATETIME()
+    FROM announcement AS t INNER JOIN inserted AS i ON t.id_announcement = i.id_announcement;
+END;
+GO
+
+CREATE TRIGGER trg_support_ticket_touch ON support_ticket AFTER UPDATE AS
+BEGIN
+    SET NOCOUNT ON;
+    UPDATE t SET t.updated_at = SYSUTCDATETIME()
+    FROM support_ticket AS t INNER JOIN inserted AS i ON t.id_ticket = i.id_ticket;
 END;
 GO
 
