@@ -8,4 +8,10 @@ RedirectMatch 404 "(?i)^.*/(JAM|LICENSE|README\.md|\.gitignore)$"
 <IfModule mod_headers.c>
     Header always set X-Content-Type-Options "nosniff"
     Header always set Referrer-Policy "strict-origin-when-cross-origin"
+
+    # El navegador vuelve a validar HTML, CSS, JS y SVG en cada visita,
+    # así los cambios se ven al recargar sin tener que borrar la caché.
+    <FilesMatch "\.(html|css|js|svg)$">
+        Header set Cache-Control "no-cache"
+    </FilesMatch>
 </IfModule>
