@@ -2,6 +2,7 @@
 import { $, clone, field, fill, show, slot, money, toast, emptyState, setTitle } from '../ui.js';
 import { productArt } from '../illustrations.js';
 import { productRail } from '../components.js';
+import { offerGiftWrap } from '../gift.js';
 import { account, cartDiscountable, cartHasOutlet, cartLines, cartSubtotal, orderTotals, removeFromCart, setQuantity, shopProducts, toggleFavorite, isFavorite } from '../store.js';
 
 function cartLine(l) {
@@ -79,6 +80,11 @@ export function renderCart(page) {
     });
 
     page.addEventListener('click', function (e) {
+        if (e.target.closest('[data-action="checkout"]')) {
+            e.preventDefault();
+            offerGiftWrap(function () { window.location.hash = '#/pago'; });
+            return;
+        }
         const button = e.target.closest('[data-action="remove"], [data-action="move"]');
         if (!button) return;
         const line = button.closest('.cart-line');

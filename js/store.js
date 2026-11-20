@@ -30,7 +30,8 @@ export const state = {
     customer: null,
     accountTiers: [],
     promotions: null,
-    photos: new Set()
+    photos: new Set(),
+    giftWrap: null
 };
 
 function emit() {
@@ -50,6 +51,7 @@ export function loadCatalog(force) {
             state.shipping = data.shipping;
             state.photos = new Set(data.photos || []);
             state.accountTiers = data.account_tiers || [];
+            state.giftWrap = data.gift_wrap || null;
             pruneCart();
             return state.products;
         }).catch(function (error) {
@@ -86,6 +88,19 @@ export function stockAt(variant, idStore) {
 
 export function physicalStores() {
     return state.stores.filter(function (s) { return !s.is_online; });
+}
+
+/* ---------- Escáner ---------- */
+
+/* Busca una variante por su código de barras o su SKU. */
+export function findByCode(code) {
+    const text = String(code || '').trim().toUpperCase();
+    if (!text) return null;
+    for (const p of state.products) {
+        const v = p.variants.find(function (x) { return x.barcode === text || String(x.sku).toUpperCase() === text; });
+        if (v) return { product: p, variant: v };
+    }
+    return null;
 }
 
 /* ---------- Outlet ---------- */

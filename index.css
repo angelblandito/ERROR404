@@ -920,7 +920,7 @@ textarea.input { resize: vertical; }
         bottom: 0;
         z-index: 45;
         display: grid;
-        grid-template-columns: repeat(5, 1fr);
+        grid-template-columns: repeat(6, 1fr);
         background: #fff;
         border-top: 1px solid var(--line);
         padding-bottom: env(safe-area-inset-bottom);
@@ -1350,4 +1350,94 @@ a.range-label:hover { text-decoration: underline; }
 @media (max-width: 600px) {
     .outlet-banner { grid-template-columns: 1fr; padding: 1.25rem; }
     .outlet-banner > div:last-child { display: none; }
+}
+
+/* ---------- Escáner de la app ---------- */
+.scanner { max-width: 640px; margin: 0 auto; display: grid; gap: 1rem; }
+.scanner-head h1 { margin: .2rem 0 .3rem; }
+.scanner-camera { position: relative; aspect-ratio: 4 / 3; border-radius: var(--radius); background: #111; overflow: hidden; display: grid; place-items: center; }
+.scanner-camera video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; }
+.camera-on .scanner-camera video { opacity: 1; }
+.scanner-frame { position: absolute; inset: 22% 12%; border: 3px solid rgba(255, 255, 255, .85); border-radius: 12px; box-shadow: 0 0 0 999px rgba(0, 0, 0, .35); }
+.scanner-frame span { position: absolute; left: 6%; right: 6%; top: 50%; height: 2px; background: #ff3b30; box-shadow: 0 0 8px #ff3b30; }
+.camera-on .scanner-frame span { animation: scan-line 1.6s ease-in-out infinite alternate; }
+@keyframes scan-line { from { top: 12%; } to { top: 88%; } }
+@media (prefers-reduced-motion: reduce) { .camera-on .scanner-frame span { animation: none; } }
+.scanner-idle { position: relative; color: #ddd; font-size: .9rem; }
+.camera-on .scanner-idle { display: none; }
+.scanner-actions { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+.scanner-photo { cursor: pointer; }
+.scanner-status { min-height: 1.3rem; }
+.scanner-manual .field { margin: 0; }
+.scanner-manual-row { display: flex; gap: .5rem; margin-top: .35rem; }
+.scanner-manual-row .input { flex: 1; min-width: 0; }
+.scan-result { display: grid; gap: 1.1rem; border: 1px solid var(--line); border-radius: var(--radius); padding: 1.1rem; background: #fff; }
+.scan-result h3 { font-size: 1rem; margin-bottom: .5rem; }
+.scan-product { display: grid; grid-template-columns: 120px 1fr; gap: 1rem; align-items: center; }
+.scan-product h2 { font-size: 1.15rem; margin: .1rem 0 .25rem; }
+.scan-product h2 a { text-decoration: none; }
+.scan-price { margin-top: .35rem; font-size: 1.2rem; font-weight: 700; }
+.scan-price span + span { font-size: .9rem; color: var(--gold); }
+.scan-stock { list-style: none; margin: 0; padding: 0; display: grid; gap: .35rem; }
+.scan-stock li { display: flex; justify-content: space-between; gap: 1rem; padding: .45rem .7rem; border-radius: 8px; background: var(--soft); font-size: .92rem; }
+.scan-market { display: grid; gap: .6rem; }
+.scan-market .chart-bars { gap: .45rem; }
+.scan-market .bar-row { grid-template-columns: minmax(96px, 38%) 1fr; }
+.scan-market.locked { padding: .9rem 1rem; border-radius: var(--radius); background: var(--gold-bg); color: #5c4300; }
+.scan-verdict { font-weight: 700; }
+.scan-actions { display: grid; gap: .5rem; }
+.scanner-history h2 { font-size: 1rem; margin-bottom: .5rem; }
+.scanner-history-list { display: flex; flex-wrap: wrap; gap: .5rem; }
+
+/* ---------- Etiquetas con código de barras ---------- */
+.label-sheet { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: .75rem; margin-top: 1rem; }
+.label-card { display: grid; gap: .25rem; padding: .75rem; border: 1px dashed #bdbdbd; border-radius: 8px; background: #fff; break-inside: avoid; }
+.label-card .ean13 { width: 100%; height: auto; }
+.label-price { font-weight: 700; font-size: 1.1rem; }
+@media print {
+    body:has(.label-sheet) .site-header, body:has(.label-sheet) .announcement, body:has(.label-sheet) .site-footer,
+    body:has(.label-sheet) .tabbar, body:has(.label-sheet) .panel-head, body:has(.label-sheet) .panel-tabs,
+    body:has(.label-sheet) .labels-page .toolbar { display: none !important; }
+    .label-sheet { grid-template-columns: repeat(3, 1fr); }
+}
+
+/* ---------- Código postal ---------- */
+.zip-status { align-self: center; margin: 0; color: var(--muted); }
+
+/* ---------- Empaque de regalo ---------- */
+.wrap-red { --art-main: #d62839; --art-dark: #8c1724; --ribbon: #ffd166; }
+.wrap-green { --art-main: #2a9d55; --art-dark: #1b6637; --ribbon: #e63946; }
+.wrap-blue { --art-main: #2563eb; --art-dark: #184099; --ribbon: #ffffff; }
+.wrap-pink { --art-main: #f4a6c0; --art-dark: #b5627e; --ribbon: #ffffff; }
+.wrap-gold { --art-main: #e0b84f; --art-dark: #9a7420; --ribbon: #ffffff; }
+.wrap-silver { --art-main: #c9ced6; --art-dark: #7d8592; --ribbon: #2563eb; }
+.wrap-purple { --art-main: #7b4fd6; --art-dark: #4c2c94; --ribbon: #ffd166; }
+.wrap-black { --art-main: #22252b; --art-dark: #000000; --ribbon: #e0b84f; }
+.gift-art { display: grid; place-items: center; }
+.gift-art svg { width: 100%; max-width: 220px; height: auto; }
+.gift-offer .gift-art svg { max-width: 160px; margin: 0 auto; }
+.gift-toggle { margin-bottom: 1rem; }
+.gift-toggle > span { padding-left: 2.6rem; }
+.gift-toggle input { opacity: 1; left: 1rem; top: 1.15rem; width: 18px; height: 18px; accent-color: var(--ink); }
+.gift-options { display: grid; grid-template-columns: minmax(160px, 220px) 1fr; gap: 1.25rem; align-items: start; }
+.gift-preview { position: relative; padding: 1rem; border-radius: var(--radius); background: var(--soft); text-align: center; }
+.gift-tag { display: inline-block; margin-top: .5rem; padding: .25rem .7rem; border-radius: 999px; background: #fff; border: 1px solid var(--line); font-size: .82rem; font-weight: 700; }
+.gift-fields { display: grid; gap: .5rem; }
+.gift-fieldset { border: 0; padding: 0; margin: 0 0 .5rem; }
+.gift-fieldset legend { font-weight: 600; margin-bottom: .45rem; }
+.choice-grid.three { grid-template-columns: repeat(3, 1fr); margin-bottom: 0; }
+.choice-grid.three .choice > span { text-align: center; padding: .7rem .5rem; }
+.gift-fieldset .check { margin-bottom: .35rem; }
+.wrap-colors { display: flex; flex-wrap: wrap; gap: .5rem; }
+.wrap-color { position: relative; cursor: pointer; }
+.wrap-color input { position: absolute; opacity: 0; }
+.wrap-color em { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.wrap-dot { display: block; width: 34px; height: 34px; border-radius: 50%; background: var(--art-main); border: 2px solid #fff; box-shadow: 0 0 0 1px #cacacb; }
+.wrap-color input:checked + .wrap-dot { box-shadow: 0 0 0 2px var(--ink); }
+.wrap-color input:focus-visible + .wrap-dot { outline: 2px solid var(--ink); outline-offset: 3px; }
+.gift-line { color: var(--info); font-weight: 600; }
+@media (max-width: 600px) {
+    .gift-options { grid-template-columns: 1fr; }
+    .gift-preview .gift-art svg { max-width: 160px; }
+    .scan-product { grid-template-columns: 90px 1fr; }
 }

@@ -14,6 +14,7 @@ import { renderCart } from './views/cart.js';
 import { renderCheckout, renderConfirmation } from './views/checkout.js';
 import { authPanel, renderAccount, renderReset } from './views/account.js';
 import { renderMarket } from './views/market.js';
+import { renderScanner } from './views/scanner.js';
 import { renderSupport } from './views/support.js';
 import { renderAdmin } from './views/admin.js';
 import { renderFavorites, renderOffers, renderStores, renderHelp, renderLegal } from './views/pages.js';
@@ -38,6 +39,7 @@ const ROUTES = [
     [/^\/ayuda$/, '', function (page) { return renderHelp(page); }],
     [/^\/soporte$/, 'account', function (page) { return renderSupport(page); }],
     [/^\/mercado$/, 'account', function (page) { return renderMarket(page); }],
+    [/^\/escanear$/, 'scan', function (page) { return renderScanner(page); }],
     [/^\/restablecer$/, 'account', function (page, m, q) { return renderReset(page, q); }],
     [/^\/legal\/(\w+)$/, '', function (page, m) { return renderLegal(page, m[1]); }],
     [/^\/admin(?:\/(\w+))?$/, '', adminOnly(function (page, m) { return renderAdmin(page, m[1]); })],

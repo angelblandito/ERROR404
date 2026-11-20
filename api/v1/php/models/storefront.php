@@ -9,7 +9,8 @@
  *   POST /auth/login                    Iniciar sesión (devuelve token de sesión)
  *   POST /auth/logout                   Cerrar la sesión actual
  *   GET  /auth/me                       Datos del cliente con sesión y su tipo de cuenta
- *   GET  /me/orders                     Pedidos del cliente con sesión y el historial de cada uno
+ *   GET  /me/orders                     Pedidos del cliente con sesión, su historial y el empaque de regalo
+ *   GET  /postal-codes/{cp}             Estado, ciudad y colonias de un código postal
  *   GET  /store/products/{id}/also-bought  Productos que otros clientes compraron junto con este
  *
  * La sesión viaja en el encabezado "Authorization: Bearer <token>". En la base
@@ -26,6 +27,7 @@ const STORE_ONLINE_ID = 4;              /* Tienda en línea: surte los envíos a
 const STORE_FREE_SHIPPING_FROM = 999.00; /* Mismos valores que dbo.sp_crear_pedido */
 const STORE_SHIPPING_COST = 99.00;
 const STORE_MIN_AGE = 15;
+const STORE_GIFT_COST = 30.00;        /* Mismo valor que dbo.sp_crear_pedido */
 
 class StoreHttpException extends RuntimeException
 {
@@ -318,7 +320,7 @@ function store_catalog(): array
         ORDER BY p.id_product");
 
     $variants = store_rows($pdo, '
-        SELECT pv.id_variant, pv.id_product, pv.sku, sz.id_size, sz.code AS size, sz.name AS size_name,
+        SELECT pv.id_variant, pv.id_product, pv.sku, pv.barcode, sz.id_size, sz.code AS size, sz.name AS size_name,
                cl.id_color, cl.code AS color_code, cl.name AS color
         FROM dbo.product_variant AS pv
         JOIN dbo.size AS sz ON sz.id_size = pv.id_size
@@ -359,6 +361,7 @@ function store_catalog(): array
         $variantsByProduct[(int)$v['id_product']][] = [
             'id_variant' => $id,
             'sku' => $v['sku'],
+            'barcode' => $v['barcode'],
             'id_size' => (int)$v['id_size'],
             'size' => $v['size'],
             'size_name' => $v['size_name'],
@@ -415,6 +418,7 @@ function store_catalog(): array
         'stores' => $stores,
         'online_store' => STORE_ONLINE_ID,
         'shipping' => ['free_from' => STORE_FREE_SHIPPING_FROM, 'cost' => STORE_SHIPPING_COST],
+        'gift_wrap' => ['cost' => STORE_GIFT_COST],
         'photos' => store_photo_files(),
         'account_tiers' => $tiers,
     ];
@@ -619,13 +623,15 @@ function store_my_orders(): array
 
     $orders = store_rows($pdo, "
         SELECT co.id_order, co.order_date, co.status, co.channel, co.delivery_type, co.subtotal, co.discount,
-               co.shipping_cost, co.total, co.priority_shipping, s.store_name, pr.code AS promotion_code,
+               co.shipping_cost, co.gift_cost, co.total, co.priority_shipping, s.store_name, pr.code AS promotion_code,
+               g.occasion AS gift_occasion, g.wrap_color AS gift_color, g.recipient_name AS gift_recipient, g.message AS gift_message,
                pay.method AS payment_method, pay.status AS payment_status,
                a.street, a.ext_number, a.neighborhood, a.city, a.zip_code
         FROM dbo.customer_order AS co
         JOIN dbo.store AS s ON s.id_store = co.id_store
         LEFT JOIN dbo.promotion AS pr ON pr.id_promotion = co.id_promotion
         LEFT JOIN dbo.address AS a ON a.id_address = co.id_address
+        LEFT JOIN dbo.order_gift AS g ON g.id_order = co.id_order
         OUTER APPLY (
             SELECT TOP (1) p.method, p.status
             FROM dbo.payment AS p
@@ -680,6 +686,32 @@ function store_my_orders(): array
     }
     unset($o);
     return $orders;
+}
+
+/* ---------------------------------------------------------------------
+   Códigos postales
+   --------------------------------------------------------------------- */
+function store_postal_code(string $zip): array
+{
+    $rows = store_rows(store_db(), '
+        SELECT pc.zip_code, pc.settlement, pc.settlement_type, pc.municipality, pc.city, pc.id_state, s.name AS state
+        FROM dbo.postal_code AS pc
+        JOIN dbo.state AS s ON s.id_state = pc.id_state
+        WHERE pc.zip_code = :zip
+        ORDER BY pc.settlement', [':zip' => $zip]);
+    if (!$rows) {
+        throw new StoreHttpException(404, 'No tenemos registrado ese código postal. Escribe la colonia, la ciudad y el estado.');
+    }
+    return [
+        'zip_code' => $zip,
+        'id_state' => (int)$rows[0]['id_state'],
+        'state' => $rows[0]['state'],
+        'city' => $rows[0]['city'],
+        'municipality' => $rows[0]['municipality'],
+        'settlements' => array_map(function ($r) {
+            return ['name' => $r['settlement'], 'type' => $r['settlement_type']];
+        }, $rows),
+    ];
 }
 
 /* ---------------------------------------------------------------------
@@ -747,6 +779,8 @@ function store_handle(string $method, string $uri, array $body): bool
             store_ok(200, store_reviews((int)$m[1]), 'Reseñas');
         } elseif ($method === 'GET' && preg_match('#^/store/products/(\d+)/also-bought$#', $uri, $m)) {
             store_ok(200, store_also_bought((int)$m[1]), 'También compraron');
+        } elseif ($method === 'GET' && preg_match('#^/postal-codes/(\d{5})$#', $uri, $m)) {
+            store_ok(200, store_postal_code($m[1]), 'Código postal');
         } elseif ($method === 'POST' && $uri === '/store/reviews') {
             store_ok(201, store_create_review($body), 'Reseña publicada');
         } elseif ($method === 'POST' && $uri === '/auth/register') {

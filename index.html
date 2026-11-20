@@ -99,6 +99,7 @@
             </nav>
             <div class="mobile-secondary">
                 <a href="#/cuenta">Mi cuenta y pedidos</a>
+                <a href="#/escanear">Escanear un producto</a>
                 <a href="#/mercado" data-role="priority" hidden>Comparador de mercado</a>
                 <a href="#/soporte">Soporte</a>
                 <a href="#/sucursales">Sucursales</a>
@@ -133,6 +134,7 @@
             <div>
                 <h3>JAM Sport</h3>
                 <a href="#/sucursales">Sucursales</a>
+                <a href="#/escanear">Escanear un producto</a>
                 <a href="#/cuenta">Clientes Prioritarios</a>
                 <a href="#/mercado" data-role="priority" hidden>Comparador de mercado</a>
                 <a href="#/admin" data-role="admin" hidden>Administración</a>
@@ -170,6 +172,7 @@
     <nav class="tabbar" aria-label="Navegación rápida">
         <a href="#/" data-tab="home"><svg aria-hidden="true"><use href="img/iconos.svg#home"></use></svg><span>Inicio</span></a>
         <a href="#/tienda" data-tab="shop"><svg aria-hidden="true"><use href="img/iconos.svg#search"></use></svg><span>Tienda</span></a>
+        <a href="#/escanear" data-tab="scan"><svg aria-hidden="true"><use href="img/iconos.svg#scan"></use></svg><span>Escanear</span></a>
         <a href="#/favoritos" data-tab="favorites"><svg aria-hidden="true"><use href="img/iconos.svg#heart"></use></svg><span>Favoritos</span><i class="count" data-count="favorites" hidden>0</i></a>
         <a href="#/carrito" data-tab="cart"><svg aria-hidden="true"><use href="img/iconos.svg#cart"></use></svg><span>Carrito</span><i class="count" data-count="cart" hidden>0</i></a>
         <a href="#/cuenta" data-tab="account"><svg aria-hidden="true"><use href="img/iconos.svg#user"></use></svg><span>Cuenta</span></a>
@@ -612,7 +615,7 @@
                 <p class="muted small">Recoger en sucursal no tiene costo. Los cupones se aplican al pagar.</p>
                 <p class="outlet-text small" data-field="cartOutletNote" hidden>Los artículos de outlet ya tienen su descuento: no se les aplican cupones ni el descuento de tu cuenta, y no tienen cambios ni devoluciones.</p>
                 <div class="sum-row total"><span>Total estimado</span><span data-field="cartTotal"></span></div>
-                <a class="btn btn-dark btn-block btn-lg" href="#/pago">Pagar</a>
+                <a class="btn btn-dark btn-block btn-lg" href="#/pago" data-action="checkout">Pagar</a>
                 <a class="btn btn-ghost btn-block" href="#/tienda">Seguir comprando</a>
             </aside>
         </div>
@@ -653,13 +656,17 @@
                     <div data-slot="shippingFields">
                         <p class="muted small">Recibe: <span data-field="receiver"></span></p>
                         <div class="field-row">
+                            <label class="field"><span>Código postal</span><input class="input" name="zip_code" inputmode="numeric" maxlength="5" autocomplete="postal-code" placeholder="22000"></label>
+                            <p class="zip-status small" data-field="zipStatus" aria-live="polite">Escribe tu código postal y llenamos colonia, ciudad y estado.</p>
+                        </div>
+                        <div class="field-row">
                             <label class="field grow"><span>Calle</span><input class="input" name="street" maxlength="100" autocomplete="address-line1"></label>
                             <label class="field"><span>Número</span><input class="input" name="ext_number" maxlength="10"></label>
                             <label class="field"><span>Interior</span><input class="input" name="int_number" maxlength="10"></label>
                         </div>
                         <div class="field-row">
-                            <label class="field grow"><span>Colonia</span><input class="input" name="neighborhood" maxlength="80"></label>
-                            <label class="field"><span>Código postal</span><input class="input" name="zip_code" inputmode="numeric" maxlength="5" autocomplete="postal-code"></label>
+                            <label class="field grow"><span>Colonia</span><input class="input" name="neighborhood" maxlength="80" list="neighborhoodOptions" autocomplete="off"></label>
+                            <datalist id="neighborhoodOptions" data-slot="neighborhoods"></datalist>
                         </div>
                         <div class="field-row">
                             <label class="field grow"><span>Ciudad</span><input class="input" name="city" maxlength="60" autocomplete="address-level2"></label>
@@ -670,8 +677,45 @@
                     <div data-slot="pickupFields" hidden></div>
                 </section>
 
+                <section class="step gift-step">
+                    <h2><span>2</span> Empaque de regalo</h2>
+                    <label class="choice gift-toggle">
+                        <input type="checkbox" name="gift_wrap">
+                        <span><strong>Empaque especial JAM</strong><em>+ <span data-field="giftCost"></span> · papel de color, moño y tarjeta</em></span>
+                    </label>
+                    <div class="gift-options" data-slot="giftOptions" hidden>
+                        <div class="gift-preview" data-slot="giftPreview">
+                            <span class="gift-tag" data-field="giftTag"></span>
+                        </div>
+                        <div class="gift-fields">
+                            <fieldset class="gift-fieldset">
+                                <legend>Ocasión</legend>
+                                <div class="choice-grid three">
+                                    <label class="choice"><input type="radio" name="gift_occasion" value="birthday" checked><span><strong>Cumpleaños</strong></span></label>
+                                    <label class="choice"><input type="radio" name="gift_occasion" value="friendship"><span><strong>Amistad</strong></span></label>
+                                    <label class="choice"><input type="radio" name="gift_occasion" value="christmas"><span><strong>Navidad</strong></span></label>
+                                </div>
+                            </fieldset>
+                            <fieldset class="gift-fieldset">
+                                <legend>Color del papel: <strong data-field="giftColorName"></strong></legend>
+                                <div class="wrap-colors" data-slot="wrapColors"></div>
+                            </fieldset>
+                            <fieldset class="gift-fieldset">
+                                <legend>Tarjeta</legend>
+                                <label class="check"><input type="radio" name="gift_mode" value="plain" checked> Solo envolver para regalo</label>
+                                <label class="check"><input type="radio" name="gift_mode" value="card"> Agregar tarjeta con el nombre de quien lo recibe</label>
+                            </fieldset>
+                            <div data-slot="giftCard" hidden>
+                                <label class="field"><span>Para</span><input class="input" name="gift_recipient" maxlength="60" placeholder="Nombre de quien lo recibe"></label>
+                                <label class="field"><span>Dedicatoria (opcional)</span><textarea class="input" name="gift_message" rows="2" maxlength="200" placeholder="¡Feliz cumpleaños!"></textarea></label>
+                            </div>
+                            <p class="muted small">El regalo llega al domicilio que escribas en Entrega, que puede ser el de quien lo recibe, o lo recoges en sucursal.</p>
+                        </div>
+                    </div>
+                </section>
+
                 <section class="step">
-                    <h2><span>2</span> Pago</h2>
+                    <h2><span>3</span> Pago</h2>
                     <div class="choice-grid">
                         <label class="choice"><input type="radio" name="payment" value="card" checked><span><strong>Tarjeta</strong><em>Aprobación inmediata</em></span></label>
                         <label class="choice"><input type="radio" name="payment" value="oxxo"><span><strong>OXXO</strong><em>Paga en efectivo en OXXO</em></span></label>
@@ -701,6 +745,7 @@
                 <div class="sum-row"><span>Subtotal</span><span data-field="orderSubtotal"></span></div>
                 <div class="sum-row member-text" data-field="tierRow" hidden><span>Descuento <span data-field="tierName"></span></span><span data-field="tierDiscount"></span></div>
                 <div class="sum-row ok-text" data-field="discountRow" hidden><span>Cupón <span data-field="couponCode"></span></span><span data-field="orderDiscount"></span></div>
+                <div class="sum-row" data-field="giftRow" hidden><span>Empaque de regalo</span><span data-field="giftAmount"></span></div>
                 <div class="sum-row"><span>Envío</span><span data-field="orderShipping"></span></div>
                 <div class="sum-row total"><span>Total</span><span data-field="orderTotal"></span></div>
                 <p class="outlet-text small" data-field="outletNote" hidden>Tu pedido tiene artículos de outlet: no tienen cambios ni devoluciones y no se les aplican cupones.</p>
@@ -734,6 +779,7 @@
             <p class="notice" data-field="instructions" hidden></p>
             <p data-field="pickup" hidden></p>
             <p data-field="shipping" hidden></p>
+            <p class="gift-line" data-field="gift" hidden></p>
             <div class="confirm-actions">
                 <a class="btn btn-dark" href="#/cuenta">Ver mis pedidos</a>
                 <a class="btn btn-ghost" href="#/tienda">Seguir comprando</a>
@@ -902,6 +948,7 @@
                 <span data-slot="status"></span>
             </header>
             <div data-slot="timeline"></div>
+            <p class="gift-line small" data-field="giftLine" hidden></p>
             <div class="order-items" data-slot="items"></div>
             <footer><span class="muted small" data-field="info"></span><strong data-field="total"></strong></footer>
         </article>
@@ -996,6 +1043,131 @@
                 <button class="btn btn-dark btn-block btn-lg" value="ok" autofocus>Entendido, ver el outlet</button>
             </form>
         </dialog>
+    </template>
+
+
+    <!-- ===================== Plantillas: regalo y escáner ===================== -->
+    <template id="tpl-wrap-color">
+        <label class="wrap-color"><input type="radio" name="gift_color"><span class="wrap-dot"></span><em></em></label>
+    </template>
+
+    <template id="tpl-gift-art">
+        <div class="gift-art"><svg viewBox="0 0 240 180" role="img"><use href="img/ilustraciones.svg#giftbox"></use></svg></div>
+    </template>
+
+    <template id="tpl-gift-offer">
+        <dialog class="notice-dialog gift-offer" aria-labelledby="giftOfferTitle">
+            <form method="dialog">
+                <div data-slot="preview"></div>
+                <p class="eyebrow-dark">Empaque especial JAM</p>
+                <h2 id="giftOfferTitle">¿Es para regalo?</h2>
+                <p>Lo envolvemos con papel del color que elijas, moño y tarjeta de cumpleaños, amistad o Navidad por solo <strong data-field="cost"></strong>.</p>
+                <p class="muted small">Puede llegar directo al domicilio de quien lo recibe o lo recoges en sucursal.</p>
+                <button class="btn btn-dark btn-block btn-lg" value="gift">Sí, empacar para regalo</button>
+                <button class="btn btn-ghost btn-block" value="no">No, gracias</button>
+            </form>
+        </dialog>
+    </template>
+
+    <template id="tpl-scanner">
+        <div class="scanner">
+            <header class="scanner-head">
+                <p class="eyebrow-dark">App JAM</p>
+                <h1>Escanear producto</h1>
+                <p class="muted">Apunta al código de barras de la etiqueta para ver si hay existencias y comparar su precio con el mercado.</p>
+            </header>
+            <div class="scanner-camera" data-slot="camera">
+                <video playsinline muted aria-label="Vista de la cámara"></video>
+                <div class="scanner-frame" aria-hidden="true"><span></span></div>
+                <p class="scanner-idle" data-field="idle">La cámara está apagada</p>
+            </div>
+            <div class="scanner-actions">
+                <button class="btn btn-dark btn-lg" type="button" data-action="camera">Activar cámara</button>
+                <label class="btn btn-ghost btn-lg scanner-photo">Tomar foto del código<input type="file" accept="image/*" capture="environment" hidden></label>
+            </div>
+            <p class="scanner-status small" data-field="status" role="status"></p>
+            <form class="scanner-manual">
+                <label class="field"><span>¿No se puede escanear? Escribe el código de barras, el SKU o el nombre</span>
+                    <span class="scanner-manual-row">
+                        <input class="input" name="code" inputmode="search" autocomplete="off" placeholder="7501234000017 o JAM-PRO-M-BLK">
+                        <button class="btn btn-dark">Buscar</button>
+                    </span>
+                </label>
+            </form>
+            <div data-slot="result"></div>
+            <section class="scanner-history" data-slot="historyBox" hidden>
+                <h2>Escaneados en esta visita</h2>
+                <div class="scanner-history-list" data-slot="history"></div>
+            </section>
+        </div>
+    </template>
+
+    <template id="tpl-scan-result">
+        <article class="scan-result">
+            <div class="scan-product">
+                <a data-slot="art"></a>
+                <div>
+                    <p class="eyebrow-dark" data-field="category"></p>
+                    <h2><a data-field="name"></a></h2>
+                    <p class="muted small" data-field="variant"></p>
+                    <p class="scan-price"><span data-field="price"></span> <span data-field="yourPrice"></span></p>
+                    <p class="small" data-field="codes"></p>
+                </div>
+            </div>
+            <section>
+                <h3>Existencias</h3>
+                <ul class="scan-stock" data-slot="stock"></ul>
+            </section>
+            <section data-slot="market"></section>
+            <div class="scan-actions">
+                <button class="btn btn-dark btn-block btn-lg" type="button" data-action="add">Agregar al carrito</button>
+                <a class="btn btn-ghost btn-block" data-field="link">Ver el producto</a>
+            </div>
+        </article>
+    </template>
+
+    <template id="tpl-scan-stock">
+        <li><span data-field="store"></span><strong data-field="status"></strong></li>
+    </template>
+
+    <template id="tpl-scan-market">
+        <div class="scan-market">
+            <h3>Comparación con el mercado</h3>
+            <p class="scan-verdict" data-field="verdict"></p>
+            <div data-slot="chart"></div>
+            <ul class="offer-list" data-slot="offers"></ul>
+            <p class="muted small" data-field="date"></p>
+        </div>
+    </template>
+
+    <template id="tpl-scan-locked">
+        <div class="scan-market locked">
+            <h3>Comparación con el mercado</h3>
+            <p>Comparar este producto con Nike, Adidas y Puma es un beneficio de las cuentas Prioritario.</p>
+            <a class="link-btn" href="#/cuenta">Ver mis beneficios</a>
+        </div>
+    </template>
+
+    <template id="tpl-admin-labels">
+        <div class="labels-page">
+            <div class="toolbar between">
+                <p class="muted">Etiquetas con el código de barras EAN-13 de cada variante. Imprímelas o ábrelas en otra pantalla para probar el escáner desde el celular.</p>
+                <div class="row-actions">
+                    <select class="input" name="product" aria-label="Producto"><option value="">Todos los productos</option></select>
+                    <button class="btn btn-dark" type="button" data-action="print">Imprimir</button>
+                </div>
+            </div>
+            <div class="label-sheet" data-slot="labels"></div>
+        </div>
+    </template>
+
+    <template id="tpl-label">
+        <article class="label-card">
+            <strong data-field="name"></strong>
+            <span class="small" data-field="variant"></span>
+            <div data-slot="barcode"></div>
+            <span class="label-price" data-field="price"></span>
+        </article>
     </template>
 
     <!-- ===================== Plantillas: seguimiento y contraseña ===================== -->
@@ -1289,6 +1461,7 @@
                 <a href="#/admin/comunicados" data-section="comunicados">Comunicados</a>
                 <a href="#/admin/mercado" data-section="mercado">Mercado</a>
                 <a href="#/admin/correos" data-section="correos">Correos</a>
+                <a href="#/admin/etiquetas" data-section="etiquetas">Etiquetas</a>
                 <a href="#/panel/distribuida">Base distribuida</a>
             </nav>
             <div data-slot="content"></div>

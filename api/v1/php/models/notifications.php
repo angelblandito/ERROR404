@@ -74,10 +74,12 @@ function notify_order_created(PDO $pdo, int $idOrder): void
 {
     $rows = store_rows($pdo, "
         SELECT co.id_customer, co.total, co.delivery_type, co.priority_shipping, c.first_name, s.store_name,
+               g.recipient_name AS gift_recipient, CASE WHEN g.id_order IS NULL THEN 0 ELSE 1 END AS is_gift,
                (SELECT SUM(quantity) FROM dbo.order_item WHERE id_order = co.id_order AND deleted = 0) AS units
         FROM dbo.customer_order AS co
         JOIN dbo.customer AS c ON c.id_customer = co.id_customer
         JOIN dbo.store AS s ON s.id_store = co.id_store
+        LEFT JOIN dbo.order_gift AS g ON g.id_order = co.id_order
         WHERE co.id_order = :id", [':id' => $idOrder]);
     if (!$rows) {
         return;
@@ -91,6 +93,7 @@ function notify_order_created(PDO $pdo, int $idOrder): void
         "Confirmación de tu pedido #$idOrder",
         'Hola ' . $o['first_name'] . ', recibimos tu pedido #' . $idOrder . ' con ' . (int)$o['units']
             . ' pieza(s) por ' . notify_money((float)$o['total']) . '. ' . $delivery
+            . ((int)$o['is_gift'] === 1 ? ' Va con empaque especial de regalo' . ($o['gift_recipient'] ? ' para ' . $o['gift_recipient'] : '') . '.' : '')
             . ' Puedes seguir su estado en Mi cuenta.',
         notify_store_link('#/cuenta'));
 }

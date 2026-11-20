@@ -3,6 +3,7 @@ import { api } from '../api.js';
 import { $, $$, clone, field, fill, show, slot, money, badge, message, toast, emptyState, formatDate, loading, setTitle, ORDER_STATUS, PAYMENT_METHODS } from '../ui.js';
 import { productArt } from '../illustrations.js';
 import { announcementsSection, benefitItems } from '../components.js';
+import { giftSummary } from '../gift.js';
 import { account, isPriority, loadAnnouncements, login, logout, register, state, tierInfo } from '../store.js';
 
 export function authPanel(title, intro, onSuccess) {
@@ -149,6 +150,11 @@ function orderCard(o) {
     }
     slot(card, 'items').append(...o.items.map(orderLine));
     slot(card, 'timeline').replaceWith(orderTimeline(o));
+    if (o.gift_occasion) {
+        const gift = show(field(card, 'giftLine'), true);
+        gift.textContent = giftSummary(o.gift_occasion, o.gift_color, o.gift_recipient)
+            + (o.gift_message ? ' · “' + o.gift_message + '”' : '');
+    }
     return card;
 }
 

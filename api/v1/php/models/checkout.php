@@ -7,7 +7,8 @@
  *   "promotion_code": "BIENVENIDA10", "notes": "...",
  *   "address": {"street": "...", "ext_number": "...", "int_number": "", "neighborhood": "...",
  *               "city": "...", "id_state": 1, "zip_code": "22000", "reference": "..."},
- *   "items": [{"id_variant": 1, "quantity": 2}]
+ *   "items": [{"id_variant": 1, "quantity": 2}],
+ *   "gift": {"occasion": "birthday", "color": "red", "recipient": "Ana", "message": "..."}   (opcional, $30)
  * }
  * El cliente sale de la sesión, nunca del cuerpo de la petición. Precios,
  * descuento (cupón + tipo de cuenta), envío, total, stock y pago se resuelven
@@ -49,7 +50,12 @@ if ($DB_Error === null) {
             @city = :city,
             @id_state = :id_state,
             @zip_code = :zip_code,
-            @reference = :reference';
+            @reference = :reference,
+            @gift_wrap = :gift_wrap,
+            @gift_occasion = :gift_occasion,
+            @gift_color = :gift_color,
+            @gift_recipient = :gift_recipient,
+            @gift_message = :gift_message';
 
         $SQL_Sentence = $DB_Connector->prepare($SQL_Query);
         $SQL_Sentence->bindValue(':id_store', $idStore, PDO::PARAM_INT);
@@ -65,6 +71,13 @@ if ($DB_Error === null) {
             $SQL_Sentence->bindValue(':' . $field, isset($address[$field]) ? (string)$address[$field] : null, PDO::PARAM_STR);
         }
         $SQL_Sentence->bindValue(':id_state', $address['id_state'] ?? null, PDO::PARAM_INT);
+
+        $gift = isset($body['gift']) && is_array($body['gift']) ? $body['gift'] : null;
+        $SQL_Sentence->bindValue(':gift_wrap', $gift !== null ? 1 : 0, PDO::PARAM_INT);
+        foreach (['occasion' => ':gift_occasion', 'color' => ':gift_color', 'recipient' => ':gift_recipient', 'message' => ':gift_message'] as $key => $param) {
+            $value = $gift !== null && isset($gift[$key]) ? trim((string)$gift[$key]) : null;
+            $SQL_Sentence->bindValue($param, $value === '' ? null : $value, $value === null || $value === '' ? PDO::PARAM_NULL : PDO::PARAM_STR);
+        }
         $SQL_Sentence->execute();
 
         $Checkout = $SQL_Sentence->fetch(PDO::FETCH_ASSOC);
@@ -73,6 +86,7 @@ if ($DB_Error === null) {
         } else {
             $Checkout['id_order'] = (int)$Checkout['id_order'];
             $Checkout['priority_shipping'] = (bool)$Checkout['priority_shipping'];
+            $Checkout['gift_cost'] = (float)$Checkout['gift_cost'];
 
             $CheckoutOrder = $Checkout['id_order'];
             notify_safely(function () use ($DB_Connector, $CheckoutOrder) {

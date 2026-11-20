@@ -15,9 +15,11 @@
          envío gratis y prioritario, y piezas permitidas por artículo;
        - cobra los productos de outlet con su descuento fijo
          (product.outlet_percent); a esos no se les suma cupón ni descuento
-         de la cuenta.
+         de la cuenta;
+       - registra el empaque de regalo ($30): ocasión, color del papel y, si
+         se quiere, para quién es y una dedicatoria (tabla order_gift).
      Si cualquier paso falla no queda nada a medias (XACT_ABORT + TRY/CATCH).
-     Errores de negocio: THROW 50001-50016, la API los devuelve como HTTP 409.
+     Errores de negocio: THROW 50001-50019, la API los devuelve como HTTP 409.
 
    dbo.sp_evaluar_clientes_prioritarios
      Sube a Prioritario a los clientes Estándar con al menos un año de
@@ -49,7 +51,12 @@ CREATE OR ALTER PROCEDURE dbo.sp_crear_pedido
     @city            NVARCHAR(60)  = NULL,
     @id_state        TINYINT       = NULL,
     @zip_code        CHAR(5)       = NULL,
-    @reference       NVARCHAR(150) = NULL
+    @reference       NVARCHAR(150) = NULL,
+    @gift_wrap       BIT           = 0,         -- 1: empaque especial JAM para regalo
+    @gift_occasion   VARCHAR(10)   = NULL,      -- birthday | friendship | christmas
+    @gift_color      VARCHAR(8)    = NULL,      -- red | green | blue | pink | gold | silver | purple | black
+    @gift_recipient  NVARCHAR(60)  = NULL,      -- para quién es (opcional)
+    @gift_message    NVARCHAR(200) = NULL       -- dedicatoria (opcional)
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -58,6 +65,7 @@ BEGIN
     /* El envío cuesta $99; el monto para envío gratis depende del tipo de cuenta.
        Recoger en sucursal no cuesta. */
     DECLARE @costo_envio DECIMAL(8,2) = 99.00;
+    DECLARE @costo_regalo DECIMAL(6,2) = 30.00;
 
     DECLARE @tier_code          VARCHAR(10),
             @tier_discount      DECIMAL(4,2),
@@ -138,6 +146,19 @@ BEGIN
     IF @payment_method = 'cash' AND @delivery_type <> 'pickup'
         THROW 50015, N'El pago en efectivo solo aplica al recoger en sucursal.', 1;
 
+    SET @gift_wrap = ISNULL(@gift_wrap, 0);
+    SET @gift_recipient = NULLIF(LTRIM(RTRIM(@gift_recipient)), '');
+    SET @gift_message = NULLIF(LTRIM(RTRIM(@gift_message)), '');
+
+    IF @gift_wrap = 1 AND (@gift_occasion IS NULL OR @gift_occasion NOT IN ('birthday', 'friendship', 'christmas'))
+        THROW 50017, N'Elige la ocasión del regalo: cumpleaños, amistad o Navidad.', 1;
+
+    IF @gift_wrap = 1 AND (@gift_color IS NULL OR @gift_color NOT IN ('red', 'green', 'blue', 'pink', 'gold', 'silver', 'purple', 'black'))
+        THROW 50018, N'Elige un color de papel para el regalo.', 1;
+
+    IF @gift_wrap = 1 AND @gift_message IS NOT NULL AND @gift_recipient IS NULL
+        THROW 50019, N'Para agregar una dedicatoria escribe para quién es el regalo.', 1;
+
     /* Precios desde el catálogo; el outlet ya trae su descuento en el precio. */
     UPDATE l
     SET l.unit_price = CASE WHEN p.outlet_percent IS NULL THEN p.base_price
@@ -178,7 +199,8 @@ BEGIN
     DECLARE @tier_amount DECIMAL(10,2) = ROUND(@con_descuento * @tier_discount / 100, 2);
     DECLARE @shipping DECIMAL(8,2) =
         CASE WHEN @delivery_type = 'shipping' AND @subtotal - @discount < @envio_gratis_desde THEN @costo_envio ELSE 0 END;
-    DECLARE @total DECIMAL(10,2) = @subtotal - @discount + @shipping;
+    DECLARE @gift_cost DECIMAL(6,2) = CASE WHEN @gift_wrap = 1 THEN @costo_regalo ELSE 0 END;
+    DECLARE @total DECIMAL(10,2) = @subtotal - @discount + @shipping + @gift_cost;
     DECLARE @priority_shipping BIT =
         CASE WHEN @delivery_type = 'shipping' AND @tier_code IN ('priority', 'admin') THEN 1 ELSE 0 END;
 
@@ -217,12 +239,16 @@ BEGIN
 
         INSERT INTO dbo.customer_order
             (id_store, id_customer, id_employee, id_promotion, status, channel,
-             subtotal, discount, total, delivery_type, id_address, shipping_cost, priority_shipping, notes, source_node)
+             subtotal, discount, total, delivery_type, id_address, shipping_cost, gift_cost, priority_shipping, notes, source_node)
         VALUES
             (@id_store, @id_customer, @id_employee, @id_promotion, @order_status, @channel,
-             @subtotal, @discount, @total, @delivery_type, @id_address, @shipping, @priority_shipping, @notes, @source_node);
+             @subtotal, @discount, @total, @delivery_type, @id_address, @shipping, @gift_cost, @priority_shipping, @notes, @source_node);
 
         SET @id_order = CAST(SCOPE_IDENTITY() AS INT);
+
+        IF @gift_wrap = 1
+            INSERT INTO dbo.order_gift (id_order, occasion, wrap_color, recipient_name, message, source_node)
+            VALUES (@id_order, @gift_occasion, @gift_color, @gift_recipient, @gift_message, @source_node);
 
         INSERT INTO dbo.order_item (id_order, id_variant, quantity, unit_price, source_node)
         SELECT @id_order, id_variant, quantity, unit_price, @source_node
@@ -248,6 +274,7 @@ BEGIN
            @discount       AS discount,
            @tier_amount    AS tier_discount,
            @shipping       AS shipping_cost,
+           @gift_cost      AS gift_cost,
            @total          AS total,
            @priority_shipping AS priority_shipping;
 END;

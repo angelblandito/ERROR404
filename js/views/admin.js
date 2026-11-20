@@ -6,6 +6,8 @@ import { tierBadge } from '../components.js';
 import { colorsOf, loadCatalog, state, stockAt } from '../store.js';
 import { ticketStatus } from './support.js';
 import { barChart, chartEmpty, columnChart, compactMoney } from '../charts.js';
+import { ean13Svg } from '../barcode.js';
+import { giftSummary } from '../gift.js';
 
 const SECTIONS = {
     resumen: ['Resumen', 'Ventas, pedidos por surtir y soporte de un vistazo.', 'tpl-admin-summary'],
@@ -15,7 +17,8 @@ const SECTIONS = {
     soporte: ['Soporte', 'Cola de tickets ordenada por prioridad y plazo de respuesta.', 'tpl-admin-tickets'],
     comunicados: ['Comunicados', 'Avisos para todos los clientes o solo para los Prioritarios.', 'tpl-admin-announcements'],
     mercado: ['Mercado', 'Precios de la competencia para el comparador de los clientes Prioritarios.', 'tpl-admin-market'],
-    correos: ['Correos', 'Bandeja simulada con los correos que la tienda envía a sus clientes.', 'tpl-admin-emails']
+    correos: ['Correos', 'Bandeja simulada con los correos que la tienda envía a sus clientes.', 'tpl-admin-emails'],
+    etiquetas: ['Etiquetas', 'Códigos de barras para el escáner de la app.', 'tpl-admin-labels']
 };
 
 const EMAIL_KINDS = {
@@ -121,6 +124,11 @@ function orderRow(o, reload) {
     });
     slot(row, 'tier').replaceWith(tierBadge(o.tier));
     slot(row, 'status').append(badge(st.label, st.css));
+    if (o.gift_occasion) {
+        const gift = badge('Regalo', 'info');
+        gift.title = giftSummary(o.gift_occasion, o.gift_color, o.gift_recipient);
+        slot(row, 'status').append(' ', gift);
+    }
     if (o.priority_shipping) {
         slot(row, 'priority').replaceWith(badge('Prioritario', 'gold'));
         row.classList.add('priority-row');
@@ -481,6 +489,30 @@ async function loadEmails(content) {
         : [message('Todavía no se ha enviado ningún correo.')]));
 }
 
+/* ---------- Etiquetas ---------- */
+function labelCard(p, v) {
+    const card = fill(clone('tpl-label'), {
+        name: p.name,
+        variant: v.color + ' · ' + (v.size === 'UNI' ? 'Unitalla' : 'Talla ' + v.size) + ' · ' + v.sku,
+        price: money.format(p.sale_price !== undefined ? p.sale_price : p.base_price)
+    });
+    slot(card, 'barcode').replaceWith(ean13Svg(v.barcode));
+    return card;
+}
+
+function renderLabels(content) {
+    const select = $('select[name="product"]', content);
+    if (select.options.length === 1) {
+        state.products.forEach(function (p) { select.add(new Option(p.name, p.id_product)); });
+    }
+    const id = Number(select.value);
+    const cards = [];
+    state.products.filter(function (p) { return !id || p.id_product === id; }).forEach(function (p) {
+        p.variants.filter(function (v) { return v.barcode; }).forEach(function (v) { cards.push(labelCard(p, v)); });
+    });
+    slot(content, 'labels').replaceChildren(...(cards.length ? cards : [message('No hay variantes con código de barras. Vuelve a ejecutar db_jam.sql.')]));
+}
+
 /* ---------- Vista ---------- */
 async function loadSection(section, content) {
     if (section === 'resumen') return loadSummary(content);
@@ -490,6 +522,7 @@ async function loadSection(section, content) {
     if (section === 'soporte') return loadTickets(content);
     if (section === 'mercado') return loadMarket(content);
     if (section === 'correos') return loadEmails(content);
+    if (section === 'etiquetas') return renderLabels(content);
     return loadAnnouncementList(content);
 }
 
@@ -514,6 +547,9 @@ function bindSection(section, content) {
         bindAnnouncementForm(content);
     } else if (section === 'mercado') {
         bindMarketForm(content);
+    } else if (section === 'etiquetas') {
+        $('select[name="product"]', content).addEventListener('change', function () { renderLabels(content); });
+        $('[data-action="print"]', content).addEventListener('click', function () { window.print(); });
     }
 }
 

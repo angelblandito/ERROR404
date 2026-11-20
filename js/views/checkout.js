@@ -4,6 +4,7 @@ import { $, clone, field, fill, show, slot, money, toast, emptyState, setTitle }
 import { productArt } from '../illustrations.js';
 import { account, activePromotions, cartDiscountable, cartHasOutlet, cartLines, cartSubtotal, clearCart, loadCatalog, orderTotals, physicalStores, state, stockAt } from '../store.js';
 import { authPanel } from './account.js';
+import { OCCASIONS, WRAP_COLORS, giftArt, giftCost, giftSummary, savedGift, saveGift, suggestedColor } from '../gift.js';
 
 let statesCache = null;
 
@@ -57,6 +58,110 @@ function summaryLine(l) {
     return line;
 }
 
+/* Código postal: llena estado y ciudad y sugiere las colonias (tabla postal_code). */
+function bindZipLookup(checkout, form) {
+    const status = field(checkout, 'zipStatus');
+    const options = slot(checkout, 'neighborhoods');
+    let lastZip = '';
+
+    form.zip_code.addEventListener('input', async function () {
+        const zip = form.zip_code.value.replace(/\D/g, '').slice(0, 5);
+        form.zip_code.value = zip;
+        if (zip.length < 5) {
+            status.className = 'zip-status small';
+            status.textContent = 'Escribe tu código postal y llenamos colonia, ciudad y estado.';
+            return;
+        }
+        if (zip === lastZip) return;
+        lastZip = zip;
+        status.textContent = 'Buscando el código postal…';
+        try {
+            const data = await api('/postal-codes/' + zip);
+            if (form.zip_code.value !== zip) return;
+            form.city.value = data.city;
+            form.id_state.value = String(data.id_state);
+            options.replaceChildren(...data.settlements.map(function (s) { return new Option(s.type, s.name); }));
+            if (data.settlements.length === 1) {
+                form.neighborhood.value = data.settlements[0].name;
+            } else if (!data.settlements.some(function (s) { return s.name === form.neighborhood.value; })) {
+                form.neighborhood.value = '';
+            }
+            status.className = 'zip-status small ok-text';
+            status.textContent = '✓ ' + data.city + ', ' + data.state + ' · '
+                + (data.settlements.length === 1 ? 'colonia ' + data.settlements[0].name : data.settlements.length + ' colonias: elige la tuya');
+            form.dispatchEvent(new Event('change'));
+            (data.settlements.length === 1 ? form.street : form.neighborhood).focus();
+        } catch (err) {
+            options.replaceChildren();
+            status.className = 'zip-status small bad-text';
+            status.textContent = err.message;
+        }
+    });
+}
+
+/* Empaque de regalo: ocasión, color, tarjeta y vista previa. */
+function bindGift(checkout, form, receiverText, onChange) {
+    const options = slot(checkout, 'giftOptions');
+    const card = slot(checkout, 'giftCard');
+    const preview = slot(checkout, 'giftPreview');
+    const colors = slot(checkout, 'wrapColors');
+    fill(checkout, { giftCost: money.format(giftCost()) });
+
+    colors.append(...Object.keys(WRAP_COLORS).map(function (code) {
+        const option = clone('tpl-wrap-color');
+        const input = option.querySelector('input');
+        input.value = code;
+        option.querySelector('.wrap-dot').classList.add('wrap-' + code);
+        option.querySelector('em').textContent = WRAP_COLORS[code];
+        option.title = WRAP_COLORS[code];
+        return option;
+    }));
+
+    const saved = savedGift();
+    form.gift_wrap.checked = Boolean(saved && saved.enabled);
+    form.querySelector('input[name="gift_color"][value="' + suggestedColor(form.gift_occasion.value) + '"]').checked = true;
+
+    const draw = function () {
+        const on = form.gift_wrap.checked;
+        options.hidden = !on;
+        const color = form.gift_color.value;
+        const withCard = form.gift_mode.value === 'card';
+        card.hidden = !withCard;
+        fill(checkout, {
+            giftColorName: WRAP_COLORS[color],
+            giftTag: OCCASIONS[form.gift_occasion.value] + (withCard && form.gift_recipient.value.trim() ? ' · Para ' + form.gift_recipient.value.trim() : '')
+        });
+        const art = preview.querySelector('.gift-art');
+        if (art) art.remove();
+        preview.prepend(giftArt(color));
+        field(checkout, 'receiver').textContent = on && withCard && form.gift_recipient.value.trim()
+            ? form.gift_recipient.value.trim() + ' (regalo de ' + receiverText + ')'
+            : receiverText;
+        saveGift({ enabled: on });
+        onChange();
+    };
+
+    form.addEventListener('change', function (e) {
+        if (e.target.name === 'gift_occasion') {
+            form.querySelector('input[name="gift_color"][value="' + suggestedColor(e.target.value) + '"]').checked = true;
+        }
+        if (/^gift_/.test(e.target.name)) draw();
+    });
+    form.gift_recipient.addEventListener('input', draw);
+    draw();
+
+    return function () {
+        if (!form.gift_wrap.checked) return null;
+        const withCard = form.gift_mode.value === 'card';
+        return {
+            occasion: form.gift_occasion.value,
+            color: form.gift_color.value,
+            recipient: withCard ? form.gift_recipient.value.trim() : '',
+            message: withCard ? form.gift_message.value.trim() : ''
+        };
+    };
+}
+
 function storeOption(s, checked) {
     const option = fill(clone('tpl-store-option'), {
         name: s.store_name,
@@ -92,13 +197,15 @@ export async function renderCheckout(page) {
     const couponMessage = field(checkout, 'couponMessage');
     let coupon = null;
 
-    field(checkout, 'receiver').textContent = c.first_name + ' ' + c.last_name_paternal + ' · ' + c.phone;
+    const receiverText = c.first_name + ' ' + c.last_name_paternal + ' · ' + c.phone;
+    field(checkout, 'receiver').textContent = receiverText;
     states.forEach(function (s) { form.id_state.add(new Option(s.name, s.id_state)); });
     slot(checkout, 'pickupFields').append(...physicalStores().map(function (s, i) { return storeOption(s, i === 0); }));
     slot(checkout, 'lines').append(...lines.map(summaryLine));
     show(field(checkout, 'outletNote'), cartHasOutlet());
 
     page.replaceChildren(checkout);
+    bindZipLookup(checkout, form);
 
     const delivery = function () { return form.delivery.value; };
     const pickupStore = function () { return Number((form.querySelector('input[name="pickup_store"]:checked') || {}).value || 0); };
@@ -133,6 +240,7 @@ export async function renderCheckout(page) {
         });
 
         const t = totals();
+        const gift = form.gift_wrap.checked ? giftCost() : 0;
         fill(checkout, {
             shipLabel: t.subtotal - t.discount >= acc.free_shipping_from
                 ? (acc.free_shipping_from === 0 ? 'Gratis y prioritario' : 'Gratis') + ' · ' + acc.delivery_days
@@ -143,13 +251,16 @@ export async function renderCheckout(page) {
             couponCode: coupon ? coupon.code : '',
             orderDiscount: '−' + money.format(t.couponDiscount),
             orderShipping: t.shipping ? money.format(t.shipping) : 'Gratis',
-            orderTotal: money.format(t.total)
+            giftAmount: money.format(gift),
+            orderTotal: money.format(t.total + gift)
         });
+        show(field(checkout, 'giftRow'), gift > 0);
         show(field(checkout, 'tierRow'), t.tierDiscount > 0);
         show(field(checkout, 'discountRow'), t.couponDiscount > 0);
     };
 
     form.addEventListener('change', refresh);
+    const giftChoice = bindGift(checkout, form, receiverText, refresh);
 
     $('[data-action="coupon"]', checkout).addEventListener('click', function () {
         const code = couponInput.value.trim().toUpperCase();
@@ -165,6 +276,12 @@ export async function renderCheckout(page) {
 
     $('[data-action="place-order"]', checkout).addEventListener('click', async function () {
         const isShipping = delivery() === 'shipping';
+        const gift = giftChoice();
+        if (gift && form.gift_mode.value === 'card' && !gift.recipient) {
+            toast('Escribe para quién es el regalo o elige “Solo envolver para regalo”.', { error: true });
+            form.gift_recipient.focus();
+            return;
+        }
         const required = ['street', 'ext_number', 'neighborhood', 'zip_code', 'city', 'id_state'];
         if (isShipping) {
             const empty = required.filter(function (n) { return !String(form[n].value || '').trim(); });
@@ -209,7 +326,8 @@ export async function renderCheckout(page) {
                         neighborhood: form.neighborhood.value, city: form.city.value, id_state: Number(form.id_state.value),
                         zip_code: form.zip_code.value.trim(), reference: form.reference.value
                     } : null,
-                    items: lines.map(function (l) { return { id_variant: l.id_variant, quantity: l.quantity }; })
+                    items: lines.map(function (l) { return { id_variant: l.id_variant, quantity: l.quantity }; }),
+                    gift: gift
                 }
             });
             try {
@@ -217,12 +335,14 @@ export async function renderCheckout(page) {
                     payment_method: form.payment.value,
                     delivery_type: delivery(),
                     delivery_days: acc.delivery_days,
+                    gift: gift ? giftSummary(gift.occasion, gift.color, gift.recipient) : null,
                     store: (state.stores.find(function (s) { return s.id_store === fulfillingStore(); }) || {}).store_name
                 })));
             } catch (e) {
                 /* sin sessionStorage */
             }
             clearCart();
+            saveGift(null);
             loadCatalog(true).catch(function () {});
             window.location.hash = '#/pedido/' + order.id_order;
         } catch (err) {
@@ -264,6 +384,10 @@ export function renderConfirmation(page, id) {
     show(field(confirm, 'instructions'), Boolean(instructions));
     show(field(confirm, 'pickup'), order.delivery_type === 'pickup' && Boolean(order.store));
     show(field(confirm, 'shipping'), order.delivery_type === 'shipping');
+    if (order.gift) {
+        const giftLine = show(field(confirm, 'gift'), true);
+        giftLine.textContent = order.gift + '. Lo envolvemos con empaque especial JAM.';
+    }
     field(confirm, 'shipping').textContent = (order.priority_shipping ? 'Envío prioritario: llega en ' : 'Llegará en ')
         + (order.delivery_days || '3 a 5 días hábiles') + '.';
     page.replaceChildren(confirm);

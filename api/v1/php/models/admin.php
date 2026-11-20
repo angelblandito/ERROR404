@@ -274,6 +274,7 @@ function admin_orders(PDO $pdo, ?string $status): array
         SELECT TOP (100) co.id_order, co.order_date, co.status, co.channel, co.delivery_type, co.priority_shipping,
                co.subtotal, co.discount, co.shipping_cost, co.total, s.store_name,
                c.first_name, c.last_name_paternal, t.code AS tier,
+               g.occasion AS gift_occasion, g.wrap_color AS gift_color, g.recipient_name AS gift_recipient,
                CASE WHEN EXISTS (
                    SELECT 1 FROM dbo.order_item AS oi
                    JOIN dbo.product_variant AS pv ON pv.id_variant = oi.id_variant
@@ -284,6 +285,7 @@ function admin_orders(PDO $pdo, ?string $status): array
         JOIN dbo.store AS s ON s.id_store = co.id_store
         JOIN dbo.customer AS c ON c.id_customer = co.id_customer
         JOIN dbo.account_tier AS t ON t.id_account_tier = c.id_account_tier
+        LEFT JOIN dbo.order_gift AS g ON g.id_order = co.id_order
         WHERE co.deleted = 0 AND (:status = '' OR co.status = :status_filter)
         ORDER BY CASE WHEN co.status IN ('pending', 'paid') THEN 0 ELSE 1 END,
                  co.priority_shipping DESC, co.order_date DESC",

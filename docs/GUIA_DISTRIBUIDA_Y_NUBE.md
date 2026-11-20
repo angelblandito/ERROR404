@@ -208,7 +208,27 @@ Los precios viven en `competitor` y `market_price` (sección 12 de `db_jam.sql`)
   - Ropa: short de básquetbol, falda de tenis y playera térmica.
   - Hombre, Mujer, Juvenil y Adulto tienen ropa, calzado y accesorios. Cada producto tiene existencias en Tijuana, CDMX y en línea.
 
-### 2.6.3 Otras funciones de la tienda
+### 2.6.3 Escáner, código postal y empaque de regalo
+
+- **Escáner de la app** (`#/escanear`, botón *Escanear* de la barra inferior del celular):
+  - Lee el código de barras EAN-13 de la etiqueta con la cámara, o con una foto del código.
+  - Muestra las existencias en línea, en Tijuana y en CDMX, el precio y el botón para agregarlo al carrito.
+  - Las cuentas Prioritario ven además la comparación con la competencia: una gráfica y la lista de precios con su fuente.
+  - Cada variante tiene su código en `product_variant.barcode` (750 + 1234 + id de la variante + dígito verificador).
+  - Las etiquetas para imprimir o mostrar en otra pantalla están en Administración → **Etiquetas**.
+  - La cámara funciona en Chrome para Android y solo en una dirección segura: `https` (el túnel de la sección 2.7) o `localhost`. En los demás casos se escribe el código, el SKU o el nombre.
+- **Código postal en el pago**: al escribir los 5 dígitos, la página llena la ciudad y el estado y sugiere las colonias.
+  - Los datos vienen de la tabla `postal_code`: 388 asentamientos de Tijuana y de las alcaldías Cuauhtémoc y Benito Juárez de la CDMX, tomados del catálogo de SEPOMEX publicado en micodigopostal.org.
+  - Con un código postal que no está en la tabla, el cliente escribe los datos a mano.
+- **Empaque especial JAM** ($30):
+  - Al pulsar *Pagar* en el carrito, la tienda pregunta si es para regalo.
+  - En el pago se elige la ocasión (cumpleaños, amistad o Navidad) y uno de 8 colores de papel, con vista previa.
+  - El regalo puede ir solo envuelto o con tarjeta "Para" y dedicatoria.
+  - Llega al domicilio que se escriba en Entrega (puede ser el de quien lo recibe) o se recoge en sucursal.
+  - `dbo.sp_crear_pedido` cobra `customer_order.gift_cost` y guarda los datos en `order_gift`. El `CHECK` del total ahora es subtotal − descuento + envío + empaque.
+  - El regalo aparece en Mi cuenta, en la confirmación, en el correo y en Administración → Pedidos.
+
+### 2.6.4 Otras funciones de la tienda
 
 | Función | Dónde se ve | En la base |
 |---|---|---|
@@ -266,7 +286,7 @@ La versión en Azure (sección 5) también se abre desde el celular, en modo con
 | POST | `/store/reviews` | Publicar reseña (sesión; marca compra verificada) |
 | POST | `/auth/register`, `/auth/login`, `/auth/logout` | Cuentas de cliente con contraseña bcrypt, bloqueo tras 5 intentos y token de sesión |
 | GET | `/auth/me`, `/me/orders` | Perfil y pedidos del cliente con sesión (cada pedido incluye `history`) |
-| POST | `/orders/checkout` | Registra un pedido completo con `dbo.sp_crear_pedido` (precios, cupón, descuento de la cuenta, total y stock se calculan en la base) |
+| POST | `/orders/checkout` | Registra un pedido completo con `dbo.sp_crear_pedido` (precios, cupón, descuento de la cuenta, empaque de regalo opcional con `gift: {occasion, color, recipient, message}`, total y stock se calculan en la base) |
 | GET | `/store/announcements` | Comunicados vigentes; los exclusivos solo con sesión Prioritario o Administrador |
 | GET, POST | `/support/tickets` | Tickets del cliente con sesión / abrir un ticket |
 | GET | `/admin/summary` | Ventas, pedidos por surtir, tickets, clientes por tipo de cuenta y series para las gráficas (`sales_by_day`, `sales_by_store`, `sales_by_category`) |
@@ -283,6 +303,7 @@ La versión en Azure (sección 5) también se abre desde el celular, en modo con
 | GET | `/admin/emails` | Bandeja de correos simulada (últimos 100) |
 | POST | `/auth/forgot`, `/auth/reset` | Enlace para restablecer la contraseña y cambio de contraseña |
 | GET | `/store/products/{id}/also-bought` | Productos comprados junto con este |
+| GET | `/postal-codes/{cp}` | Estado, ciudad y colonias de un código postal (404 si no está en la tabla) |
 
 **Permisos:** las rutas `/admin/*`, `/nodes`, `/distributed/*`, `/replication/*` y el CRUD genérico de tablas requieren una sesión de Administrador (401 sin sesión, 403 con otra cuenta). Sin sesión solo quedan abiertos el catálogo, las reseñas, las temporadas, los cupones, los estados y el registro o inicio de sesión.
 
@@ -410,18 +431,19 @@ En la nube la tienda funciona en modo consulta: el catálogo, el inventario y lo
 
 ---
 
-## 6. Guion para la presentación (≈ 8 min)
+## 6. Guion para la presentación (≈ 10 min)
 
 1. **Tienda** (móvil y escritorio): mostrar el menú hamburguesa y la cuadrícula adaptable (media queries).
 2. **Tipos de usuario**: entrar como Estándar y como Prioritario y comparar precio, envío, piezas permitidas y plazo de soporte; luego entrar como Administrador, responder el ticket y aplicar la regla de Prioritarios.
 3. **Comparador de mercado**: como Prioritario, botón **Comparador** del encabezado → filtrar *Calzado* y pasar el cursor sobre los puntos para ver cada marca y su fuente.
-4. **Seguimiento**: como Administrador, marcar un pedido como *Enviado* → en Mi cuenta del cliente aparece el paso con su hora y en **Correos** el aviso; en SSMS `SELECT * FROM dbo.order_status_history ORDER BY id_history DESC` muestra quién lo cambió.
-5. **Fragmentación horizontal**: Administración → **Base distribuida** → **Inventario** → pestañas por nodo. En SSMS, `SELECT * FROM JAM_cdmx.dbo.inventory` muestra solo `id_store = 2`, e intentar insertar `id_store = 1` ahí falla por el `CHECK`.
-6. **Pedido distribuido**: comprar en la tienda eligiendo *Sucursal Tijuana* → el pedido aparece en **Pedidos** dentro del fragmento de Tijuana.
-7. **Fragmentación vertical**: **Base distribuida** → tabla de clientes con las columnas de cada fragmento en distinto color.
-8. **Transparencia ante fallos**: desconectar una sucursal (`ALTER DATABASE JAM_cdmx SET OFFLINE WITH ROLLBACK IMMEDIATE;`), actualizar **Inventario** → CDMX aparece como “nodo sin conexión, leído de central”. Volver con `SET ONLINE`.
-9. **Replicación**: cambiar un precio en `JAM_db` → la matriz de **Replicación del catálogo** pasa a “Sincronizado” en todos los nodos.
-10. **Espejo**: `az sql failover-group set-primary --name jam-fog-<sufijo> --resource-group rg-jam --server jam-sql-espejo-<sufijo>` → en la API de Azure, **Base distribuida** muestra el otro servidor como principal.
+4. **Escáner y regalo** (en el celular, por el túnel `https`): abrir Administración → Etiquetas en la laptop, escanear una etiqueta con *Escanear* y mostrar existencias y comparación; agregar al carrito, aceptar el empaque de regalo, escribir el código postal `22020` y ver cómo se llenan colonia, ciudad y estado.
+5. **Seguimiento**: como Administrador, marcar un pedido como *Enviado* → en Mi cuenta del cliente aparece el paso con su hora y en **Correos** el aviso; en SSMS `SELECT * FROM dbo.order_status_history ORDER BY id_history DESC` muestra quién lo cambió.
+6. **Fragmentación horizontal**: Administración → **Base distribuida** → **Inventario** → pestañas por nodo. En SSMS, `SELECT * FROM JAM_cdmx.dbo.inventory` muestra solo `id_store = 2`, e intentar insertar `id_store = 1` ahí falla por el `CHECK`.
+7. **Pedido distribuido**: comprar en la tienda eligiendo *Sucursal Tijuana* → el pedido aparece en **Pedidos** dentro del fragmento de Tijuana.
+8. **Fragmentación vertical**: **Base distribuida** → tabla de clientes con las columnas de cada fragmento en distinto color.
+9. **Transparencia ante fallos**: desconectar una sucursal (`ALTER DATABASE JAM_cdmx SET OFFLINE WITH ROLLBACK IMMEDIATE;`), actualizar **Inventario** → CDMX aparece como “nodo sin conexión, leído de central”. Volver con `SET ONLINE`.
+10. **Replicación**: cambiar un precio en `JAM_db` → la matriz de **Replicación del catálogo** pasa a “Sincronizado” en todos los nodos.
+11. **Espejo**: `az sql failover-group set-primary --name jam-fog-<sufijo> --resource-group rg-jam --server jam-sql-espejo-<sufijo>` → en la API de Azure, **Base distribuida** muestra el otro servidor como principal.
 
 ---
 
