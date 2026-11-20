@@ -1,8 +1,8 @@
 /* Catálogo con filtros y orden. */
-import { $, $$, clone, fill, slot, buildQuery, emptyState, setTitle, sizeLabel, DEPARTMENTS, GENDERS, SEGMENTS } from '../ui.js';
+import { $, $$, clone, field, fill, slot, buildQuery, emptyState, setTitle, sizeLabel, DEPARTMENTS, GENDERS, SEGMENTS } from '../ui.js';
 import { productCard } from '../components.js';
 import { colorClass } from '../illustrations.js';
-import { state } from '../store.js';
+import { outletProducts, salePrice, shopProducts } from '../store.js';
 import { matchScore, productText } from '../search.js';
 
 const PRICE_RANGES = {
@@ -21,7 +21,7 @@ function matches(p, f) {
     if (f.edad && p.age_segment !== f.edad && p.age_segment !== 'all') return false;
     if (f.precio && PRICE_RANGES[f.precio]) {
         const r = PRICE_RANGES[f.precio];
-        if (p.base_price < r[1] || p.base_price > r[2]) return false;
+        if (salePrice(p) < r[1] || salePrice(p) > r[2]) return false;
     }
     if (f.talla && !p.variants.some(function (v) { return v.size === f.talla; })) return false;
     if (f.color && !p.variants.some(function (v) { return v.color_code === f.color; })) return false;
@@ -37,8 +37,8 @@ function sortProducts(list, order) {
         vendidos: function (a, b) { return b.sold - a.sold; },
         calificacion: function (a, b) { return (b.rating - a.rating) || (b.reviews - a.reviews); },
         nuevo: function (a, b) { return b.id_product - a.id_product; },
-        'precio-asc': function (a, b) { return a.base_price - b.base_price; },
-        'precio-desc': function (a, b) { return b.base_price - a.base_price; },
+        'precio-asc': function (a, b) { return salePrice(a) - salePrice(b); },
+        'precio-desc': function (a, b) { return salePrice(b) - salePrice(a); },
         destacados: function (a, b) {
             return ((b.stock_total > 0) - (a.stock_total > 0)) || (b.sold * 2 + b.rating) - (a.sold * 2 + a.rating);
         }
@@ -46,20 +46,21 @@ function sortProducts(list, order) {
     return sorted.sort(by[order] || by.destacados);
 }
 
-function pageTitle(f) {
-    if (f.q) return 'Resultados para “' + f.q + '”';
+function pageTitle(f, outlet) {
+    if (f.q) return 'Resultados para “' + f.q + '”' + (outlet ? ' en el outlet' : '');
     const parts = [];
     if (f.dep) parts.push(DEPARTMENTS[f.dep]);
     if (f.genero) parts.push(f.genero === 'F' ? 'para mujer' : 'para hombre');
     if (f.edad) parts.push(f.edad === 'youth' ? 'juvenil' : 'adulto');
+    if (outlet) return 'Outlet' + (parts.length ? ': ' + parts.join(' ') : '');
     if (!parts.length) return f.orden === 'nuevo' ? 'Novedades' : 'Toda la tienda';
     return parts.join(' ').replace(/^./, function (c) { return c.toUpperCase(); });
 }
 
-function availableSizesAndColors() {
+function availableSizesAndColors(products) {
     const sizes = [];
     const colors = new Map();
-    state.products.forEach(function (p) {
+    products.forEach(function (p) {
         p.variants.forEach(function (v) {
             if (!sizes.some(function (s) { return s.size === v.size; })) sizes.push({ size: v.size, id: v.id_size });
             colors.set(v.color_code, v.color);
@@ -85,7 +86,7 @@ function colorChip(code, name) {
     return chip;
 }
 
-function activeChips(f) {
+function activeChips(f, base) {
     const labels = {
         dep: DEPARTMENTS[f.dep], genero: GENDERS[f.genero], edad: SEGMENTS[f.edad],
         precio: PRICE_RANGES[f.precio] ? PRICE_RANGES[f.precio][0] : null,
@@ -96,34 +97,43 @@ function activeChips(f) {
         const rest = Object.assign({}, f);
         delete rest[k];
         const chip = clone('tpl-chip-remove');
-        chip.href = '#/tienda' + buildQuery(rest);
+        chip.href = base + buildQuery(rest);
         chip.textContent = labels[k] + ' ✕';
         chip.setAttribute('aria-label', 'Quitar filtro ' + labels[k]);
         return chip;
     });
 }
 
-export function renderCatalog(view, params) {
+/* mode = 'outlet' muestra solo los productos de outlet en #/outlet; la tienda normal no los incluye. */
+export function renderCatalog(view, params, mode) {
     const f = Object.assign({}, params);
-    let list = sortProducts(state.products.filter(function (p) { return matches(p, f); }), f.orden);
+    const outlet = mode === 'outlet';
+    const base = outlet ? '#/outlet' : '#/tienda';
+    const source = outlet ? outletProducts() : shopProducts();
+    let list = sortProducts(source.filter(function (p) { return matches(p, f); }), f.orden);
     if (f.q && !f.orden) {
         const score = new Map(list.map(function (p) { return [p.id_product, matchScore(f.q, productText(p, DEPARTMENTS))]; }));
         list = list.slice().sort(function (a, b) { return score.get(b.id_product) - score.get(a.id_product); });
     }
-    const title = pageTitle(f);
-    const options = availableSizesAndColors();
+    const title = pageTitle(f, outlet);
+    const options = availableSizesAndColors(source);
     const page = clone('tpl-catalog');
     const form = $('.filters', page);
     const panel = $('.plp-filters', page);
     setTitle(title);
 
     fill(page, { title: title, count: '(' + list.length + ')' });
-    slot(page, 'chips').append(...activeChips(f));
+    if (outlet) {
+        field(page, 'outletStrip').hidden = false;
+        fill(page, { outletStripPercent: Math.max.apply(null, source.map(function (p) { return p.outlet_percent; }).concat([0])) + ' %' });
+        page.classList.add('plp-outlet');
+    }
+    slot(page, 'chips').append(...activeChips(f, base));
     slot(page, 'sizes').append(...options.sizes.map(function (s) { return sizeChip(s.size); }));
     slot(page, 'colors').append(...Array.from(options.colors.entries()).map(function (c) { return colorChip(c[0], c[1]); }));
     slot(page, 'grid').append(...(list.length
         ? list.map(productCard)
-        : [emptyState('Sin resultados', 'No encontramos productos con esos filtros.', { href: '#/tienda', label: 'Ver toda la tienda' })]));
+        : [emptyState('Sin resultados', 'No encontramos productos con esos filtros.', { href: base, label: outlet ? 'Ver todo el outlet' : 'Ver toda la tienda' })]));
 
     $('select[name="orden"]', page).value = f.orden || 'destacados';
     RADIO_FILTERS.forEach(function (name) {
@@ -137,7 +147,7 @@ export function renderCatalog(view, params) {
     view.replaceChildren(page);
 
     const go = function (next) {
-        window.location.replace('#/tienda' + buildQuery(next));
+        window.location.replace(base + buildQuery(next));
     };
 
     $('select[name="orden"]', page).addEventListener('change', function (e) {
@@ -162,4 +172,15 @@ export function renderCatalog(view, params) {
             if (f[input.name] === input.value) go(Object.assign({}, f, { [input.name]: '' }));
         });
     });
+}
+
+/* Al entrar al outlet aparece el aviso del descuento y de que no hay cambios ni devoluciones. */
+export function renderOutlet(view, params, showNotice) {
+    renderCatalog(view, params, 'outlet');
+    if (!showNotice) return;
+    const percent = Math.max.apply(null, outletProducts().map(function (p) { return p.outlet_percent; }).concat([0]));
+    const dialog = fill(clone('tpl-outlet-notice'), { percent: percent + ' %' });
+    dialog.addEventListener('close', function () { dialog.remove(); });
+    document.body.append(dialog);
+    dialog.showModal();
 }

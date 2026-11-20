@@ -1,7 +1,7 @@
 /* Piezas de interfaz reutilizadas por varias vistas. */
 import { clone, field, fill, show, slot, money, badge, stars, DEPARTMENTS, GENDERS } from './ui.js';
 import { productArt } from './illustrations.js';
-import { account, colorsOf, isFavorite, isPriority, memberPrice, newestIds, state } from './store.js';
+import { account, colorsOf, isFavorite, isOutlet, isPriority, memberPrice, newestIds, salePrice, state } from './store.js';
 
 const TIER_BADGES = {
     standard: ['Estándar', ''],
@@ -76,13 +76,14 @@ export function favButton(idProduct, extraClass) {
 }
 
 function topSellerIds() {
-    return state.products.filter(function (p) { return p.sold > 0; })
+    return state.products.filter(function (p) { return p.sold > 0 && !isOutlet(p); })
         .sort(function (a, b) { return b.sold - a.sold; })
         .slice(0, 3).map(function (p) { return p.id_product; });
 }
 
 export function productTag(p) {
     if (p.stock_total <= 0) return { text: 'Agotado', css: 'tag-muted' };
+    if (isOutlet(p)) return { text: 'Outlet −' + p.outlet_percent + ' %', css: 'tag-outlet' };
     if (topSellerIds().indexOf(p.id_product) >= 0) return { text: 'Más vendido', css: 'tag-hot' };
     if (newestIds(4).indexOf(p.id_product) >= 0) return { text: 'Novedad', css: 'tag-new' };
     if (p.stock_total <= 10) return { text: 'Últimas piezas', css: 'tag-hot' };
@@ -113,8 +114,15 @@ export function productCard(p) {
         colors: colors.length + (colors.length === 1 ? ' color' : ' colores'),
         price: money.format(p.base_price)
     });
-    field(card, 'price').classList.toggle('was', isPriority());
-    showMemberPrice(field(card, 'memberPrice'), p.base_price);
+    if (isOutlet(p)) {
+        field(card, 'price').classList.add('was');
+        const outlet = show(field(card, 'memberPrice'), true);
+        outlet.className = 'outlet-price';
+        outlet.textContent = money.format(salePrice(p));
+    } else {
+        field(card, 'price').classList.toggle('was', isPriority());
+        showMemberPrice(field(card, 'memberPrice'), p.base_price);
+    }
 
     if (p.reviews) {
         show(field(card, 'rating'), true);

@@ -2,13 +2,13 @@
 import { $, $$, clone, fill, slot, money, toast, emptyState, loading, parseQuery } from './ui.js';
 import { productArt, handleMissingPhoto } from './illustrations.js';
 import { setFavState } from './components.js';
-import { account, cartCount, colorsOf, isAdmin, isPriority, loadCatalog, loadCustomer, state, toggleFavorite } from './store.js';
+import { account, cartCount, colorsOf, isAdmin, isPriority, loadCatalog, loadCustomer, salePrice, state, toggleFavorite } from './store.js';
 import { initTheme, currentTheme } from './theme.js';
 import { initEffects } from './effects.js';
 import { closeMiniCart } from './minicart.js';
 import { matchScore } from './search.js';
 import { renderHome } from './views/home.js';
-import { renderCatalog } from './views/catalog.js';
+import { renderCatalog, renderOutlet } from './views/catalog.js';
 import { renderProduct } from './views/product.js';
 import { renderCart } from './views/cart.js';
 import { renderCheckout, renderConfirmation } from './views/checkout.js';
@@ -20,10 +20,13 @@ import { renderFavorites, renderOffers, renderStores, renderHelp, renderLegal } 
 import { renderPanel } from './views/panel.js';
 
 const view = $('#view');
+let previousPath = '';
+let routeFrom = '';
 
 const ROUTES = [
     [/^\/?$/, 'home', function (page) { return renderHome(page); }],
     [/^\/tienda$/, 'shop', function (page, m, q) { return renderCatalog(page, q); }],
+    [/^\/outlet$/, 'shop', function (page, m, q) { return renderOutlet(page, q, !/^\/outlet/.test(routeFrom)); }],
     [/^\/producto\/(\d+)$/, 'shop', function (page, m, q) { return renderProduct(page, m[1], q); }],
     [/^\/carrito$/, 'cart', function (page) { return renderCart(page); }],
     [/^\/pago$/, 'cart', function (page) { return renderCheckout(page); }],
@@ -59,6 +62,8 @@ function adminOnly(render) {
 async function route() {
     const hash = window.location.hash.replace(/^#/, '') || '/';
     const [path, query] = hash.split('?');
+    routeFrom = previousPath;
+    previousPath = path;
     const match = ROUTES.find(function (r) { return r[0].test(path); });
 
     closeMenu();
@@ -144,7 +149,7 @@ function suggest(text) {
     }).slice(0, 5).map(function (r) { return r.p; });
     const items = found.map(function (p) {
         const colors = colorsOf(p);
-        const item = fill(clone('tpl-suggestion'), { name: p.name, price: money.format(p.base_price) });
+        const item = fill(clone('tpl-suggestion'), { name: p.name, price: money.format(salePrice(p)) });
         item.href = '#/producto/' + p.id_product;
         slot(item, 'art').replaceWith(productArt(p, colors[0] ? colors[0].color_code : 'black', 'mini'));
         return item;

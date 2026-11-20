@@ -4,7 +4,7 @@ import { $, clone, field, fill, show, slot, money, stars, message, toast, emptyS
 import { productArt, colorClass } from '../illustrations.js';
 import { favButton, productRail } from '../components.js';
 import { openMiniCart } from '../minicart.js';
-import { account, addToCart, colorsOf, isPriority, memberPrice, physicalStores, product, recentProducts, rememberViewed, state, stockAt } from '../store.js';
+import { account, addToCart, colorsOf, isOutlet, isPriority, memberPrice, physicalStores, product, recentProducts, rememberViewed, salePrice, state, stockAt, unitPrice } from '../store.js';
 import { openSizeFinder } from '../sizes.js';
 
 function stockLabel(el, text, css) {
@@ -147,9 +147,13 @@ export function renderProduct(view, id, params) {
         freeFrom: money.format(state.shipping.free_from),
         shippingCost: money.format(state.shipping.cost)
     });
-    field(page, 'department').href = '#/tienda?dep=' + encodeURIComponent(p.department);
-    show(field(page, 'freeShipping'), memberPrice(p.base_price) >= acc.free_shipping_from);
-    if (isPriority()) {
+    field(page, 'department').href = (isOutlet(p) ? '#/outlet' : '#/tienda') + '?dep=' + encodeURIComponent(p.department);
+    show(field(page, 'freeShipping'), unitPrice(p) >= acc.free_shipping_from);
+    if (isOutlet(p)) {
+        show(field(page, 'outletNote'), true);
+        fill(page, { outletPrice: money.format(salePrice(p)), outletPercentText: p.outlet_percent + ' %' });
+        field(page, 'price').classList.add('was');
+    } else if (isPriority()) {
         const note = show(field(page, 'memberNote'), true);
         note.textContent = 'Tu precio ' + acc.name + ': ' + money.format(memberPrice(p.base_price)) + ' (' + acc.discount_percent + ' % de descuento)';
         field(page, 'price').classList.add('was');
@@ -164,8 +168,8 @@ export function renderProduct(view, id, params) {
         field(link, 'ratingText').textContent = p.rating.toFixed(1) + ' · ' + p.reviews + ' reseñas';
     }
     slot(page, 'fav').replaceWith(favButton(p.id_product, 'pdp-fav'));
-    slot(page, 'related').replaceWith(productRail('También te puede interesar', state.products.filter(function (x) {
-        return x.department === p.department && x.id_product !== p.id_product;
+    slot(page, 'related').replaceWith(productRail(isOutlet(p) ? 'Más del outlet' : 'También te puede interesar', state.products.filter(function (x) {
+        return x.department === p.department && x.id_product !== p.id_product && isOutlet(x) === isOutlet(p);
     }).slice(0, 8)));
     slot(page, 'recent').replaceWith(productRail('Vistos recientemente', recentProducts(p.id_product).slice(0, 8)));
     rememberViewed(p.id_product);

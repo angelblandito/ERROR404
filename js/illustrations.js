@@ -12,17 +12,23 @@ import { state } from './store.js';
 const PHOTO_FOLDER = 'img/productos/';
 const PHOTO_TYPES = ['jpg', 'jpeg', 'png', 'webp'];
 const DRAWINGS = 'img/ilustraciones.svg#';
-const COLORS = ['black', 'white', 'red', 'navy', 'gray', 'pink', 'green', 'blue'];
+const COLORS = ['black', 'white', 'red', 'navy', 'gray', 'pink', 'green', 'blue', 'amber', 'lime', 'brown'];
 const missingPhotos = new Set();
 
 const KEYWORDS = [
+    ['fútbol americano', 'football'], ['balón de básquetbol', 'basketball'], ['voleibol', 'volleyball'],
+    ['pelotas de pádel', 'padelballs'], ['balón', 'soccerball'], ['guantes de box', 'boxing'], ['guante', 'glove'],
+    ['goggles', 'goggles'], ['lentes', 'glasses'], ['tenis de fútbol', 'cleat'], ['falda', 'shorts'],
     ['sandalia', 'sandal'], ['tenis', 'shoe'], ['calzado', 'shoe'], ['playera', 'tee'], ['jersey', 'tee'],
     ['top', 'top'], ['short', 'shorts'], ['legging', 'leggings'], ['sudadera', 'hoodie'], ['hoodie', 'hoodie'],
     ['chamarra', 'jacket'], ['rompevientos', 'jacket'], ['pants', 'pants'], ['jogger', 'pants'], ['gorra', 'cap'],
     ['mochila', 'backpack'], ['botella', 'bottle'], ['calceta', 'socks']
 ];
 
-const BY_CATEGORY = { tops: 'tee', bottoms: 'shorts', leggings: 'leggings', hoodies: 'hoodie', footwear: 'shoe', accessories: 'backpack' };
+const BY_CATEGORY = {
+    tops: 'tee', bottoms: 'shorts', leggings: 'leggings', hoodies: 'hoodie', footwear: 'shoe', accessories: 'backpack',
+    eyewear: 'glasses', gloves: 'glove', balls: 'soccerball'
+};
 
 export function colorClass(colorCode) {
     return COLORS.indexOf(colorCode) >= 0 ? colorCode : 'black';

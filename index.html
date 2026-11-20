@@ -48,6 +48,7 @@
                 <a href="#/tienda?dep=apparel">Ropa</a>
                 <a href="#/tienda?dep=accessories">Accesorios</a>
                 <a href="#/ofertas" class="nav-sale">Ofertas</a>
+                <a href="#/outlet" class="nav-outlet">Outlet</a>
             </nav>
 
             <form class="search" id="searchForm" role="search">
@@ -94,6 +95,7 @@
                 <a href="#/tienda?dep=apparel">Ropa</a>
                 <a href="#/tienda?dep=accessories">Accesorios</a>
                 <a href="#/ofertas" class="nav-sale">Ofertas</a>
+                <a href="#/outlet" class="nav-outlet">Outlet −30 %</a>
             </nav>
             <div class="mobile-secondary">
                 <a href="#/cuenta">Mi cuenta y pedidos</a>
@@ -126,6 +128,7 @@
                 <a href="#/tienda?dep=apparel">Ropa</a>
                 <a href="#/tienda?dep=accessories">Accesorios</a>
                 <a href="#/ofertas">Ofertas y cupones</a>
+                <a href="#/outlet">Outlet</a>
             </div>
             <div>
                 <h3>JAM Sport</h3>
@@ -315,10 +318,19 @@
                 </a>
                 <a class="tile" href="#/tienda?dep=accessories">
                     <div data-slot="tileAccessories"></div>
-                    <div class="tile-copy"><h2>Accesorios</h2><p>Gorras, mochilas y botellas</p><span class="btn btn-light btn-sm">Comprar</span></div>
+                    <div class="tile-copy"><h2>Accesorios</h2><p>Gorras, lentes, guantes y balones</p><span class="btn btn-light btn-sm">Comprar</span></div>
                 </a>
             </section>
 
+            <a class="outlet-banner" href="#/outlet" data-field="outletBanner">
+                <div class="outlet-banner-copy">
+                    <p class="eyebrow">Outlet JAM</p>
+                    <h2>Todo al <span data-field="outletPercent"></span> de descuento</h2>
+                    <p>Ropa, calzado y accesorios deportivos de la temporada anterior.</p>
+                    <span class="btn btn-light btn-sm">Ver el outlet</span>
+                </div>
+                <div data-slot="outletArt"></div>
+            </a>
             <div data-slot="recent"></div>
             <div data-slot="bestSellers"></div>
 
@@ -347,6 +359,10 @@
     <!-- ===================== Plantillas: catálogo ===================== -->
     <template id="tpl-catalog">
         <div class="plp">
+            <div class="outlet-strip" data-field="outletStrip" hidden>
+                <strong>Todo al <span data-field="outletStripPercent"></span> de descuento</strong>
+                <span>Sin cambios ni devoluciones · Los cupones no aplican en el outlet</span>
+            </div>
             <div class="plp-head">
                 <div>
                     <h1><span data-field="title"></span> <span class="muted" data-field="count"></span></h1>
@@ -447,6 +463,10 @@
                     <a class="pdp-rating" href="#resenas" data-action="scroll-reviews" data-field="ratingLink" hidden><span data-slot="stars"></span><span data-field="ratingText"></span></a>
                     <p class="pdp-price" data-field="price"></p>
                     <p class="member-note" data-field="memberNote" hidden></p>
+                    <div class="outlet-note" data-field="outletNote" hidden>
+                        <strong data-field="outletPrice"></strong>
+                        <span>Precio outlet con <span data-field="outletPercentText"></span> de descuento. Sin cambios ni devoluciones.</span>
+                    </div>
                     <p class="ok-text small" data-field="freeShipping" hidden>Envío gratis</p>
 
                     <div class="pdp-block">
@@ -590,6 +610,7 @@
                 <div class="sum-row member-text" data-field="cartTierRow" hidden><span>Descuento <span data-field="cartTierName"></span></span><span data-field="cartTierDiscount"></span></div>
                 <div class="sum-row"><span>Envío estimado</span><span data-field="cartShipping"></span></div>
                 <p class="muted small">Recoger en sucursal no tiene costo. Los cupones se aplican al pagar.</p>
+                <p class="outlet-text small" data-field="cartOutletNote" hidden>Los artículos de outlet ya tienen su descuento: no se les aplican cupones ni el descuento de tu cuenta, y no tienen cambios ni devoluciones.</p>
                 <div class="sum-row total"><span>Total estimado</span><span data-field="cartTotal"></span></div>
                 <a class="btn btn-dark btn-block btn-lg" href="#/pago">Pagar</a>
                 <a class="btn btn-ghost btn-block" href="#/tienda">Seguir comprando</a>
@@ -605,6 +626,7 @@
                 <p class="muted" data-field="category"></p>
                 <p class="muted" data-field="variant"></p>
                 <p class="bad-text small" data-field="lowStock" hidden></p>
+                <p class="outlet-text small" data-field="outletNote" hidden>Outlet: sin cambios ni devoluciones</p>
                 <div class="cart-actions">
                     <label>Cantidad
                         <input class="qty-input" type="number" min="1" inputmode="numeric" data-action="quantity">
@@ -681,6 +703,7 @@
                 <div class="sum-row ok-text" data-field="discountRow" hidden><span>Cupón <span data-field="couponCode"></span></span><span data-field="orderDiscount"></span></div>
                 <div class="sum-row"><span>Envío</span><span data-field="orderShipping"></span></div>
                 <div class="sum-row total"><span>Total</span><span data-field="orderTotal"></span></div>
+                <p class="outlet-text small" data-field="outletNote" hidden>Tu pedido tiene artículos de outlet: no tienen cambios ni devoluciones y no se les aplican cupones.</p>
                 <button class="btn btn-dark btn-block btn-lg" type="button" data-action="place-order">Confirmar pedido</button>
                 <p class="muted small">Al confirmar, el pedido, el descuento de inventario y el pago se registran juntos en una sola transacción.</p>
             </aside>
@@ -887,7 +910,7 @@
     <template id="tpl-order-line">
         <div class="order-item">
             <span data-slot="art"></span>
-            <div><a data-field="name"></a><p class="muted small" data-field="detail"></p></div>
+            <div><a data-field="name"></a><p class="muted small" data-field="detail"></p><p class="outlet-text small" data-field="outletNote" hidden>Outlet · sin cambios ni devoluciones</p></div>
             <span data-field="total"></span>
         </div>
     </template>
@@ -961,6 +984,18 @@
 
     <template id="tpl-chip">
         <button class="chip" type="button" aria-pressed="false"></button>
+    </template>
+
+    <template id="tpl-outlet-notice">
+        <dialog class="notice-dialog" aria-labelledby="outletNoticeTitle">
+            <form method="dialog">
+                <p class="eyebrow-dark">Outlet JAM</p>
+                <h2 id="outletNoticeTitle">Todo al <span data-field="percent"></span> de descuento</h2>
+                <p>Ropa, calzado y accesorios deportivos de la temporada anterior con el descuento ya aplicado en el precio.</p>
+                <p class="notice-warning"><strong>Importante:</strong> las compras del outlet no tienen cambios ni devoluciones, y no se les aplican cupones ni el descuento de tu cuenta.</p>
+                <button class="btn btn-dark btn-block btn-lg" value="ok" autofocus>Entendido, ver el outlet</button>
+            </form>
+        </dialog>
     </template>
 
     <!-- ===================== Plantillas: seguimiento y contraseña ===================== -->
@@ -1123,6 +1158,8 @@
             <p>Se aplica un cupón por pedido, dentro de sus fechas de vigencia. Las cuentas Prioritario tienen un descuento permanente, envío prioritario y compras de mayoreo; el descuento total de un pedido nunca supera el 90 %. JAM puede revisar las condiciones de los tipos de cuenta avisando con anticipación.</p>
             <h2>Pagos y envíos</h2>
             <p>Aceptamos tarjeta, OXXO, transferencia y efectivo en sucursal. Los pagos en OXXO y por transferencia se confirman al recibirse. El envío es gratis desde el monto indicado para tu cuenta; recoger en sucursal no tiene costo.</p>
+            <h2>Outlet</h2>
+            <p>Los productos del outlet son modelos de temporadas anteriores con el descuento indicado ya aplicado en el precio. No se les suman cupones ni el descuento del tipo de cuenta, y no tienen cambios ni devoluciones.</p>
             <h2>Comparador de mercado</h2>
             <p>Los precios de otras marcas son una referencia tomada de páginas públicas en la fecha indicada y pueden haber cambiado. Las marcas mencionadas pertenecen a sus respectivos dueños y no están relacionadas con JAM.</p>
             <h2>Cambios y devoluciones</h2>
@@ -1144,6 +1181,7 @@
                 <li>El producto debe estar sin uso, con sus etiquetas y en su empaque.</li>
                 <li>Las calcetas y la ropa interior deportiva solo se aceptan cerradas, por higiene.</li>
                 <li>Los productos con defecto de fabricación se cambian aunque se hayan usado.</li>
+                <li>Los productos del outlet no tienen cambios ni devoluciones.</li>
             </ul>
             <h2>Cómo hacerlo</h2>
             <ol>

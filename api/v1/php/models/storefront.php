@@ -294,7 +294,7 @@ function store_catalog(): array
 
     $products = store_rows($pdo, "
         SELECT p.id_product, p.name, p.description, p.id_category, c.name AS category, c.code AS category_code,
-               c.department, p.target_gender, p.age_segment, p.base_price, p.image_url,
+               c.department, p.target_gender, p.age_segment, p.base_price, p.outlet_percent, p.image_url,
                CAST(ISNULL(r.avg_rating, 0) AS DECIMAL(3,2)) AS rating,
                ISNULL(r.reviews, 0) AS reviews,
                ISNULL(s.sold, 0) AS sold
@@ -374,6 +374,11 @@ function store_catalog(): array
         $p['id_product'] = (int)$p['id_product'];
         $p['id_category'] = (int)$p['id_category'];
         $p['base_price'] = (float)$p['base_price'];
+        /* Mismo cálculo que dbo.sp_crear_pedido para el precio de outlet. */
+        $p['outlet_percent'] = $p['outlet_percent'] !== null ? (int)$p['outlet_percent'] : null;
+        $p['sale_price'] = $p['outlet_percent'] !== null
+            ? round($p['base_price'] * (100 - $p['outlet_percent']) / 100, 2)
+            : $p['base_price'];
         $p['rating'] = (float)$p['rating'];
         $p['reviews'] = (int)$p['reviews'];
         $p['sold'] = (int)$p['sold'];
@@ -639,7 +644,8 @@ function store_my_orders(): array
     }, $orders));
     $items = store_rows($pdo, "
         SELECT oi.id_order, oi.id_variant, oi.quantity, oi.unit_price, p.id_product, p.name, sz.code AS size,
-               cl.name AS color, cl.code AS color_code, c.code AS category_code
+               cl.name AS color, cl.code AS color_code, c.code AS category_code,
+               CASE WHEN p.outlet_percent IS NULL THEN 0 ELSE 1 END AS outlet
         FROM dbo.order_item AS oi
         JOIN dbo.product_variant AS pv ON pv.id_variant = oi.id_variant
         JOIN dbo.product AS p ON p.id_product = pv.id_product
@@ -716,7 +722,7 @@ function store_also_bought(int $idProduct): array
                 WHERE oi.deleted = 0
                 GROUP BY pv.id_product
             ) AS s ON s.id_product = p.id_product
-            WHERE p.deleted = 0 AND p.id_product NOT IN ($exclude)
+            WHERE p.deleted = 0 AND p.outlet_percent IS NULL AND p.id_product NOT IN ($exclude)
               AND c.department = (SELECT c2.department FROM dbo.product AS p2
                                   JOIN dbo.category AS c2 ON c2.id_category = p2.id_category
                                   WHERE p2.id_product = :id)

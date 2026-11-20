@@ -84,6 +84,7 @@ function orderLine(i) {
         total: money.format(Number(i.unit_price) * Number(i.quantity))
     });
     field(line, 'name').href = '#/producto/' + i.id_product;
+    show(field(line, 'outletNote'), Number(i.outlet) === 1);
     slot(line, 'art').replaceWith(productArt({ name: i.name, category_code: i.category_code }, i.color_code, 'mini'));
     return line;
 }

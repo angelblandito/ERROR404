@@ -61,6 +61,13 @@ INSERT INTO category (id_category, code, name, department) VALUES
 (6, 'accessories', 'Accesorios', 'accessories');
 GO
 
+-- Equipo deportivo
+INSERT INTO category (id_category, code, name, department) VALUES
+(7, 'eyewear',     'Lentes', 'accessories'),
+(8, 'gloves',      'Guantes', 'accessories'),
+(9, 'balls',       'Balones y pelotas', 'accessories');
+GO
+
 CREATE TABLE size (
     id_size TINYINT NOT NULL PRIMARY KEY,
     code    VARCHAR(3) NOT NULL,
@@ -106,6 +113,12 @@ INSERT INTO color (id_color, code, name) VALUES
 (6, 'pink',  'Rosa'),
 (7, 'green', 'Verde'),
 (8, 'blue',  'Azul Rey');
+GO
+
+INSERT INTO color (id_color, code, name) VALUES
+(9,  'amber', 'Naranja'),
+(10, 'lime',  'Amarillo neón'),
+(11, 'brown', 'Café');
 GO
 
 CREATE TABLE loyalty_level (
@@ -544,6 +557,7 @@ CREATE TABLE product (
     base_price      DECIMAL(8,2) NOT NULL,
     age_segment     VARCHAR(5) NOT NULL CONSTRAINT df_product_age_segment DEFAULT 'all',
     image_url       NVARCHAR(255) NULL,   -- NULL: el frontend dibuja la ilustración de la categoría
+    outlet_percent  TINYINT NULL,         -- NULL: precio normal; con valor: producto de outlet con ese descuento
     -- columnas de consolidación
     source_node     VARCHAR(20) NOT NULL,
     updated_at      DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
@@ -551,7 +565,8 @@ CREATE TABLE product (
     CONSTRAINT fk_product_category FOREIGN KEY (id_category) REFERENCES category (id_category),
     CONSTRAINT ck_product_target_gender CHECK (target_gender IN ('M','F','U')),
     CONSTRAINT ck_product_base_price CHECK (base_price >= 0),
-    CONSTRAINT ck_product_age_segment CHECK (age_segment IN ('youth','adult','all'))
+    CONSTRAINT ck_product_age_segment CHECK (age_segment IN ('youth','adult','all')),
+    CONSTRAINT ck_product_outlet_percent CHECK (outlet_percent IS NULL OR outlet_percent BETWEEN 1 AND 90)
 );
 GO
 
@@ -739,6 +754,221 @@ INSERT INTO product_variant (id_product, id_size, id_color, sku, source_node) VA
 (18, 2, 1, 'JAM-SCK-S-BLK', 'catalog_node'),
 (18, 3, 1, 'JAM-SCK-M-BLK', 'catalog_node'),
 (18, 4, 1, 'JAM-SCK-L-BLK', 'catalog_node');
+GO
+
+
+-- Equipo deportivo para todas las secciones: lentes, gorras, guantes, balones,
+-- tacos de fútbol y más ropa y calzado para hombre, mujer y juvenil.
+INSERT INTO product (id_category, name, description, target_gender, base_price, age_segment, outlet_percent, source_node) VALUES
+(7, 'Lentes para correr JAM Vision', 'Lentes deportivos ligeros con protección UV400 y patas antideslizantes', 'U', 690.00, 'adult', NULL, 'catalog_node'),
+(7, 'Goggles de natación JAM Splash', 'Goggles antiempañantes con correa ajustable de silicón', 'U', 250.00, 'all', NULL, 'catalog_node'),
+(6, 'Gorra Trucker JAM Urban', 'Gorra con malla trasera y broche ajustable', 'U', 320.00, 'youth', NULL, 'catalog_node'),
+(6, 'Gorra para correr JAM Run Light', 'Gorra ultraligera con visera flexible y banda absorbente', 'U', 360.00, 'adult', NULL, 'catalog_node'),
+(8, 'Guantes de gimnasio JAM Grip', 'Guantes con palma acolchada y muñequera ajustable para pesas', 'U', 420.00, 'adult', NULL, 'catalog_node'),
+(8, 'Guantes de portero JAM Keeper', 'Guantes de portero con palma de látex de alto agarre', 'U', 590.00, 'youth', NULL, 'catalog_node'),
+(8, 'Guantes de box JAM Fight 12 oz', 'Guantes de entrenamiento para box y kickboxing', 'U', 890.00, 'all', NULL, 'catalog_node'),
+(9, 'Balón de fútbol JAM Strike No. 5', 'Balón cosido para pasto natural y sintético', 'U', 490.00, 'all', NULL, 'catalog_node'),
+(9, 'Balón de básquetbol JAM Court No. 7', 'Balón de hule con buen agarre para duela y exterior', 'U', 590.00, 'all', NULL, 'catalog_node'),
+(9, 'Balón de voleibol JAM Spike', 'Balón de piel sintética de tacto suave', 'U', 450.00, 'all', NULL, 'catalog_node'),
+(9, 'Pelotas de pádel JAM Pro (3 piezas)', 'Bote constante para pádel y tenis recreativo', 'U', 220.00, 'adult', NULL, 'catalog_node'),
+(9, 'Balón de fútbol americano JAM Blitz', 'Balón de piel sintética con agujetas cosidas', 'U', 520.00, 'youth', NULL, 'catalog_node'),
+(5, 'Tenis de fútbol JAM Strike FG', 'Tacos para pasto natural con suela de 13 tacos', 'U', 1490.00, 'youth', NULL, 'catalog_node'),
+(5, 'Tenis de entrenamiento JAM Flow', 'Tenis ligeros para gimnasio, yoga y cardio', 'F', 1390.00, 'all', NULL, 'catalog_node'),
+(5, 'Tenis JAM Sprint Jr', 'Tenis ligeros para la escuela y el deporte', 'U', 990.00, 'youth', NULL, 'catalog_node'),
+(2, 'Short de básquetbol JAM Court', 'Short holgado de malla transpirable', 'M', 450.00, 'youth', NULL, 'catalog_node'),
+(2, 'Falda short de tenis JAM Ace', 'Falda con short interior y bolsillo para pelota', 'F', 520.00, 'all', NULL, 'catalog_node'),
+(1, 'Playera térmica manga larga JAM Thermo', 'Capa base térmica para entrenar con frío', 'U', 580.00, 'adult', NULL, 'catalog_node');
+GO
+
+-- Outlet: modelos de la temporada anterior con 30 % de descuento.
+-- Las compras del outlet no tienen cambios ni devoluciones.
+INSERT INTO product (id_category, name, description, target_gender, base_price, age_segment, outlet_percent, source_node) VALUES
+(5, 'Tenis Running JAM Pulse 2025', 'Modelo de la temporada anterior con la misma amortiguación', 'U', 1590.00, 'adult', 30, 'catalog_node'),
+(5, 'Tenis Urbanos JAM Street Classic 2025', 'Tenis casuales de la temporada anterior', 'U', 1190.00, 'youth', 30, 'catalog_node'),
+(5, 'Tenis Trainer JAM Stride 2025', 'Tenis de entrenamiento de la temporada anterior', 'U', 1690.00, 'all', 30, 'catalog_node'),
+(5, 'Sandalias JAM Slide 2025', 'Sandalias acolchadas de la temporada anterior', 'U', 390.00, 'all', 30, 'catalog_node'),
+(1, 'Playera JAM Pro 2025', 'Playera de secado rápido de la temporada anterior', 'U', 420.00, 'all', 30, 'catalog_node'),
+(1, 'Top Deportivo JAM Core 2025', 'Top de soporte medio de la temporada anterior', 'F', 370.00, 'all', 30, 'catalog_node'),
+(2, 'Pants Jogger JAM Move 2025', 'Pants jogger de la temporada anterior', 'U', 650.00, 'youth', 30, 'catalog_node'),
+(3, 'Leggings JAM Flex 2025', 'Leggings de compresión de la temporada anterior', 'F', 540.00, 'adult', 30, 'catalog_node'),
+(4, 'Sudadera JAM Core 2025', 'Sudadera con capucha de la temporada anterior', 'U', 720.00, 'all', 30, 'catalog_node'),
+(4, 'Chamarra JAM Storm 2025', 'Rompevientos de la temporada anterior', 'U', 1150.00, 'adult', 30, 'catalog_node'),
+(6, 'Gorra JAM Sport Cap 2025', 'Gorra de la temporada anterior', 'U', 270.00, 'all', 30, 'catalog_node'),
+(9, 'Balón de fútbol JAM Strike 2025', 'Balón de la temporada anterior', 'U', 450.00, 'all', 30, 'catalog_node');
+GO
+
+-- Variantes de los productos nuevos (se buscan por nombre, talla y color)
+INSERT INTO product_variant (id_product, id_size, id_color, sku, source_node)
+SELECT p.id_product, sz.id_size, cl.id_color, v.sku, 'catalog_node'
+FROM (VALUES
+('Lentes para correr JAM Vision', 'UNI', 'black', 'JAM-VIS-UNI-BLK'),
+('Lentes para correr JAM Vision', 'UNI', 'white', 'JAM-VIS-UNI-WHT'),
+('Lentes para correr JAM Vision', 'UNI', 'blue', 'JAM-VIS-UNI-BLU'),
+('Goggles de natación JAM Splash', 'UNI', 'black', 'JAM-SPL-UNI-BLK'),
+('Goggles de natación JAM Splash', 'UNI', 'blue', 'JAM-SPL-UNI-BLU'),
+('Goggles de natación JAM Splash', 'UNI', 'pink', 'JAM-SPL-UNI-PNK'),
+('Gorra Trucker JAM Urban', 'UNI', 'black', 'JAM-TRK-UNI-BLK'),
+('Gorra Trucker JAM Urban', 'UNI', 'white', 'JAM-TRK-UNI-WHT'),
+('Gorra Trucker JAM Urban', 'UNI', 'navy', 'JAM-TRK-UNI-NVY'),
+('Gorra para correr JAM Run Light', 'UNI', 'black', 'JAM-RUN-UNI-BLK'),
+('Gorra para correr JAM Run Light', 'UNI', 'white', 'JAM-RUN-UNI-WHT'),
+('Gorra para correr JAM Run Light', 'UNI', 'pink', 'JAM-RUN-UNI-PNK'),
+('Guantes de gimnasio JAM Grip', 'S', 'black', 'JAM-GRP-S-BLK'),
+('Guantes de gimnasio JAM Grip', 'M', 'black', 'JAM-GRP-M-BLK'),
+('Guantes de gimnasio JAM Grip', 'L', 'black', 'JAM-GRP-L-BLK'),
+('Guantes de gimnasio JAM Grip', 'XL', 'black', 'JAM-GRP-XL-BLK'),
+('Guantes de gimnasio JAM Grip', 'S', 'gray', 'JAM-GRP-S-GRY'),
+('Guantes de gimnasio JAM Grip', 'M', 'gray', 'JAM-GRP-M-GRY'),
+('Guantes de gimnasio JAM Grip', 'L', 'gray', 'JAM-GRP-L-GRY'),
+('Guantes de gimnasio JAM Grip', 'XL', 'gray', 'JAM-GRP-XL-GRY'),
+('Guantes de portero JAM Keeper', 'S', 'black', 'JAM-KPR-S-BLK'),
+('Guantes de portero JAM Keeper', 'M', 'black', 'JAM-KPR-M-BLK'),
+('Guantes de portero JAM Keeper', 'L', 'black', 'JAM-KPR-L-BLK'),
+('Guantes de portero JAM Keeper', 'S', 'green', 'JAM-KPR-S-GRN'),
+('Guantes de portero JAM Keeper', 'M', 'green', 'JAM-KPR-M-GRN'),
+('Guantes de portero JAM Keeper', 'L', 'green', 'JAM-KPR-L-GRN'),
+('Guantes de box JAM Fight 12 oz', 'UNI', 'red', 'JAM-BOX-UNI-RED'),
+('Guantes de box JAM Fight 12 oz', 'UNI', 'black', 'JAM-BOX-UNI-BLK'),
+('Guantes de box JAM Fight 12 oz', 'UNI', 'pink', 'JAM-BOX-UNI-PNK'),
+('Balón de fútbol JAM Strike No. 5', 'UNI', 'black', 'JAM-FUT-UNI-BLK'),
+('Balón de fútbol JAM Strike No. 5', 'UNI', 'blue', 'JAM-FUT-UNI-BLU'),
+('Balón de fútbol JAM Strike No. 5', 'UNI', 'red', 'JAM-FUT-UNI-RED'),
+('Balón de básquetbol JAM Court No. 7', 'UNI', 'amber', 'JAM-BSK-UNI-AMB'),
+('Balón de básquetbol JAM Court No. 7', 'UNI', 'black', 'JAM-BSK-UNI-BLK'),
+('Balón de voleibol JAM Spike', 'UNI', 'blue', 'JAM-VOL-UNI-BLU'),
+('Balón de voleibol JAM Spike', 'UNI', 'lime', 'JAM-VOL-UNI-LIM'),
+('Pelotas de pádel JAM Pro (3 piezas)', 'UNI', 'lime', 'JAM-PAD-UNI-LIM'),
+('Balón de fútbol americano JAM Blitz', 'UNI', 'brown', 'JAM-AMR-UNI-BRN'),
+('Tenis de fútbol JAM Strike FG', '25', 'black', 'JAM-TAC-25-BLK'),
+('Tenis de fútbol JAM Strike FG', '26', 'black', 'JAM-TAC-26-BLK'),
+('Tenis de fútbol JAM Strike FG', '27', 'black', 'JAM-TAC-27-BLK'),
+('Tenis de fútbol JAM Strike FG', '28', 'black', 'JAM-TAC-28-BLK'),
+('Tenis de fútbol JAM Strike FG', '25', 'white', 'JAM-TAC-25-WHT'),
+('Tenis de fútbol JAM Strike FG', '26', 'white', 'JAM-TAC-26-WHT'),
+('Tenis de fútbol JAM Strike FG', '27', 'white', 'JAM-TAC-27-WHT'),
+('Tenis de fútbol JAM Strike FG', '28', 'white', 'JAM-TAC-28-WHT'),
+('Tenis de entrenamiento JAM Flow', '25', 'pink', 'JAM-FLW-25-PNK'),
+('Tenis de entrenamiento JAM Flow', '26', 'pink', 'JAM-FLW-26-PNK'),
+('Tenis de entrenamiento JAM Flow', '27', 'pink', 'JAM-FLW-27-PNK'),
+('Tenis de entrenamiento JAM Flow', '25', 'white', 'JAM-FLW-25-WHT'),
+('Tenis de entrenamiento JAM Flow', '26', 'white', 'JAM-FLW-26-WHT'),
+('Tenis de entrenamiento JAM Flow', '27', 'white', 'JAM-FLW-27-WHT'),
+('Tenis de entrenamiento JAM Flow', '25', 'black', 'JAM-FLW-25-BLK'),
+('Tenis de entrenamiento JAM Flow', '26', 'black', 'JAM-FLW-26-BLK'),
+('Tenis de entrenamiento JAM Flow', '27', 'black', 'JAM-FLW-27-BLK'),
+('Tenis JAM Sprint Jr', '25', 'blue', 'JAM-SPR-25-BLU'),
+('Tenis JAM Sprint Jr', '26', 'blue', 'JAM-SPR-26-BLU'),
+('Tenis JAM Sprint Jr', '27', 'blue', 'JAM-SPR-27-BLU'),
+('Tenis JAM Sprint Jr', '25', 'black', 'JAM-SPR-25-BLK'),
+('Tenis JAM Sprint Jr', '26', 'black', 'JAM-SPR-26-BLK'),
+('Tenis JAM Sprint Jr', '27', 'black', 'JAM-SPR-27-BLK'),
+('Short de básquetbol JAM Court', 'S', 'black', 'JAM-CRT-S-BLK'),
+('Short de básquetbol JAM Court', 'M', 'black', 'JAM-CRT-M-BLK'),
+('Short de básquetbol JAM Court', 'L', 'black', 'JAM-CRT-L-BLK'),
+('Short de básquetbol JAM Court', 'XL', 'black', 'JAM-CRT-XL-BLK'),
+('Short de básquetbol JAM Court', 'S', 'red', 'JAM-CRT-S-RED'),
+('Short de básquetbol JAM Court', 'M', 'red', 'JAM-CRT-M-RED'),
+('Short de básquetbol JAM Court', 'L', 'red', 'JAM-CRT-L-RED'),
+('Short de básquetbol JAM Court', 'XL', 'red', 'JAM-CRT-XL-RED'),
+('Short de básquetbol JAM Court', 'S', 'navy', 'JAM-CRT-S-NVY'),
+('Short de básquetbol JAM Court', 'M', 'navy', 'JAM-CRT-M-NVY'),
+('Short de básquetbol JAM Court', 'L', 'navy', 'JAM-CRT-L-NVY'),
+('Short de básquetbol JAM Court', 'XL', 'navy', 'JAM-CRT-XL-NVY'),
+('Falda short de tenis JAM Ace', 'XS', 'white', 'JAM-ACE-XS-WHT'),
+('Falda short de tenis JAM Ace', 'S', 'white', 'JAM-ACE-S-WHT'),
+('Falda short de tenis JAM Ace', 'M', 'white', 'JAM-ACE-M-WHT'),
+('Falda short de tenis JAM Ace', 'L', 'white', 'JAM-ACE-L-WHT'),
+('Falda short de tenis JAM Ace', 'XS', 'black', 'JAM-ACE-XS-BLK'),
+('Falda short de tenis JAM Ace', 'S', 'black', 'JAM-ACE-S-BLK'),
+('Falda short de tenis JAM Ace', 'M', 'black', 'JAM-ACE-M-BLK'),
+('Falda short de tenis JAM Ace', 'L', 'black', 'JAM-ACE-L-BLK'),
+('Falda short de tenis JAM Ace', 'XS', 'pink', 'JAM-ACE-XS-PNK'),
+('Falda short de tenis JAM Ace', 'S', 'pink', 'JAM-ACE-S-PNK'),
+('Falda short de tenis JAM Ace', 'M', 'pink', 'JAM-ACE-M-PNK'),
+('Falda short de tenis JAM Ace', 'L', 'pink', 'JAM-ACE-L-PNK'),
+('Playera térmica manga larga JAM Thermo', 'S', 'black', 'JAM-THM-S-BLK'),
+('Playera térmica manga larga JAM Thermo', 'M', 'black', 'JAM-THM-M-BLK'),
+('Playera térmica manga larga JAM Thermo', 'L', 'black', 'JAM-THM-L-BLK'),
+('Playera térmica manga larga JAM Thermo', 'XL', 'black', 'JAM-THM-XL-BLK'),
+('Playera térmica manga larga JAM Thermo', 'S', 'gray', 'JAM-THM-S-GRY'),
+('Playera térmica manga larga JAM Thermo', 'M', 'gray', 'JAM-THM-M-GRY'),
+('Playera térmica manga larga JAM Thermo', 'L', 'gray', 'JAM-THM-L-GRY'),
+('Playera térmica manga larga JAM Thermo', 'XL', 'gray', 'JAM-THM-XL-GRY'),
+('Playera térmica manga larga JAM Thermo', 'S', 'navy', 'JAM-THM-S-NVY'),
+('Playera térmica manga larga JAM Thermo', 'M', 'navy', 'JAM-THM-M-NVY'),
+('Playera térmica manga larga JAM Thermo', 'L', 'navy', 'JAM-THM-L-NVY'),
+('Playera térmica manga larga JAM Thermo', 'XL', 'navy', 'JAM-THM-XL-NVY'),
+('Tenis Running JAM Pulse 2025', '26', 'gray', 'JAM-PLO-26-GRY'),
+('Tenis Running JAM Pulse 2025', '27', 'gray', 'JAM-PLO-27-GRY'),
+('Tenis Running JAM Pulse 2025', '28', 'gray', 'JAM-PLO-28-GRY'),
+('Tenis Running JAM Pulse 2025', '26', 'blue', 'JAM-PLO-26-BLU'),
+('Tenis Running JAM Pulse 2025', '27', 'blue', 'JAM-PLO-27-BLU'),
+('Tenis Running JAM Pulse 2025', '28', 'blue', 'JAM-PLO-28-BLU'),
+('Tenis Urbanos JAM Street Classic 2025', '25', 'white', 'JAM-STO-25-WHT'),
+('Tenis Urbanos JAM Street Classic 2025', '26', 'white', 'JAM-STO-26-WHT'),
+('Tenis Urbanos JAM Street Classic 2025', '27', 'white', 'JAM-STO-27-WHT'),
+('Tenis Urbanos JAM Street Classic 2025', '25', 'black', 'JAM-STO-25-BLK'),
+('Tenis Urbanos JAM Street Classic 2025', '26', 'black', 'JAM-STO-26-BLK'),
+('Tenis Urbanos JAM Street Classic 2025', '27', 'black', 'JAM-STO-27-BLK'),
+('Tenis Trainer JAM Stride 2025', '26', 'black', 'JAM-SDO-26-BLK'),
+('Tenis Trainer JAM Stride 2025', '27', 'black', 'JAM-SDO-27-BLK'),
+('Tenis Trainer JAM Stride 2025', '28', 'black', 'JAM-SDO-28-BLK'),
+('Tenis Trainer JAM Stride 2025', '26', 'red', 'JAM-SDO-26-RED'),
+('Tenis Trainer JAM Stride 2025', '27', 'red', 'JAM-SDO-27-RED'),
+('Tenis Trainer JAM Stride 2025', '28', 'red', 'JAM-SDO-28-RED'),
+('Sandalias JAM Slide 2025', '26', 'black', 'JAM-SLO-26-BLK'),
+('Sandalias JAM Slide 2025', '27', 'black', 'JAM-SLO-27-BLK'),
+('Sandalias JAM Slide 2025', '26', 'navy', 'JAM-SLO-26-NVY'),
+('Sandalias JAM Slide 2025', '27', 'navy', 'JAM-SLO-27-NVY'),
+('Playera JAM Pro 2025', 'S', 'red', 'JAM-PRO5-S-RED'),
+('Playera JAM Pro 2025', 'M', 'red', 'JAM-PRO5-M-RED'),
+('Playera JAM Pro 2025', 'L', 'red', 'JAM-PRO5-L-RED'),
+('Playera JAM Pro 2025', 'XL', 'red', 'JAM-PRO5-XL-RED'),
+('Playera JAM Pro 2025', 'S', 'navy', 'JAM-PRO5-S-NVY'),
+('Playera JAM Pro 2025', 'M', 'navy', 'JAM-PRO5-M-NVY'),
+('Playera JAM Pro 2025', 'L', 'navy', 'JAM-PRO5-L-NVY'),
+('Playera JAM Pro 2025', 'XL', 'navy', 'JAM-PRO5-XL-NVY'),
+('Top Deportivo JAM Core 2025', 'XS', 'pink', 'JAM-TPO-XS-PNK'),
+('Top Deportivo JAM Core 2025', 'S', 'pink', 'JAM-TPO-S-PNK'),
+('Top Deportivo JAM Core 2025', 'M', 'pink', 'JAM-TPO-M-PNK'),
+('Top Deportivo JAM Core 2025', 'XS', 'black', 'JAM-TPO-XS-BLK'),
+('Top Deportivo JAM Core 2025', 'S', 'black', 'JAM-TPO-S-BLK'),
+('Top Deportivo JAM Core 2025', 'M', 'black', 'JAM-TPO-M-BLK'),
+('Pants Jogger JAM Move 2025', 'S', 'gray', 'JAM-JGO-S-GRY'),
+('Pants Jogger JAM Move 2025', 'M', 'gray', 'JAM-JGO-M-GRY'),
+('Pants Jogger JAM Move 2025', 'L', 'gray', 'JAM-JGO-L-GRY'),
+('Pants Jogger JAM Move 2025', 'S', 'black', 'JAM-JGO-S-BLK'),
+('Pants Jogger JAM Move 2025', 'M', 'black', 'JAM-JGO-M-BLK'),
+('Pants Jogger JAM Move 2025', 'L', 'black', 'JAM-JGO-L-BLK'),
+('Leggings JAM Flex 2025', 'XS', 'blue', 'JAM-FXO-XS-BLU'),
+('Leggings JAM Flex 2025', 'S', 'blue', 'JAM-FXO-S-BLU'),
+('Leggings JAM Flex 2025', 'M', 'blue', 'JAM-FXO-M-BLU'),
+('Leggings JAM Flex 2025', 'L', 'blue', 'JAM-FXO-L-BLU'),
+('Leggings JAM Flex 2025', 'XS', 'black', 'JAM-FXO-XS-BLK'),
+('Leggings JAM Flex 2025', 'S', 'black', 'JAM-FXO-S-BLK'),
+('Leggings JAM Flex 2025', 'M', 'black', 'JAM-FXO-M-BLK'),
+('Leggings JAM Flex 2025', 'L', 'black', 'JAM-FXO-L-BLK'),
+('Sudadera JAM Core 2025', 'S', 'green', 'JAM-CRO-S-GRN'),
+('Sudadera JAM Core 2025', 'M', 'green', 'JAM-CRO-M-GRN'),
+('Sudadera JAM Core 2025', 'L', 'green', 'JAM-CRO-L-GRN'),
+('Sudadera JAM Core 2025', 'XL', 'green', 'JAM-CRO-XL-GRN'),
+('Sudadera JAM Core 2025', 'S', 'gray', 'JAM-CRO-S-GRY'),
+('Sudadera JAM Core 2025', 'M', 'gray', 'JAM-CRO-M-GRY'),
+('Sudadera JAM Core 2025', 'L', 'gray', 'JAM-CRO-L-GRY'),
+('Sudadera JAM Core 2025', 'XL', 'gray', 'JAM-CRO-XL-GRY'),
+('Chamarra JAM Storm 2025', 'M', 'navy', 'JAM-STM5-M-NVY'),
+('Chamarra JAM Storm 2025', 'L', 'navy', 'JAM-STM5-L-NVY'),
+('Chamarra JAM Storm 2025', 'XL', 'navy', 'JAM-STM5-XL-NVY'),
+('Chamarra JAM Storm 2025', 'M', 'black', 'JAM-STM5-M-BLK'),
+('Chamarra JAM Storm 2025', 'L', 'black', 'JAM-STM5-L-BLK'),
+('Chamarra JAM Storm 2025', 'XL', 'black', 'JAM-STM5-XL-BLK'),
+('Gorra JAM Sport Cap 2025', 'UNI', 'red', 'JAM-CPO-UNI-RED'),
+('Gorra JAM Sport Cap 2025', 'UNI', 'gray', 'JAM-CPO-UNI-GRY'),
+('Balón de fútbol JAM Strike 2025', 'UNI', 'red', 'JAM-FTO-UNI-RED')
+) AS v (product_name, size_code, color_code, sku)
+JOIN product AS p ON p.name = v.product_name
+JOIN size AS sz ON sz.code = v.size_code
+JOIN color AS cl ON cl.code = v.color_code;
 GO
 
 CREATE TABLE inventory (
@@ -1124,6 +1354,47 @@ INSERT INTO inventory (id_store, id_variant, stock, min_stock, source_node) VALU
 (1, 134, 7, 5, 'catalog_node'),
 (2, 134, 18, 5, 'catalog_node'),
 (4, 134, 5, 5, 'catalog_node');
+GO
+
+-- Existencias de los productos nuevos en Tijuana (1), CDMX (2) y la tienda en línea (4)
+INSERT INTO inventory (id_store, id_variant, stock, min_stock, source_node)
+SELECT s.id_store, pv.id_variant,
+       CASE WHEN (pv.id_variant + s.id_store) % 11 = 0 THEN 0
+            ELSE 4 + (pv.id_variant * 7 + s.id_store * 13) % 26 END,
+       3, 'catalog_node'
+FROM product_variant AS pv
+JOIN product AS p ON p.id_product = pv.id_product
+CROSS JOIN (VALUES (1), (2), (4)) AS s (id_store)
+WHERE p.name IN ('Lentes para correr JAM Vision',
+                 'Goggles de natación JAM Splash',
+                 'Gorra Trucker JAM Urban',
+                 'Gorra para correr JAM Run Light',
+                 'Guantes de gimnasio JAM Grip',
+                 'Guantes de portero JAM Keeper',
+                 'Guantes de box JAM Fight 12 oz',
+                 'Balón de fútbol JAM Strike No. 5',
+                 'Balón de básquetbol JAM Court No. 7',
+                 'Balón de voleibol JAM Spike',
+                 'Pelotas de pádel JAM Pro (3 piezas)',
+                 'Balón de fútbol americano JAM Blitz',
+                 'Tenis de fútbol JAM Strike FG',
+                 'Tenis de entrenamiento JAM Flow',
+                 'Tenis JAM Sprint Jr',
+                 'Short de básquetbol JAM Court',
+                 'Falda short de tenis JAM Ace',
+                 'Playera térmica manga larga JAM Thermo',
+                 'Tenis Running JAM Pulse 2025',
+                 'Tenis Urbanos JAM Street Classic 2025',
+                 'Tenis Trainer JAM Stride 2025',
+                 'Sandalias JAM Slide 2025',
+                 'Playera JAM Pro 2025',
+                 'Top Deportivo JAM Core 2025',
+                 'Pants Jogger JAM Move 2025',
+                 'Leggings JAM Flex 2025',
+                 'Sudadera JAM Core 2025',
+                 'Chamarra JAM Storm 2025',
+                 'Gorra JAM Sport Cap 2025',
+                 'Balón de fútbol JAM Strike 2025');
 GO
 
 

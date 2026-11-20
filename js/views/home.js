@@ -2,7 +2,7 @@
 import { clone, field, fill, slot, money, setTitle } from '../ui.js';
 import { productArt } from '../illustrations.js';
 import { announcementsSection, productRail } from '../components.js';
-import { activePromotions, isPriority, loadAnnouncements, newestIds, recentProducts, state } from '../store.js';
+import { activePromotions, isPriority, loadAnnouncements, newestIds, outletProducts, recentProducts, shopProducts, state } from '../store.js';
 import { campaignEnd, currentTheme } from '../theme.js';
 
 let countdownTimer = null;
@@ -49,11 +49,11 @@ export async function renderHome(view) {
     setTitle('');
     const home = clone('tpl-home');
 
-    const bestSellers = state.products.slice().sort(function (a, b) {
+    const bestSellers = shopProducts().sort(function (a, b) {
         return (b.sold - a.sold) || (b.rating - a.rating);
     }).slice(0, 8);
     const newest = newestIds(8).map(function (id) { return state.byId.get(id); });
-    const topRated = state.products.filter(function (p) { return p.reviews > 0; })
+    const topRated = shopProducts().filter(function (p) { return p.reviews > 0; })
         .sort(function (a, b) { return (b.rating - a.rating) || (b.reviews - a.reviews); }).slice(0, 8);
 
     showTheme(home, currentTheme);
@@ -65,6 +65,11 @@ export async function renderHome(view) {
     slot(home, 'tileAccessories').replaceWith(productArt({ name: 'Mochila', category_code: 'accessories' }, 'navy'));
 
     slot(home, 'recent').replaceWith(productRail('Vistos recientemente', recentProducts().slice(0, 8)));
+    const outlet = outletProducts();
+    const outletPercent = Math.max.apply(null, outlet.map(function (p) { return p.outlet_percent; }).concat([0]));
+    fill(home, { outletPercent: outletPercent + ' %' });
+    slot(home, 'outletArt').replaceWith(productArt({ name: 'Tenis', category_code: 'footwear' }, 'red'));
+    field(home, 'outletBanner').hidden = !outlet.length;
     slot(home, 'bestSellers').replaceWith(productRail('Lo más vendido', bestSellers, { href: '#/tienda?orden=vendidos', label: 'Ver todo' }));
     slot(home, 'newest').replaceWith(productRail('Novedades', newest, { href: '#/tienda?orden=nuevo', label: 'Ver novedades' }));
     slot(home, 'topRated').replaceWith(productRail('Mejor calificados', topRated, { href: '#/tienda?orden=calificacion', label: 'Ver todo' }));

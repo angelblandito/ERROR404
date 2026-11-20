@@ -88,8 +88,32 @@ export function physicalStores() {
     return state.stores.filter(function (s) { return !s.is_online; });
 }
 
+/* ---------- Outlet ---------- */
+export function isOutlet(p) {
+    return p.outlet_percent !== null && p.outlet_percent !== undefined;
+}
+
+/* Productos de la tienda normal y del outlet (el outlet tiene su propia sección). */
+export function shopProducts() {
+    return state.products.filter(function (p) { return !isOutlet(p); });
+}
+
+export function outletProducts() {
+    return state.products.filter(isOutlet);
+}
+
+/* Precio de lista con el descuento del outlet; igual que dbo.sp_crear_pedido. */
+export function salePrice(p) {
+    return p.sale_price !== undefined && p.sale_price !== null ? p.sale_price : p.base_price;
+}
+
+/* Precio por pieza para la cuenta actual: al outlet no se le suma el descuento de la cuenta. */
+export function unitPrice(p) {
+    return isOutlet(p) ? salePrice(p) : memberPrice(p.base_price);
+}
+
 export function newestIds(count) {
-    return state.products.slice().sort(function (a, b) { return b.id_product - a.id_product; })
+    return shopProducts().sort(function (a, b) { return b.id_product - a.id_product; })
         .slice(0, count).map(function (p) { return p.id_product; });
 }
 
@@ -127,12 +151,13 @@ export function memberPrice(price) {
 }
 
 /* Mismas reglas que dbo.sp_crear_pedido: cupón + descuento de la cuenta (tope 90 %)
-   y envío gratis según el tipo de cuenta. */
-export function orderTotals(subtotal, couponPercent, delivery) {
+   sobre los artículos que no son de outlet, y envío gratis según el tipo de cuenta. */
+export function orderTotals(subtotal, couponPercent, delivery, discountable) {
     const acc = account();
+    const base = discountable === undefined ? subtotal : discountable;
     const percent = Math.min(90, Number(couponPercent || 0) + acc.discount_percent);
-    const discount = Math.round(subtotal * percent) / 100;
-    const tierDiscount = Math.round(subtotal * acc.discount_percent) / 100;
+    const discount = Math.round(base * percent) / 100;
+    const tierDiscount = Math.round(base * acc.discount_percent) / 100;
     const shipping = delivery === 'shipping' && subtotal - discount < acc.free_shipping_from ? state.shipping.cost : 0;
     return {
         subtotal: subtotal,
@@ -206,7 +231,8 @@ export function cartLines() {
             quantity: line.quantity,
             product: found.product,
             variant: found.variant,
-            total: found.product.base_price * line.quantity
+            outlet: isOutlet(found.product),
+            total: salePrice(found.product) * line.quantity
         } : null;
     }).filter(Boolean);
 }
@@ -217,6 +243,15 @@ export function cartCount() {
 
 export function cartSubtotal() {
     return cartLines().reduce(function (sum, l) { return sum + l.total; }, 0);
+}
+
+/* Parte del carrito a la que sí se le aplican cupón y descuento de la cuenta. */
+export function cartDiscountable() {
+    return cartLines().reduce(function (sum, l) { return sum + (l.outlet ? 0 : l.total); }, 0);
+}
+
+export function cartHasOutlet() {
+    return cartLines().some(function (l) { return l.outlet; });
 }
 
 /* ---------- Favoritos ---------- */

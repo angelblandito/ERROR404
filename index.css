@@ -1317,3 +1317,37 @@ a.range-label:hover { text-decoration: underline; }
 .legal-links { display: flex; flex-wrap: wrap; gap: .25rem 1rem; }
 .legal-links a { color: inherit; font-size: .85rem; }
 .order-card .timeline { margin: 0; padding: 1rem 1.25rem .25rem; }
+
+/* ---------- Colores de equipo deportivo ---------- */
+.art-amber { --art-main: #f2711c; --art-dark: #a64b0f; }
+.art-lime { --art-main: #d9e43a; --art-dark: #8a9420; }
+.art-brown { --art-main: #8b4a2b; --art-dark: #5a2e1a; }
+.swatch-amber { background: #f2711c; }
+.swatch-lime { background: #d9e43a; }
+.swatch-brown { background: #8b4a2b; }
+
+/* ---------- Outlet ---------- */
+:root { --outlet: #b4232c; --outlet-bg: #fdecec; }
+.nav-outlet { color: var(--outlet) !important; font-weight: 700; }
+.card-tag.tag-outlet { color: var(--outlet); font-weight: 700; }
+.outlet-price { color: var(--outlet); font-weight: 700; }
+.outlet-text { color: var(--outlet); }
+.outlet-note { display: grid; gap: .2rem; margin: .25rem 0 .5rem; padding: .7rem .9rem; border-radius: var(--radius); background: var(--outlet-bg); color: #7a1219; font-size: .9rem; }
+.outlet-note strong { font-size: 1.5rem; color: var(--outlet); }
+.outlet-strip { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .35rem 1rem; margin-bottom: 1.25rem; padding: .9rem 1.2rem; border-radius: var(--radius); background: var(--outlet); color: #fff; }
+.outlet-strip strong { font-size: 1.15rem; }
+.outlet-strip > span { font-size: .88rem; opacity: .95; }
+.outlet-banner { display: grid; grid-template-columns: 1fr minmax(160px, 260px); align-items: center; gap: 1rem; margin: 2rem 0; padding: 1.5rem 2rem; border-radius: var(--radius); background: linear-gradient(120deg, #7f1018, var(--outlet)); color: #fff; text-decoration: none; overflow: hidden; }
+.outlet-banner h2 { font-size: clamp(1.4rem, 3vw, 2.2rem); margin: .3rem 0 .5rem; }
+.outlet-banner p { opacity: .92; margin-bottom: 1rem; }
+.outlet-banner .product-art { background: transparent; }
+.outlet-banner:hover .btn { background: #fff; }
+.notice-dialog { width: min(460px, calc(100vw - 2rem)); border: 0; border-radius: var(--radius); padding: 0; box-shadow: 0 20px 60px rgba(0, 0, 0, .3); }
+.notice-dialog::backdrop { background: rgba(0, 0, 0, .55); }
+.notice-dialog form { display: grid; gap: .8rem; padding: 1.75rem; text-align: center; }
+.notice-dialog h2 { font-size: 1.7rem; color: var(--outlet); }
+.notice-warning { padding: .75rem .9rem; border-radius: 8px; background: var(--outlet-bg); color: #7a1219; font-size: .92rem; }
+@media (max-width: 600px) {
+    .outlet-banner { grid-template-columns: 1fr; padding: 1.25rem; }
+    .outlet-banner > div:last-child { display: none; }
+}

@@ -12,7 +12,10 @@
        - inserta customer_order, order_item y payment;
        - registra el domicilio (envío) y el pago simulado;
        - aplica los beneficios del tipo de cuenta (account_tier): descuento,
-         envío gratis y prioritario, y piezas permitidas por artículo.
+         envío gratis y prioritario, y piezas permitidas por artículo;
+       - cobra los productos de outlet con su descuento fijo
+         (product.outlet_percent); a esos no se les suma cupón ni descuento
+         de la cuenta.
      Si cualquier paso falla no queda nada a medias (XACT_ABORT + TRY/CATCH).
      Errores de negocio: THROW 50001-50016, la API los devuelve como HTTP 409.
 
@@ -64,7 +67,8 @@ BEGIN
     DECLARE @lineas TABLE (
         id_variant  INT          NOT NULL PRIMARY KEY,
         quantity    SMALLINT     NOT NULL,
-        unit_price  DECIMAL(8,2) NULL
+        unit_price  DECIMAL(8,2) NULL,
+        is_outlet   BIT          NOT NULL DEFAULT 0
     );
     DECLARE @descontados TABLE (id_variant INT NOT NULL);
 
@@ -134,9 +138,11 @@ BEGIN
     IF @payment_method = 'cash' AND @delivery_type <> 'pickup'
         THROW 50015, N'El pago en efectivo solo aplica al recoger en sucursal.', 1;
 
-    /* Precios desde el catálogo */
+    /* Precios desde el catálogo; el outlet ya trae su descuento en el precio. */
     UPDATE l
-    SET l.unit_price = p.base_price
+    SET l.unit_price = CASE WHEN p.outlet_percent IS NULL THEN p.base_price
+                            ELSE ROUND(p.base_price * (100 - p.outlet_percent) / 100, 2) END,
+        l.is_outlet = CASE WHEN p.outlet_percent IS NULL THEN 0 ELSE 1 END
     FROM @lineas AS l
     JOIN dbo.product_variant AS pv ON pv.id_variant = l.id_variant AND pv.deleted = 0
     JOIN dbo.product AS p ON p.id_product = pv.id_product AND p.deleted = 0;
@@ -167,8 +173,9 @@ BEGIN
         CASE WHEN @discount_percent + @tier_discount > 90 THEN 90 ELSE @discount_percent + @tier_discount END;
 
     DECLARE @subtotal DECIMAL(10,2) = (SELECT SUM(unit_price * quantity) FROM @lineas);
-    DECLARE @discount DECIMAL(10,2) = ROUND(@subtotal * @porcentaje / 100, 2);
-    DECLARE @tier_amount DECIMAL(10,2) = ROUND(@subtotal * @tier_discount / 100, 2);
+    DECLARE @con_descuento DECIMAL(10,2) = (SELECT ISNULL(SUM(unit_price * quantity), 0) FROM @lineas WHERE is_outlet = 0);
+    DECLARE @discount DECIMAL(10,2) = ROUND(@con_descuento * @porcentaje / 100, 2);
+    DECLARE @tier_amount DECIMAL(10,2) = ROUND(@con_descuento * @tier_discount / 100, 2);
     DECLARE @shipping DECIMAL(8,2) =
         CASE WHEN @delivery_type = 'shipping' AND @subtotal - @discount < @envio_gratis_desde THEN @costo_envio ELSE 0 END;
     DECLARE @total DECIMAL(10,2) = @subtotal - @discount + @shipping;

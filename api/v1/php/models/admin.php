@@ -273,7 +273,13 @@ function admin_orders(PDO $pdo, ?string $status): array
     $orders = store_rows($pdo, "
         SELECT TOP (100) co.id_order, co.order_date, co.status, co.channel, co.delivery_type, co.priority_shipping,
                co.subtotal, co.discount, co.shipping_cost, co.total, s.store_name,
-               c.first_name, c.last_name_paternal, t.code AS tier
+               c.first_name, c.last_name_paternal, t.code AS tier,
+               CASE WHEN EXISTS (
+                   SELECT 1 FROM dbo.order_item AS oi
+                   JOIN dbo.product_variant AS pv ON pv.id_variant = oi.id_variant
+                   JOIN dbo.product AS p ON p.id_product = pv.id_product
+                   WHERE oi.id_order = co.id_order AND oi.deleted = 0 AND p.outlet_percent IS NOT NULL
+               ) THEN 1 ELSE 0 END AS has_outlet
         FROM dbo.customer_order AS co
         JOIN dbo.store AS s ON s.id_store = co.id_store
         JOIN dbo.customer AS c ON c.id_customer = co.id_customer
@@ -287,11 +293,29 @@ function admin_orders(PDO $pdo, ?string $status): array
         $o['id_order'] = (int)$o['id_order'];
         $o['priority_shipping'] = (bool)$o['priority_shipping'];
         $o['customer'] = $o['first_name'] . ' ' . $o['last_name_paternal'];
-        $o['next_status'] = ADMIN_ORDER_FLOW[$o['status']] ?? [];
+        $o['has_outlet'] = (bool)$o['has_outlet'];
+        $o['next_status'] = admin_next_status($o['status'], $o['has_outlet']);
         unset($o['first_name'], $o['last_name_paternal']);
     }
     unset($o);
     return $orders;
+}
+
+/* Los pedidos con artículos de outlet no tienen cambios ni devoluciones. */
+function admin_next_status(string $status, bool $hasOutlet): array
+{
+    $next = ADMIN_ORDER_FLOW[$status] ?? [];
+    return $hasOutlet ? array_values(array_diff($next, ['returned'])) : $next;
+}
+
+function admin_order_has_outlet(PDO $pdo, int $idOrder): bool
+{
+    return (bool)store_rows($pdo, '
+        SELECT TOP (1) 1 AS found
+        FROM dbo.order_item AS oi
+        JOIN dbo.product_variant AS pv ON pv.id_variant = oi.id_variant
+        JOIN dbo.product AS p ON p.id_product = pv.id_product
+        WHERE oi.id_order = :id AND oi.deleted = 0 AND p.outlet_percent IS NOT NULL', [':id' => $idOrder]);
 }
 
 function admin_set_order_status(PDO $pdo, array $admin, int $idOrder, array $body): array
@@ -313,6 +337,10 @@ function admin_set_order_status(PDO $pdo, array $admin, int $idOrder, array $bod
         $current = $rows[0]['status'];
         if (!in_array($status, ADMIN_ORDER_FLOW[$current] ?? [], true)) {
             throw new StoreHttpException(409, "Un pedido en estado $current no puede pasar a $status.");
+        }
+        $hasOutlet = admin_order_has_outlet($pdo, $idOrder);
+        if ($status === 'returned' && $hasOutlet) {
+            throw new StoreHttpException(409, 'El pedido tiene artículos de outlet: no tiene cambios ni devoluciones.');
         }
 
         /* trg_customer_order_status_history registra quién hizo el cambio. */
@@ -352,7 +380,7 @@ function admin_set_order_status(PDO $pdo, array $admin, int $idOrder, array $bod
         notify_order_status($pdo, $idOrder, $status);
     });
 
-    return ['id_order' => $idOrder, 'status' => $status, 'next_status' => ADMIN_ORDER_FLOW[$status]];
+    return ['id_order' => $idOrder, 'status' => $status, 'next_status' => admin_next_status($status, $hasOutlet)];
 }
 
 /* ---------------------------------------------------------------------

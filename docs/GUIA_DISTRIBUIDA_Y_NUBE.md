@@ -195,7 +195,20 @@ Cuentas de demostración:
 
 Los precios viven en `competitor` y `market_price` (sección 12 de `db_jam.sql`). Son precios de lista consultados el 19 de noviembre de 2026 en Nike.com, adidas.mx, puma.com, Liverpool y Mercado Libre; el administrador los actualiza en Administración → **Mercado** (al guardar se registra la fecha del día). Una cuenta Estándar que abre `#/mercado` ve la invitación a subir a Prioritario y la API le responde 403.
 
-### 2.6.2 Otras funciones de la tienda
+### 2.6.2 Outlet y equipo deportivo
+
+- **Outlet** (`#/outlet`, enlace rojo del menú): 12 modelos de la temporada anterior de ropa, calzado y accesorios. Al entrar aparece el aviso *Todo al 30 % de descuento* con la advertencia de que no hay cambios ni devoluciones.
+  - En la base es la columna `product.outlet_percent`. Con `NULL` el producto tiene precio normal; con un valor, ese es el descuento del outlet.
+  - `dbo.sp_crear_pedido` cobra el precio de outlet y no le suma cupón ni el descuento de la cuenta.
+  - Administración no deja marcar como *Devuelto* un pedido con artículos de outlet (error 409), y el botón *Devolución* no aparece en esos pedidos.
+  - Los productos de outlet no se mezclan con la tienda normal: solo se ven en el outlet, en el buscador y en favoritos.
+- **Equipo deportivo en todas las secciones**: 18 productos nuevos, con categorías nuevas *Lentes*, *Guantes* y *Balones y pelotas* y colores *Naranja*, *Amarillo neón* y *Café*.
+  - Accesorios: lentes para correr, goggles de natación, dos gorras, guantes de gimnasio, de portero y de box, y balones de fútbol, básquetbol, voleibol, fútbol americano y pelotas de pádel.
+  - Calzado: tacos de fútbol, tenis de entrenamiento para mujer y tenis juveniles.
+  - Ropa: short de básquetbol, falda de tenis y playera térmica.
+  - Hombre, Mujer, Juvenil y Adulto tienen ropa, calzado y accesorios. Cada producto tiene existencias en Tijuana, CDMX y en línea.
+
+### 2.6.3 Otras funciones de la tienda
 
 | Función | Dónde se ve | En la base |
 |---|---|---|
@@ -248,7 +261,7 @@ La versión en Azure (sección 5) también se abre desde el celular, en modo con
 | POST | `/distributed/sync` | Ejecuta `dist.sp_sincronizar_nodos` |
 | GET | `/season_theme` | Temporadas y campañas con su paleta de colores |
 | GET | `/season_theme/current?date=AAAA-MM-DD` | Temporada vigente para esa fecha (campaña > estación) |
-| GET | `/store/catalog` | Catálogo con variantes, existencias por tienda, calificación y unidades vendidas |
+| GET | `/store/catalog` | Catálogo con variantes, existencias por tienda, calificación, unidades vendidas y precio de outlet (`outlet_percent`, `sale_price`) |
 | GET | `/store/products/{id}/reviews` | Reseñas y distribución de estrellas |
 | POST | `/store/reviews` | Publicar reseña (sesión; marca compra verificada) |
 | POST | `/auth/register`, `/auth/login`, `/auth/logout` | Cuentas de cliente con contraseña bcrypt, bloqueo tras 5 intentos y token de sesión |

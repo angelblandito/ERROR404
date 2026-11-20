@@ -2,7 +2,7 @@
 import { api } from '../api.js';
 import { $, clone, field, fill, show, slot, money, toast, emptyState, setTitle } from '../ui.js';
 import { productArt } from '../illustrations.js';
-import { account, activePromotions, cartLines, cartSubtotal, clearCart, loadCatalog, orderTotals, physicalStores, state, stockAt } from '../store.js';
+import { account, activePromotions, cartDiscountable, cartHasOutlet, cartLines, cartSubtotal, clearCart, loadCatalog, orderTotals, physicalStores, state, stockAt } from '../store.js';
 import { authPanel } from './account.js';
 
 let statesCache = null;
@@ -96,6 +96,7 @@ export async function renderCheckout(page) {
     states.forEach(function (s) { form.id_state.add(new Option(s.name, s.id_state)); });
     slot(checkout, 'pickupFields').append(...physicalStores().map(function (s, i) { return storeOption(s, i === 0); }));
     slot(checkout, 'lines').append(...lines.map(summaryLine));
+    show(field(checkout, 'outletNote'), cartHasOutlet());
 
     page.replaceChildren(checkout);
 
@@ -105,7 +106,7 @@ export async function renderCheckout(page) {
 
     const acc = account();
     const totals = function () {
-        return orderTotals(cartSubtotal(), coupon ? coupon.discount_percent : 0, delivery());
+        return orderTotals(cartSubtotal(), coupon ? coupon.discount_percent : 0, delivery(), cartDiscountable());
     };
 
     const missingAt = function (idStore) {
