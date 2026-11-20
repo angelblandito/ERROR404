@@ -85,3 +85,18 @@ export function renderHelp(page) {
         shippingCost: money.format(state.shipping.cost)
     }));
 }
+
+const LEGAL_PAGES = {
+    privacidad: 'Aviso de privacidad',
+    terminos: 'Términos y condiciones',
+    devoluciones: 'Cambios y devoluciones'
+};
+
+export function renderLegal(page, name) {
+    if (!LEGAL_PAGES[name]) {
+        page.replaceChildren(emptyState('Página no encontrada', 'El enlace que seguiste no existe.', { href: '#/', label: 'Ir al inicio' }));
+        return;
+    }
+    setTitle(LEGAL_PAGES[name]);
+    page.replaceChildren(clone('tpl-legal-' + name));
+}

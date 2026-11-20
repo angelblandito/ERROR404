@@ -1256,6 +1256,107 @@ INSERT INTO payment (id_order, amount, currency, method, external_reference, sta
 (5, 1140.00,  'MXN', 'card',     'TXN-00812',   'refunded',  'orders_node');
 GO
 
+-- Historial de ventas de las últimas cuatro semanas en las tres sucursales
+-- que forman la base distribuida (1 Tijuana, 2 CDMX, 4 En línea). Alimenta
+-- las gráficas del panel y las recomendaciones "también compraron".
+-- Las fechas son relativas al día en que se ejecuta el script.
+DECLARE @historial TABLE (
+    n           INT         NOT NULL PRIMARY KEY,
+    days_ago    INT         NOT NULL,
+    id_store    INT         NOT NULL,
+    id_customer INT         NOT NULL,
+    status      VARCHAR(9)  NOT NULL,
+    method      VARCHAR(8)  NOT NULL,
+    sku1        VARCHAR(30) NOT NULL,
+    qty1        SMALLINT    NOT NULL,
+    sku2        VARCHAR(30) NULL,
+    qty2        SMALLINT    NULL
+);
+
+INSERT INTO @historial (n, days_ago, id_store, id_customer, status, method, sku1, qty1, sku2, qty2) VALUES
+( 1, 27, 1, 1, 'delivered', 'cash',     'JAM-PRO-M-BLK',   1, 'JAM-AIR-M-BLK',   1),
+( 2, 26, 4, 3, 'delivered', 'card',     'JAM-PLS-27-BLK',  1, 'JAM-SCK-M-BLK',   1),
+( 3, 25, 2, 4, 'delivered', 'card',     'JAM-CORE-L-GRY',  1, 'JAM-JOG-L-GRY',   1),
+( 4, 24, 4, 2, 'delivered', 'transfer', 'JAM-CLB-M-GRN',  12, 'JAM-AIR-M-NVY',  12),
+( 5, 23, 1, 3, 'delivered', 'card',     'JAM-FLX-S-BLK',   1, 'JAM-TOP-M-BLK',   1),
+( 6, 22, 2, 1, 'delivered', 'cash',     'JAM-STT-27-WHT',  1, NULL,             NULL),
+( 7, 21, 4, 4, 'delivered', 'oxxo',     'JAM-GYM-UNI-BLK', 1, 'JAM-BTL-UNI-BLK', 1),
+( 8, 20, 1, 1, 'delivered', 'card',     'JAM-PLS-27-BLK',  1, 'JAM-SCK-M-BLK',   1),
+( 9, 19, 2, 3, 'delivered', 'card',     'JAM-SML-S-BLK',   1, 'JAM-TOP-M-BLK',   1),
+(10, 18, 4, 5, 'delivered', 'card',     'JAM-CAP-UNI-BLK', 1, NULL,             NULL),
+(11, 17, 1, 4, 'delivered', 'cash',     'JAM-JMP-27-BLK',  1, 'JAM-SCK-L-BLK',   1),
+(12, 16, 4, 1, 'delivered', 'card',     'JAM-STM-L-BLK',   1, 'JAM-CORE-M-BLK',  1),
+(13, 15, 2, 3, 'delivered', 'transfer', 'JAM-PRO-S-WHT',   2, 'JAM-AIR-S-BLK',   2),
+(14, 14, 1, 4, 'delivered', 'card',     'JAM-STR-27-WHT',  1, 'JAM-BTL-UNI-BLU', 1),
+(15, 13, 4, 3, 'delivered', 'card',     'JAM-FLX-M-GRY',   1, 'JAM-SML-S-BLK',   1),
+(16, 12, 2, 1, 'delivered', 'cash',     'JAM-SLD-27-BLK',  1, NULL,             NULL),
+(17, 11, 4, 2, 'delivered', 'transfer', 'JAM-PRO-L-BLK',  10, 'JAM-SCK-L-WHT',  10),
+(18, 10, 1, 3, 'delivered', 'card',     'JAM-PLS-27-BLK',  1, 'JAM-BTL-UNI-BLK', 1),
+(19,  9, 2, 4, 'delivered', 'card',     'JAM-CORE-XL-NVY', 1, 'JAM-JOG-M-BLK',   1),
+(20,  8, 4, 1, 'delivered', 'oxxo',     'JAM-TOP-M-BLK',   1, 'JAM-FLX-S-BLK',   1),
+(21,  7, 1, 4, 'shipped',   'card',     'JAM-JMP-27-BLK',  1, NULL,             NULL),
+(22,  6, 4, 3, 'shipped',   'card',     'JAM-STM-L-BLK',   1, 'JAM-CAP-UNI-RED', 1),
+(23,  5, 2, 1, 'delivered', 'cash',     'JAM-PRO-M-RED',   1, 'JAM-AIR-L-BLK',   1),
+(24,  5, 4, 5, 'shipped',   'card',     'JAM-SCK-S-BLK',   1, NULL,             NULL),
+(25,  4, 1, 3, 'delivered', 'card',     'JAM-STT-27-WHT',  1, 'JAM-SCK-M-WHT',   1),
+(26,  3, 4, 4, 'paid',      'card',     'JAM-PLS-27-BLK',  1, 'JAM-GYM-UNI-GRY', 1),
+(27,  3, 2, 3, 'delivered', 'cash',     'JAM-CORE-M-GRY',  1, 'JAM-JOG-L-GRY',   1),
+(28,  2, 1, 1, 'paid',      'card',     'JAM-FLX-M-BLK',   1, 'JAM-TOP-M-BLK',   1),
+(29,  1, 4, 2, 'paid',      'transfer', 'JAM-STR-27-WHT',  6, 'JAM-SCK-M-BLK',   6),
+(30,  1, 2, 4, 'paid',      'card',     'JAM-SLD-26-BLK',  1, 'JAM-CAP-UNI-WHT', 1),
+(31,  0, 1, 3, 'paid',      'cash',     'JAM-PRO-M-WHT',   1, 'JAM-AIR-M-BLK',   1),
+(32,  0, 4, 1, 'pending',   'oxxo',     'JAM-BTL-UNI-WHT', 1, NULL,             NULL);
+
+DECLARE @n INT = 1, @ultimo INT = (SELECT MAX(n) FROM @historial), @id_order INT;
+
+WHILE @n <= @ultimo
+BEGIN
+    INSERT INTO customer_order (id_store, id_customer, order_date, status, channel, subtotal, discount, total,
+                                delivery_type, shipping_cost, priority_shipping, notes, source_node)
+    SELECT h.id_store, h.id_customer,
+           DATEADD(MINUTE, 600 + (h.n * 37) % 540, CAST(DATEADD(DAY, -h.days_ago, CAST(SYSUTCDATETIME() AS DATE)) AS DATETIME2(3))),
+           h.status,
+           CASE WHEN h.id_store = 4 THEN 'online' ELSE 'in_store' END,
+           x.subtotal, 0,
+           x.subtotal + envio.costo,
+           CASE WHEN h.id_store = 4 THEN 'shipping' ELSE 'pickup' END,
+           envio.costo,
+           CASE WHEN h.id_customer = 2 THEN 1 ELSE 0 END,
+           'Historial de ventas',
+           'orders_node'
+    FROM @historial AS h
+    CROSS APPLY (
+        SELECT SUM(p.base_price * l.qty) AS subtotal
+        FROM (VALUES (h.sku1, h.qty1), (h.sku2, h.qty2)) AS l (sku, qty)
+        JOIN product_variant AS pv ON pv.sku = l.sku
+        JOIN product AS p ON p.id_product = pv.id_product
+    ) AS x
+    CROSS APPLY (
+        SELECT CAST(CASE WHEN h.id_store = 4 AND h.id_customer <> 2 AND x.subtotal < 999 THEN 99 ELSE 0 END AS DECIMAL(8,2)) AS costo
+    ) AS envio
+    WHERE h.n = @n;
+
+    SET @id_order = SCOPE_IDENTITY();
+
+    INSERT INTO order_item (id_order, id_variant, quantity, unit_price, source_node)
+    SELECT @id_order, pv.id_variant, l.qty, p.base_price, 'orders_node'
+    FROM @historial AS h
+    CROSS APPLY (VALUES (h.sku1, h.qty1), (h.sku2, h.qty2)) AS l (sku, qty)
+    JOIN product_variant AS pv ON pv.sku = l.sku
+    JOIN product AS p ON p.id_product = pv.id_product
+    WHERE h.n = @n;
+
+    INSERT INTO payment (id_order, amount, currency, payment_date, method, status, source_node)
+    SELECT co.id_order, co.total, 'MXN', co.order_date, h.method,
+           CASE WHEN co.status = 'pending' THEN 'pending' ELSE 'completed' END, 'orders_node'
+    FROM customer_order AS co
+    JOIN @historial AS h ON h.n = @n
+    WHERE co.id_order = @id_order;
+
+    SET @n += 1;
+END;
+GO
+
 
 -- =====================================================================
 -- 8. Servicio Mensajería / Auditoría
@@ -1396,6 +1497,7 @@ CREATE TABLE customer_credential (
     id_customer      INT NOT NULL PRIMARY KEY,
     password_hash    VARCHAR(255) NOT NULL,
     failed_attempts  TINYINT NOT NULL DEFAULT 0,
+    terms_accepted_at DATETIME2(3) NULL,
     locked_until     DATETIME2(3) NULL,
     created_at       DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
     updated_at       DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
@@ -1501,6 +1603,192 @@ INSERT INTO support_ticket (id_customer, id_order, subject, message, priority, s
  DATEADD(MINUTE, 15, SYSUTCDATETIME()), SYSUTCDATETIME(), 'web_node'),
 (5, 5, 'Reembolso de pedido cancelado', '¿En cuántos días se refleja el reembolso del pedido 5?', 'normal', 'open', NULL, NULL,
  DATEADD(MINUTE, 1440, SYSUTCDATETIME()), NULL, 'web_node');
+GO
+
+
+-- =====================================================================
+-- 11. Servicio Seguimiento: historial de pedidos, correos y recuperación
+--     de contraseña
+-- =====================================================================
+
+-- Cada cambio de estado de un pedido queda registrado. Lo llena el trigger
+-- trg_customer_order_status_history; quien hizo el cambio se toma de
+-- SESSION_CONTEXT(N'id_customer'), que la API fija en cada petición.
+CREATE TABLE order_status_history (
+    id_history     INT IDENTITY(1,1) PRIMARY KEY,
+    id_order       INT NOT NULL,
+    from_status    VARCHAR(9) NULL,
+    to_status      VARCHAR(9) NOT NULL,
+    changed_at     DATETIME2(3) NOT NULL CONSTRAINT df_order_status_history_changed_at DEFAULT SYSUTCDATETIME(),
+    id_changed_by  INT NULL,
+    source_node    VARCHAR(20) NOT NULL,
+    CONSTRAINT fk_order_status_history_order FOREIGN KEY (id_order) REFERENCES customer_order (id_order),
+    CONSTRAINT fk_order_status_history_customer FOREIGN KEY (id_changed_by) REFERENCES customer (id_customer),
+    CONSTRAINT ck_order_status_history_to CHECK (to_status IN ('pending','paid','shipped','delivered','cancelled','returned')),
+    CONSTRAINT ck_order_status_history_from CHECK (from_status IS NULL OR from_status IN ('pending','paid','shipped','delivered','cancelled','returned'))
+);
+GO
+
+CREATE INDEX ix_order_status_history_order ON order_status_history (id_order, changed_at);
+CREATE INDEX ix_order_status_history_changed_by ON order_status_history (id_changed_by);
+GO
+
+-- Historial de los pedidos que ya existen: se reconstruyen los pasos que
+-- llevaron a cada pedido a su estado actual.
+INSERT INTO order_status_history (id_order, from_status, to_status, changed_at, id_changed_by, source_node)
+SELECT co.id_order, paso.from_status, paso.to_status,
+       CASE WHEN DATEADD(MINUTE, paso.minutes, co.order_date) > SYSUTCDATETIME()
+            THEN SYSUTCDATETIME() ELSE DATEADD(MINUTE, paso.minutes, co.order_date) END,
+       CASE WHEN paso.to_status = 'pending' THEN co.id_customer END,
+       co.source_node
+FROM customer_order AS co
+CROSS APPLY (VALUES
+    (1, CAST(NULL AS VARCHAR(9)), 'pending',   0),
+    (2, 'pending',                'paid',      CASE WHEN co.delivery_type = 'pickup' THEN 5 ELSE 20 END),
+    (3, 'paid',                   'shipped',   1440),
+    (4, CASE WHEN co.delivery_type = 'pickup' THEN 'paid' ELSE 'shipped' END,
+                                  'delivered', CASE WHEN co.delivery_type = 'pickup' THEN 15 ELSE 4320 END),
+    (5, 'pending',                'cancelled', 90)
+) AS paso (step, from_status, to_status, minutes)
+WHERE (paso.step = 1)
+   OR (paso.step = 2 AND co.status IN ('paid', 'shipped', 'delivered', 'returned'))
+   OR (paso.step = 3 AND co.delivery_type = 'shipping' AND co.status IN ('shipped', 'delivered', 'returned'))
+   OR (paso.step = 4 AND co.status IN ('delivered', 'returned'))
+   OR (paso.step = 5 AND co.status = 'cancelled');
+GO
+
+CREATE TRIGGER trg_customer_order_status_history ON customer_order AFTER INSERT, UPDATE AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO order_status_history (id_order, from_status, to_status, id_changed_by, source_node)
+    SELECT i.id_order, d.status, i.status,
+           COALESCE(TRY_CAST(SESSION_CONTEXT(N'id_customer') AS INT),
+                    CASE WHEN d.id_order IS NULL THEN i.id_customer END),
+           i.source_node
+    FROM inserted AS i
+    LEFT JOIN deleted AS d ON d.id_order = i.id_order
+    WHERE d.id_order IS NULL OR d.status <> i.status;
+END;
+GO
+
+-- Bandeja de correos simulada: la tienda no tiene servidor SMTP, así que los
+-- correos (confirmación de pedido, cambio de estado, recuperación de
+-- contraseña) se guardan aquí y el administrador los consulta en el panel.
+CREATE TABLE email_outbox (
+    id_email     INT IDENTITY(1,1) PRIMARY KEY,
+    id_customer  INT NULL,
+    id_order     INT NULL,
+    kind         VARCHAR(16) NOT NULL,
+    to_email     VARCHAR(100) NOT NULL,
+    subject      NVARCHAR(120) NOT NULL,
+    body         NVARCHAR(2000) NOT NULL,
+    link         VARCHAR(300) NULL,
+    created_at   DATETIME2(3) NOT NULL CONSTRAINT df_email_outbox_created_at DEFAULT SYSUTCDATETIME(),
+    source_node  VARCHAR(20) NOT NULL,
+    CONSTRAINT fk_email_outbox_customer FOREIGN KEY (id_customer) REFERENCES customer (id_customer),
+    CONSTRAINT fk_email_outbox_order FOREIGN KEY (id_order) REFERENCES customer_order (id_order),
+    CONSTRAINT ck_email_outbox_kind CHECK (kind IN ('welcome','order_created','order_status','password_reset'))
+);
+GO
+
+CREATE INDEX ix_email_outbox_created ON email_outbox (created_at DESC);
+CREATE INDEX ix_email_outbox_customer ON email_outbox (id_customer);
+CREATE INDEX ix_email_outbox_order ON email_outbox (id_order);
+GO
+
+-- Enlaces para restablecer la contraseña: igual que las sesiones, solo se
+-- guarda el SHA-256 del token. Vencen a los 30 minutos y sirven una sola vez.
+CREATE TABLE password_reset (
+    token_hash   CHAR(64) NOT NULL PRIMARY KEY,
+    id_customer  INT NOT NULL,
+    created_at   DATETIME2(3) NOT NULL CONSTRAINT df_password_reset_created_at DEFAULT SYSUTCDATETIME(),
+    expires_at   DATETIME2(3) NOT NULL,
+    used_at      DATETIME2(3) NULL,
+    CONSTRAINT fk_password_reset_customer FOREIGN KEY (id_customer) REFERENCES customer (id_customer)
+);
+GO
+
+CREATE INDEX ix_password_reset_customer ON password_reset (id_customer, created_at);
+GO
+
+
+-- =====================================================================
+-- 12. Servicio Mercado: precios de la competencia
+-- =====================================================================
+
+-- Precios de lista de productos equivalentes de otras marcas, consultados
+-- en sus tiendas oficiales o en tiendas departamentales. Los ven las cuentas
+-- Prioritario y Administrador; el administrador los actualiza desde el panel.
+CREATE TABLE competitor (
+    id_competitor  TINYINT NOT NULL PRIMARY KEY,
+    name           NVARCHAR(40) NOT NULL,
+    website        VARCHAR(100) NULL,
+    CONSTRAINT uq_competitor_name UNIQUE (name)
+);
+GO
+
+INSERT INTO competitor (id_competitor, name, website) VALUES
+(1, 'Nike',       'https://www.nike.com/mx'),
+(2, 'Adidas',     'https://www.adidas.mx'),
+(3, 'Puma',       'https://mx.puma.com'),
+(4, 'Ice Shaker', NULL);
+GO
+
+CREATE TABLE market_price (
+    id_market_price     INT IDENTITY(1,1) PRIMARY KEY,
+    id_product          INT NOT NULL,
+    id_competitor       TINYINT NOT NULL,
+    competitor_product  NVARCHAR(100) NOT NULL,
+    retailer            NVARCHAR(40) NOT NULL,
+    price               DECIMAL(10,2) NOT NULL,
+    source_url          VARCHAR(300) NULL,
+    captured_on         DATE NOT NULL,
+    -- columnas de consolidación
+    source_node         VARCHAR(20) NOT NULL,
+    updated_at          DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
+    deleted             BIT NOT NULL DEFAULT 0,
+    CONSTRAINT fk_market_price_product FOREIGN KEY (id_product) REFERENCES product (id_product),
+    CONSTRAINT fk_market_price_competitor FOREIGN KEY (id_competitor) REFERENCES competitor (id_competitor),
+    CONSTRAINT ck_market_price_price CHECK (price > 0)
+);
+GO
+
+CREATE INDEX ix_market_price_product ON market_price (id_product) WHERE deleted = 0;
+CREATE INDEX ix_market_price_competitor ON market_price (id_competitor);
+GO
+
+-- Precios de lista consultados el 19 de noviembre de 2026.
+INSERT INTO market_price (id_product, id_competitor, competitor_product, retailer, price, source_url, captured_on, source_node) VALUES
+( 1, 1, 'Playera Nike Dri-FIT para hombre',              'Nike.com',      799.00, 'https://www.nike.com/mx/t/playera-dri-fit-BgEkyhHy', '2026-11-19', 'market_node'),
+( 1, 2, 'Playera Own the Run 3 Rayas',                   'adidas.mx',     899.00, 'https://www.adidas.mx/playera-own-the-run-3-rayas/IQ3861.html', '2026-11-19', 'market_node'),
+( 1, 3, 'Playera de running Velocity Tri-Blend',         'puma.com',      749.00, 'https://mx.puma.com/mx/en/pd/playera-de-running-velocity-tri-blend-para-hombre/526603.html', '2026-11-19', 'market_node'),
+( 2, 1, 'Shorts de correr Nike Challenger 18 cm',        'Nike.com',      849.00, 'https://www.nike.com/mx/w/hombres-entrenamiento-running-shorts-37v7jz38fphz4llhmznik1', '2026-11-19', 'market_node'),
+( 3, 1, 'Leggings de tiro alto 7/8 Nike One',            'Nike.com',     1299.00, 'https://www.nike.com/mx/t/leggings-de-tiro-alto-de-7-8-one-H3WHa51W', '2026-11-19', 'market_node'),
+( 4, 1, 'Sudadera con gorro Nike Club Fleece (hombre)',  'Nike.com',     1549.00, 'https://www.nike.com/mx/t/sudadera-con-gorro-sin-cierre-de-tejido-fleece-club-p5Zpxr', '2026-11-19', 'market_node'),
+( 4, 1, 'Sudadera con gorro Sportswear Club Fleece (mujer)', 'Nike.com', 1299.00, 'https://www.nike.com/mx/t/sudadera-con-gorro-sin-cierre-sportswear-club-fleece-mgDrNz', '2026-11-19', 'market_node'),
+( 5, 2, 'Tenis de entrenamiento Dropset 4',              'Liverpool',    2899.00, 'https://www.liverpool.com.mx/tienda?s=dropset', '2026-11-19', 'market_node'),
+( 5, 2, 'Tenis Dropset Control Trainer',                 'Liverpool',    1999.00, 'https://www.liverpool.com.mx/tienda/pdp/tenis-para-entrenamiento-dropset-control-trainer-m-de-hombre/1194027417', '2026-11-19', 'market_node'),
+( 6, 1, 'Tenis de running Nike Pegasus 41',              'Nike.com',     2999.00, 'https://www.nike.com/mx/w/negro-pegasus-37v7jz8mfrfz8nexhz90poy', '2026-11-19', 'market_node'),
+( 7, 1, 'Tenis Nike Air Force 1 ''07',                   'Nike.com',     2599.00, 'https://www.nike.com/mx/t/air-force-1-07-Xm80HDys', '2026-11-19', 'market_node'),
+( 8, 1, 'Tenis de básquetbol Giannis Immortality 5',     'Nike.com',     2399.00, 'https://www.nike.com/mx/t/tenis-de-basquetbol-giannis-immortality-5-yZBAd3eE', '2026-11-19', 'market_node'),
+( 8, 3, 'Tenis de básquetbol Court Pro',                 'Liverpool',    1899.00, 'https://www.liverpool.com.mx/tienda/basquetbol/cat870625', '2026-11-19', 'market_node'),
+( 8, 2, 'Tenis de básquetbol para hombre',               'Liverpool',    2099.00, 'https://www.liverpool.com.mx/tienda/basquetbol/cat870625', '2026-11-19', 'market_node'),
+( 9, 1, 'Sandalias Nike Victori One',                    'Liverpool',     899.00, 'https://www.liverpool.com.mx/tienda/sandalias/catst40855933', '2026-11-19', 'market_node'),
+( 9, 2, 'Sandalias Adilette Aqua',                       'Liverpool',     599.00, 'https://www.liverpool.com.mx/tienda/sandalias-deportivas/catst695239117', '2026-11-19', 'market_node'),
+( 9, 3, 'Sandalias Leadcat 2.0',                         'puma.com',      699.00, 'https://mx.puma.com/mx/en/pd/leadcat-2.0-sandals/384139.html', '2026-11-19', 'market_node'),
+(10, 1, 'Bra deportivo Nike Swoosh Medium Support',      'Nike.com',      899.00, 'https://www.nike.com/mx/t/bra-deportivo-con-almohadillas-swoosh-medium-support-z3c3B5', '2026-11-19', 'market_node'),
+(11, 1, 'Playera de fútbol Nike Academy+ Dri-FIT',       'Nike.com',      899.00, 'https://www.nike.com/mx/w/transpirabilidad-playeras-y-tops-4u644z9om13', '2026-11-19', 'market_node'),
+(12, 1, 'Pants Nike Sportswear Club Fleece',             'Mercado Libre',1249.00, 'https://listado.mercadolibre.com.mx/pants-nike-negro', '2026-11-19', 'market_node'),
+(13, 1, 'Chamarra con gorro Nike Sportswear Windrunner', 'Nike.com',     2099.00, 'https://www.nike.com/mx/w/poliester-reciclado-chamarras-chalecos-abrigos-26eiez346rrz50r7yzah84x', '2026-11-19', 'market_node'),
+(13, 1, 'Chamarra de correr Nike Miler Repel',           'Nike.com',     1799.00, 'https://www.nike.com/mx/w/poliester-reciclado-chamarras-chalecos-abrigos-26eiez346rrz50r7yzah84x', '2026-11-19', 'market_node'),
+(14, 1, 'Leggings Nike One Seamless Front',              'Nike.com',     1099.00, 'https://www.nike.com/mx/t/leggings-de-tiro-alto-de-largo-completo-one-seamless-front-AKgvToF5', '2026-11-19', 'market_node'),
+(15, 2, 'Gorra Béisbol 3 Franjas',                       'adidas.mx',     429.00, 'https://www.adidas.mx/a_rayas-casual-gorras-azul', '2026-11-19', 'market_node'),
+(15, 2, 'Gorra de béisbol ligera',                       'adidas.mx',     349.00, 'https://www.adidas.mx/liviano-materiales_reciclados-gorras-verde', '2026-11-19', 'market_node'),
+(16, 2, 'Mochila Classic Foundation',                    'Mercado Libre', 699.00, 'https://listado.mercadolibre.com.mx/mochilas-adidas-hombre', '2026-11-19', 'market_node'),
+(17, 4, 'Termo de acero inoxidable 591 ml',              'Liverpool',     299.00, 'https://www.liverpool.com.mx/tienda/TermosyBotellas/catst55395607', '2026-11-19', 'market_node'),
+(17, 2, 'Botella metálica 0.6 L',                        'Liverpool',     599.00, 'https://www.liverpool.com.mx/tienda/TermosyBotellas/catst55395607', '2026-11-19', 'market_node'),
+(18, 1, 'Calcetas Nike Everyday Cushioned (3 pares)',    'Nike.com',      449.00, 'https://www.nike.com/mx/t/calcetas-de-entrenamiento-3-pares-everyday-cushioned-znMjdV', '2026-11-19', 'market_node'),
+(18, 2, 'Set de calcetas comfort (3 pares)',             'Liverpool',     369.00, 'https://www.liverpool.com.mx/tienda/pdp/set-de-calceta-para-entrenamiento-unisex-3-pares/99983636895', '2026-11-19', 'market_node');
 GO
 
 
@@ -1710,6 +1998,14 @@ BEGIN
     SET NOCOUNT ON;
     UPDATE t SET t.updated_at = SYSUTCDATETIME()
     FROM support_ticket AS t INNER JOIN inserted AS i ON t.id_ticket = i.id_ticket;
+END;
+GO
+
+CREATE TRIGGER trg_market_price_touch ON market_price AFTER UPDATE AS
+BEGIN
+    SET NOCOUNT ON;
+    UPDATE t SET t.updated_at = SYSUTCDATETIME()
+    FROM market_price AS t INNER JOIN inserted AS i ON t.id_market_price = i.id_market_price;
 END;
 GO
 

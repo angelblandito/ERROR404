@@ -2,7 +2,7 @@
 /*
  * Administración de la tienda (solo cuentas con account_tier.can_manage_store = 1).
  *
- *   GET    /admin/summary                  Indicadores de ventas, pedidos, soporte y clientes
+ *   GET    /admin/summary                  Indicadores, ventas por día (30 días), por sucursal y por categoría
  *   GET    /admin/customers                Clientes con tipo de cuenta, antigüedad y compras del año
  *   PUT    /admin/customers/{id}/tier      {tier: 'standard' | 'priority'}
  *   POST   /admin/customers/evaluate       Ejecuta dbo.sp_evaluar_clientes_prioritarios
@@ -15,7 +15,16 @@
  *   GET    /admin/announcements            Todos los comunicados
  *   POST   /admin/announcements            {audience, title, body, starts_on, ends_on?}
  *   DELETE /admin/announcements/{id}       Baja lógica
+ *   GET    /admin/emails                   Bandeja de correos simulada
+ *   GET    /admin/market                   Precios de la competencia (ver models/market.php)
+ *   POST   /admin/market
+ *   PUT    /admin/market/{id}
+ *   DELETE /admin/market/{id}
  */
+
+const ADMIN_TIME_ZONE = 'America/Mexico_City';
+const ADMIN_SQL_TIME_ZONE = 'Central Standard Time (Mexico)';
+const ADMIN_CHART_DAYS = 30;
 
 const ADMIN_ORDER_STATUS = ['pending', 'paid', 'shipped', 'delivered', 'cancelled', 'returned'];
 
@@ -93,7 +102,7 @@ function admin_summary(PDO $pdo): array
         FROM dbo.inventory
         WHERE deleted = 0 AND stock <= min_stock')[0];
 
-    return [
+    return array_merge([
         'sales_today' => (float)$sales['sales_today'],
         'sales_30_days' => (float)$sales['sales_30_days'],
         'orders_30_days' => (int)$sales['orders_30_days'],
@@ -110,6 +119,65 @@ function admin_summary(PDO $pdo): array
         'top_products' => array_map(function ($p) {
             return ['id_product' => (int)$p['id_product'], 'name' => $p['name'], 'units' => (int)$p['units'], 'revenue' => (float)$p['revenue']];
         }, $top),
+    ], admin_sales_charts($pdo));
+}
+
+/* Ventas de los últimos 30 días agrupadas por día (hora del centro de México),
+   por sucursal y por categoría. Los días sin ventas aparecen con 0. */
+function admin_sales_charts(PDO $pdo): array
+{
+    $localDate = "CAST(co.order_date AT TIME ZONE 'UTC' AT TIME ZONE '" . ADMIN_SQL_TIME_ZONE . "' AS DATE)";
+    $since = "DATEADD(DAY, -" . (ADMIN_CHART_DAYS - 1) . ", CAST(SYSUTCDATETIME() AT TIME ZONE 'UTC' AT TIME ZONE '" . ADMIN_SQL_TIME_ZONE . "' AS DATE))";
+    $valid = "co.deleted = 0 AND co.status NOT IN ('cancelled', 'returned') AND $localDate >= $since";
+
+    $daily = store_rows($pdo, "
+        SELECT $localDate AS sale_day, SUM(co.total) AS total, COUNT(*) AS orders
+        FROM dbo.customer_order AS co
+        WHERE $valid
+        GROUP BY $localDate");
+    $byDay = [];
+    foreach ($daily as $d) {
+        $byDay[substr((string)$d['sale_day'], 0, 10)] = $d;
+    }
+
+    $days = [];
+    $today = new DateTime('today', new DateTimeZone(ADMIN_TIME_ZONE));
+    for ($i = ADMIN_CHART_DAYS - 1; $i >= 0; $i--) {
+        $key = (clone $today)->modify("-$i day")->format('Y-m-d');
+        $days[] = [
+            'date' => $key,
+            'total' => isset($byDay[$key]) ? (float)$byDay[$key]['total'] : 0.0,
+            'orders' => isset($byDay[$key]) ? (int)$byDay[$key]['orders'] : 0,
+        ];
+    }
+
+    $stores = store_rows($pdo, "
+        SELECT s.id_store, s.store_name, SUM(co.total) AS total, COUNT(*) AS orders
+        FROM dbo.customer_order AS co
+        JOIN dbo.store AS s ON s.id_store = co.id_store
+        WHERE $valid
+        GROUP BY s.id_store, s.store_name
+        ORDER BY total DESC");
+
+    $categories = store_rows($pdo, "
+        SELECT c.code, c.name, SUM(oi.quantity) AS units, SUM(oi.quantity * oi.unit_price) AS revenue
+        FROM dbo.order_item AS oi
+        JOIN dbo.customer_order AS co ON co.id_order = oi.id_order
+        JOIN dbo.product_variant AS pv ON pv.id_variant = oi.id_variant
+        JOIN dbo.product AS p ON p.id_product = pv.id_product
+        JOIN dbo.category AS c ON c.id_category = p.id_category
+        WHERE oi.deleted = 0 AND $valid
+        GROUP BY c.code, c.name
+        ORDER BY revenue DESC");
+
+    return [
+        'sales_by_day' => $days,
+        'sales_by_store' => array_map(function ($r) {
+            return ['id_store' => (int)$r['id_store'], 'store' => $r['store_name'], 'total' => (float)$r['total'], 'orders' => (int)$r['orders']];
+        }, $stores),
+        'sales_by_category' => array_map(function ($r) {
+            return ['code' => $r['code'], 'name' => $r['name'], 'units' => (int)$r['units'], 'revenue' => (float)$r['revenue']];
+        }, $categories),
     ];
 }
 
@@ -226,7 +294,7 @@ function admin_orders(PDO $pdo, ?string $status): array
     return $orders;
 }
 
-function admin_set_order_status(PDO $pdo, int $idOrder, array $body): array
+function admin_set_order_status(PDO $pdo, array $admin, int $idOrder, array $body): array
 {
     $status = (string)($body['status'] ?? '');
     if (!in_array($status, ADMIN_ORDER_STATUS, true)) {
@@ -246,6 +314,11 @@ function admin_set_order_status(PDO $pdo, int $idOrder, array $body): array
         if (!in_array($status, ADMIN_ORDER_FLOW[$current] ?? [], true)) {
             throw new StoreHttpException(409, "Un pedido en estado $current no puede pasar a $status.");
         }
+
+        /* trg_customer_order_status_history registra quién hizo el cambio. */
+        $stmt = $pdo->prepare("EXEC sys.sp_set_session_context @key = N'id_customer', @value = :id_customer");
+        $stmt->bindValue(':id_customer', $admin['id_customer'], PDO::PARAM_INT);
+        $stmt->execute();
 
         $stmt = $pdo->prepare('UPDATE dbo.customer_order SET status = :status WHERE id_order = :id');
         $stmt->execute([':status' => $status, ':id' => $idOrder]);
@@ -274,6 +347,10 @@ function admin_set_order_status(PDO $pdo, int $idOrder, array $body): array
         $pdo->rollBack();
         throw $e;
     }
+
+    notify_safely(function () use ($pdo, $idOrder, $status) {
+        notify_order_status($pdo, $idOrder, $status);
+    });
 
     return ['id_order' => $idOrder, 'status' => $status, 'next_status' => ADMIN_ORDER_FLOW[$status]];
 }
@@ -450,6 +527,25 @@ function admin_delete_announcement(PDO $pdo, int $id): array
 }
 
 /* ---------------------------------------------------------------------
+   Correos
+   --------------------------------------------------------------------- */
+function admin_emails(PDO $pdo): array
+{
+    $rows = store_rows($pdo, '
+        SELECT TOP (100) id_email, id_customer, id_order, kind, to_email, subject, body, link, created_at
+        FROM dbo.email_outbox
+        ORDER BY created_at DESC, id_email DESC');
+
+    foreach ($rows as &$r) {
+        $r['id_email'] = (int)$r['id_email'];
+        $r['id_customer'] = $r['id_customer'] !== null ? (int)$r['id_customer'] : null;
+        $r['id_order'] = $r['id_order'] !== null ? (int)$r['id_order'] : null;
+    }
+    unset($r);
+    return $rows;
+}
+
+/* ---------------------------------------------------------------------
    Enrutamiento
    --------------------------------------------------------------------- */
 function admin_handle(string $method, string $uri, array $body): bool
@@ -474,7 +570,7 @@ function admin_handle(string $method, string $uri, array $body): bool
         } elseif ($method === 'GET' && $uri === '/admin/orders') {
             store_ok(200, admin_orders($pdo, $status), 'Pedidos');
         } elseif ($method === 'PUT' && preg_match('#^/admin/orders/(\d+)/status$#', $uri, $m)) {
-            store_ok(200, admin_set_order_status($pdo, (int)$m[1], $body), 'Estado del pedido actualizado');
+            store_ok(200, admin_set_order_status($pdo, $admin, (int)$m[1], $body), 'Estado del pedido actualizado');
         } elseif ($method === 'PUT' && preg_match('#^/admin/products/(\d+)$#', $uri, $m)) {
             store_ok(200, admin_set_price($pdo, (int)$m[1], $body), 'Precio actualizado');
         } elseif ($method === 'PUT' && $uri === '/admin/inventory') {
@@ -489,6 +585,16 @@ function admin_handle(string $method, string $uri, array $body): bool
             store_ok(201, admin_create_announcement($pdo, $admin, $body), 'Comunicado publicado');
         } elseif ($method === 'DELETE' && preg_match('#^/admin/announcements/(\d+)$#', $uri, $m)) {
             store_ok(200, admin_delete_announcement($pdo, (int)$m[1]), 'Comunicado eliminado');
+        } elseif ($method === 'GET' && $uri === '/admin/emails') {
+            store_ok(200, admin_emails($pdo), 'Correos');
+        } elseif ($method === 'GET' && $uri === '/admin/market') {
+            store_ok(200, ['competitors' => market_competitors($pdo), 'offers' => market_offers($pdo)], 'Precios de mercado');
+        } elseif ($method === 'POST' && $uri === '/admin/market') {
+            store_ok(201, market_create($pdo, $body), 'Precio de mercado registrado');
+        } elseif ($method === 'PUT' && preg_match('#^/admin/market/(\d+)$#', $uri, $m)) {
+            store_ok(200, market_update($pdo, (int)$m[1], $body), 'Precio de mercado actualizado');
+        } elseif ($method === 'DELETE' && preg_match('#^/admin/market/(\d+)$#', $uri, $m)) {
+            store_ok(200, market_delete($pdo, (int)$m[1]), 'Precio de mercado eliminado');
         } else {
             throw new StoreHttpException(404, 'Ruta de administración no encontrada.');
         }

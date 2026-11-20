@@ -183,7 +183,38 @@ Cuentas de demostración:
 | Prioritario | `luis.gomez@email.com` | `Prioritario2026` |
 | Administrador | `admin@jamsport.mx` | `Admin2026JAM` |
 
-> Cambia la contraseña del administrador si publicas la tienda en internet.
+> Cambia la contraseña del administrador si publicas la tienda en internet: entra como administrador, cierra sesión y usa **¿Olvidaste tu contraseña?** con `admin@jamsport.mx`; el enlace aparece en Administración → **Correos**.
+
+### 2.6.1 Comparador de mercado (Prioritario y Administrador)
+
+`#/mercado` compara cada producto JAM con productos equivalentes de Nike, Adidas, Puma e Ice Shaker:
+
+- **Precio promedio por tipo de producto**: barras de nuestro precio de lista, el precio con el descuento de la cuenta y el promedio de la competencia.
+- **Producto por producto**: cada punto naranja es un precio de la competencia y la franja gris su rango; los puntos azul y verde son nuestro precio de lista y el de la cuenta.
+- **Detalle y fuentes**: tabla con el enlace a cada página donde se consultó el precio.
+
+Los precios viven en `competitor` y `market_price` (sección 12 de `db_jam.sql`). Son precios de lista consultados el 19 de noviembre de 2026 en Nike.com, adidas.mx, puma.com, Liverpool y Mercado Libre; el administrador los actualiza en Administración → **Mercado** (al guardar se registra la fecha del día). Una cuenta Estándar que abre `#/mercado` ve la invitación a subir a Prioritario y la API le responde 403.
+
+### 2.6.2 Otras funciones de la tienda
+
+| Función | Dónde se ve | En la base |
+|---|---|---|
+| Gráficas de ventas | Administración → Resumen: ventas por día (30 días), por sucursal y por categoría | `/admin/summary` agrupa `customer_order` con hora del centro de México (`AT TIME ZONE`) |
+| Seguimiento del pedido | Mi cuenta: pasos Recibido → Pago → En camino → Entregado con fecha y hora | `order_status_history`, llenada por el trigger `trg_customer_order_status_history`; quién cambió el estado sale de `SESSION_CONTEXT(N'id_customer')` |
+| Correos | Administración → Correos (bienvenida, confirmación de pedido, cambio de estado, recuperación de contraseña) | `email_outbox`: la tienda no tiene SMTP, el correo se guarda como lo recibiría el cliente |
+| Olvidé mi contraseña | Iniciar sesión → ¿Olvidaste tu contraseña? → enlace `#/restablecer?token=…` | `password_reset` guarda el SHA-256 del token; vence en 30 min, sirve una vez y cierra todas las sesiones |
+| Aviso de privacidad, términos y devoluciones | Pie de página y casilla obligatoria al crear cuenta | `customer_credential.terms_accepted_at` |
+| También compraron | Página de producto | Pedidos que comparten artículos (`order_item`); si no hay, los más vendidos del departamento |
+| Vistos recientemente | Inicio y página de producto | Solo en el navegador (`localStorage`) |
+| Cuenta regresiva | Banner de inicio durante Black Friday y Navidad | Fechas de `season_theme` |
+| ¿Cuál es mi talla? | Página de producto (ropa y calzado) | Tabla de medidas en `js/sizes.js` |
+| Búsqueda tolerante | Buscador y catálogo: “tenix”, “sudadra” | Distancia de edición en `js/search.js` |
+| Instalable (PWA) | “Instalar aplicación” en Chrome/Edge | `manifest.webmanifest` y `sw.js`; requiere `https` o `localhost` |
+| Vista previa al compartir | WhatsApp, Facebook, X | Etiquetas Open Graph e imagen `img/og-jam.png`. Al publicar en Azure cambia `og:image` a la dirección completa |
+
+El script también carga un **historial de 32 ventas** de las últimas cuatro semanas en Tijuana, CDMX y en línea (fechas relativas al día en que se ejecuta), para que las gráficas y las recomendaciones tengan datos.
+
+> Después de actualizar a esta versión hay que volver a ejecutar `db_jam.sql` y los scripts `01` a `06` de `API_JAM/distribuida` (en ese orden), porque se agregaron tablas, columnas y triggers.
 
 ### 2.7 Entrar desde el celular
 
@@ -221,11 +252,11 @@ La versión en Azure (sección 5) también se abre desde el celular, en modo con
 | GET | `/store/products/{id}/reviews` | Reseñas y distribución de estrellas |
 | POST | `/store/reviews` | Publicar reseña (sesión; marca compra verificada) |
 | POST | `/auth/register`, `/auth/login`, `/auth/logout` | Cuentas de cliente con contraseña bcrypt, bloqueo tras 5 intentos y token de sesión |
-| GET | `/auth/me`, `/me/orders` | Perfil y pedidos del cliente con sesión |
+| GET | `/auth/me`, `/me/orders` | Perfil y pedidos del cliente con sesión (cada pedido incluye `history`) |
 | POST | `/orders/checkout` | Registra un pedido completo con `dbo.sp_crear_pedido` (precios, cupón, descuento de la cuenta, total y stock se calculan en la base) |
 | GET | `/store/announcements` | Comunicados vigentes; los exclusivos solo con sesión Prioritario o Administrador |
 | GET, POST | `/support/tickets` | Tickets del cliente con sesión / abrir un ticket |
-| GET | `/admin/summary` | Ventas, pedidos por surtir, tickets y clientes por tipo de cuenta |
+| GET | `/admin/summary` | Ventas, pedidos por surtir, tickets, clientes por tipo de cuenta y series para las gráficas (`sales_by_day`, `sales_by_store`, `sales_by_category`) |
 | GET | `/admin/customers` | Clientes con tipo de cuenta, antigüedad y compras de 12 meses |
 | PUT | `/admin/customers/{id}/tier` | Cambiar entre Estándar y Prioritario |
 | POST | `/admin/customers/evaluate` | Ejecuta `dbo.sp_evaluar_clientes_prioritarios` |
@@ -234,6 +265,11 @@ La versión en Azure (sección 5) también se abre desde el celular, en modo con
 | PUT | `/admin/products/{id}`, `/admin/inventory` | Precio de lista y existencias por sucursal |
 | GET, PUT | `/admin/tickets`, `/admin/tickets/{id}` | Cola de soporte y respuesta |
 | GET, POST, DELETE | `/admin/announcements` | Comunicados |
+| GET | `/market` | Comparador de mercado por producto y por categoría (solo Prioritario y Administrador) |
+| GET, POST, PUT, DELETE | `/admin/market`, `/admin/market/{id}` | Precios de la competencia |
+| GET | `/admin/emails` | Bandeja de correos simulada (últimos 100) |
+| POST | `/auth/forgot`, `/auth/reset` | Enlace para restablecer la contraseña y cambio de contraseña |
+| GET | `/store/products/{id}/also-bought` | Productos comprados junto con este |
 
 **Permisos:** las rutas `/admin/*`, `/nodes`, `/distributed/*`, `/replication/*` y el CRUD genérico de tablas requieren una sesión de Administrador (401 sin sesión, 403 con otra cuenta). Sin sesión solo quedan abiertos el catálogo, las reseñas, las temporadas, los cupones, los estados y el registro o inicio de sesión.
 
@@ -361,16 +397,18 @@ En la nube la tienda funciona en modo consulta: el catálogo, el inventario y lo
 
 ---
 
-## 6. Guion para la presentación (≈ 6 min)
+## 6. Guion para la presentación (≈ 8 min)
 
 1. **Tienda** (móvil y escritorio): mostrar el menú hamburguesa y la cuadrícula adaptable (media queries).
 2. **Tipos de usuario**: entrar como Estándar y como Prioritario y comparar precio, envío, piezas permitidas y plazo de soporte; luego entrar como Administrador, responder el ticket y aplicar la regla de Prioritarios.
-3. **Fragmentación horizontal**: Administración → **Base distribuida** → **Inventario** → pestañas por nodo. En SSMS, `SELECT * FROM JAM_cdmx.dbo.inventory` muestra solo `id_store = 2`, e intentar insertar `id_store = 1` ahí falla por el `CHECK`.
-4. **Pedido distribuido**: comprar en la tienda eligiendo *Sucursal Tijuana* → el pedido aparece en **Pedidos** dentro del fragmento de Tijuana.
-5. **Fragmentación vertical**: **Base distribuida** → tabla de clientes con las columnas de cada fragmento en distinto color.
-6. **Transparencia ante fallos**: desconectar una sucursal (`ALTER DATABASE JAM_cdmx SET OFFLINE WITH ROLLBACK IMMEDIATE;`), actualizar **Inventario** → CDMX aparece como “nodo sin conexión, leído de central”. Volver con `SET ONLINE`.
-7. **Replicación**: cambiar un precio en `JAM_db` → la matriz de **Replicación del catálogo** pasa a “Sincronizado” en todos los nodos.
-8. **Espejo**: `az sql failover-group set-primary --name jam-fog-<sufijo> --resource-group rg-jam --server jam-sql-espejo-<sufijo>` → en la API de Azure, **Base distribuida** muestra el otro servidor como principal.
+3. **Comparador de mercado**: como Prioritario, botón **Comparador** del encabezado → filtrar *Calzado* y pasar el cursor sobre los puntos para ver cada marca y su fuente.
+4. **Seguimiento**: como Administrador, marcar un pedido como *Enviado* → en Mi cuenta del cliente aparece el paso con su hora y en **Correos** el aviso; en SSMS `SELECT * FROM dbo.order_status_history ORDER BY id_history DESC` muestra quién lo cambió.
+5. **Fragmentación horizontal**: Administración → **Base distribuida** → **Inventario** → pestañas por nodo. En SSMS, `SELECT * FROM JAM_cdmx.dbo.inventory` muestra solo `id_store = 2`, e intentar insertar `id_store = 1` ahí falla por el `CHECK`.
+6. **Pedido distribuido**: comprar en la tienda eligiendo *Sucursal Tijuana* → el pedido aparece en **Pedidos** dentro del fragmento de Tijuana.
+7. **Fragmentación vertical**: **Base distribuida** → tabla de clientes con las columnas de cada fragmento en distinto color.
+8. **Transparencia ante fallos**: desconectar una sucursal (`ALTER DATABASE JAM_cdmx SET OFFLINE WITH ROLLBACK IMMEDIATE;`), actualizar **Inventario** → CDMX aparece como “nodo sin conexión, leído de central”. Volver con `SET ONLINE`.
+9. **Replicación**: cambiar un precio en `JAM_db` → la matriz de **Replicación del catálogo** pasa a “Sincronizado” en todos los nodos.
+10. **Espejo**: `az sql failover-group set-primary --name jam-fog-<sufijo> --resource-group rg-jam --server jam-sql-espejo-<sufijo>` → en la API de Azure, **Base distribuida** muestra el otro servidor como principal.
 
 ---
 

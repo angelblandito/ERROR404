@@ -2,19 +2,21 @@
 import { $, $$, clone, fill, slot, money, toast, emptyState, loading, parseQuery } from './ui.js';
 import { productArt, handleMissingPhoto } from './illustrations.js';
 import { setFavState } from './components.js';
-import { account, cartCount, colorsOf, isAdmin, loadCatalog, loadCustomer, state, toggleFavorite } from './store.js';
+import { account, cartCount, colorsOf, isAdmin, isPriority, loadCatalog, loadCustomer, state, toggleFavorite } from './store.js';
 import { initTheme, currentTheme } from './theme.js';
 import { initEffects } from './effects.js';
 import { closeMiniCart } from './minicart.js';
+import { matchScore } from './search.js';
 import { renderHome } from './views/home.js';
 import { renderCatalog } from './views/catalog.js';
 import { renderProduct } from './views/product.js';
 import { renderCart } from './views/cart.js';
 import { renderCheckout, renderConfirmation } from './views/checkout.js';
-import { authPanel, renderAccount } from './views/account.js';
+import { authPanel, renderAccount, renderReset } from './views/account.js';
+import { renderMarket } from './views/market.js';
 import { renderSupport } from './views/support.js';
 import { renderAdmin } from './views/admin.js';
-import { renderFavorites, renderOffers, renderStores, renderHelp } from './views/pages.js';
+import { renderFavorites, renderOffers, renderStores, renderHelp, renderLegal } from './views/pages.js';
 import { renderPanel } from './views/panel.js';
 
 const view = $('#view');
@@ -32,11 +34,14 @@ const ROUTES = [
     [/^\/sucursales$/, '', function (page) { return renderStores(page); }],
     [/^\/ayuda$/, '', function (page) { return renderHelp(page); }],
     [/^\/soporte$/, 'account', function (page) { return renderSupport(page); }],
+    [/^\/mercado$/, 'account', function (page) { return renderMarket(page); }],
+    [/^\/restablecer$/, 'account', function (page, m, q) { return renderReset(page, q); }],
+    [/^\/legal\/(\w+)$/, '', function (page, m) { return renderLegal(page, m[1]); }],
     [/^\/admin(?:\/(\w+))?$/, '', adminOnly(function (page, m) { return renderAdmin(page, m[1]); })],
     [/^\/panel(?:\/(\w+))?$/, '', adminOnly(function (page, m) { return renderPanel(page, m[1]); })]
 ];
 
-const NEEDS_CATALOG = function (path) { return !/^\/panel/.test(path); };
+const NEEDS_CATALOG = function (path) { return !/^\/(panel|legal|restablecer)/.test(path); };
 
 /* La administración y el panel distribuido solo se muestran a cuentas de administrador. */
 function adminOnly(render) {
@@ -97,6 +102,7 @@ function updateAccount() {
     chip.className = 'tier-chip tier-' + acc.tier;
     document.body.classList.toggle('tier-priority', signedIn && acc.tier !== 'standard');
     $$('[data-role="admin"]').forEach(function (el) { el.hidden = !acc.can_manage_store; });
+    $$('[data-role="priority"]').forEach(function (el) { el.hidden = !signedIn || !isPriority(); });
 }
 
 function updateCounts() {
@@ -124,20 +130,18 @@ function closeSuggestions() {
     $('#searchSuggestions').hidden = true;
 }
 
-function normalize(text) {
-    return String(text || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-}
-
 function suggest(text) {
     const box = $('#searchSuggestions');
-    const q = normalize(text.trim());
+    const q = text.trim();
     if (q.length < 2 || !state.products.length) {
         closeSuggestions();
         return;
     }
-    const found = state.products.filter(function (p) {
-        return normalize(p.name + ' ' + p.category).indexOf(q) >= 0;
-    }).slice(0, 5);
+    const found = state.products.map(function (p) {
+        return { p: p, score: matchScore(q, p.name + ' ' + p.category) };
+    }).filter(function (r) { return r.score > 0; }).sort(function (a, b) {
+        return b.score - a.score;
+    }).slice(0, 5).map(function (r) { return r.p; });
     const items = found.map(function (p) {
         const colors = colorsOf(p);
         const item = fill(clone('tpl-suggestion'), { name: p.name, price: money.format(p.base_price) });
@@ -230,3 +234,11 @@ rotateAnnouncements();
 initEffects();
 initTheme();
 loadCustomer().finally(route);
+
+/* La tienda se puede instalar como aplicación (PWA). El service worker solo
+   funciona en https o en localhost. */
+if ('serviceWorker' in navigator && (window.isSecureContext || window.location.hostname === 'localhost')) {
+    window.addEventListener('load', function () {
+        navigator.serviceWorker.register('sw.js').catch(function () {});
+    });
+}

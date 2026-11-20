@@ -1,25 +1,51 @@
 /* Cuenta del cliente: inicio de sesión, registro y mis pedidos. */
 import { api } from '../api.js';
-import { $, $$, clone, field, fill, show, slot, money, badge, message, toast, formatDate, loading, setTitle, ORDER_STATUS, PAYMENT_METHODS } from '../ui.js';
+import { $, $$, clone, field, fill, show, slot, money, badge, message, toast, emptyState, formatDate, loading, setTitle, ORDER_STATUS, PAYMENT_METHODS } from '../ui.js';
 import { productArt } from '../illustrations.js';
 import { announcementsSection, benefitItems } from '../components.js';
-import { account, loadAnnouncements, login, logout, register, state, tierInfo } from '../store.js';
+import { account, isPriority, loadAnnouncements, login, logout, register, state, tierInfo } from '../store.js';
 
 export function authPanel(title, intro, onSuccess) {
     const panel = fill(clone('tpl-auth'), { title: title, intro: intro });
     const loginForm = $('[data-form="login"]', panel);
     const registerForm = $('[data-form="register"]', panel);
+    const forgotForm = $('[data-form="forgot"]', panel);
+
+    const showForm = function (name) {
+        $$('.auth-form', panel).forEach(function (f) { f.hidden = f.dataset.form !== name; });
+        $$('[data-auth]', panel).forEach(function (b) {
+            const active = b.dataset.auth === name;
+            b.classList.toggle('active', active);
+            b.setAttribute('aria-selected', String(active));
+        });
+        const first = $('[data-form="' + name + '"] input', panel);
+        if (first && name === 'forgot') first.focus();
+    };
 
     panel.addEventListener('click', function (e) {
-        const tab = e.target.closest('[data-auth]');
-        if (!tab) return;
-        const isLogin = tab.dataset.auth === 'login';
-        loginForm.hidden = !isLogin;
-        registerForm.hidden = isLogin;
-        $$('[data-auth]', panel).forEach(function (b) {
-            b.classList.toggle('active', b === tab);
-            b.setAttribute('aria-selected', String(b === tab));
-        });
+        const tab = e.target.closest('[data-auth], [data-show]');
+        if (tab) showForm(tab.dataset.auth || tab.dataset.show);
+    });
+
+    forgotForm.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        if (!forgotForm.checkValidity()) {
+            forgotForm.reportValidity();
+            return;
+        }
+        const button = forgotForm.querySelector('button');
+        button.disabled = true;
+        try {
+            await api('/auth/forgot', {
+                method: 'POST',
+                body: { email: forgotForm.email.value, return_url: window.location.origin + window.location.pathname }
+            });
+            const sent = show(field(forgotForm, 'forgotSent'), true);
+            sent.textContent = 'Si el correo está registrado, te llegará un enlace para restablecer tu contraseña. Revisa tu bandeja de entrada.';
+        } catch (err) {
+            toast(err.message, { error: true });
+        }
+        button.disabled = false;
     });
 
     const submit = function (form, action) {
@@ -45,6 +71,7 @@ export function authPanel(title, intro, onSuccess) {
     submit(loginForm, function (d) { return login(d.email, d.password); });
     submit(registerForm, function (d) {
         d.accepts_marketing = d.accepts_marketing === '1';
+        d.accepts_terms = d.accepts_terms === '1';
         return register(d);
     });
     return panel;
@@ -59,6 +86,49 @@ function orderLine(i) {
     field(line, 'name').href = '#/producto/' + i.id_product;
     slot(line, 'art').replaceWith(productArt({ name: i.name, category_code: i.category_code }, i.color_code, 'mini'));
     return line;
+}
+
+/* Pasos del pedido: los que ya ocurrieron con su fecha y los que faltan. */
+function timelineSteps(o) {
+    const reached = {};
+    (o.history || []).forEach(function (h) { reached[h.status] = h.changed_at; });
+    if (!reached.pending) reached.pending = o.order_date;
+
+    const flow = ['pending', 'paid'];
+    if (o.delivery_type === 'shipping') flow.push('shipped');
+    flow.push('delivered');
+    if (o.status === 'cancelled') return ['pending', 'cancelled'].map(function (st) { return { status: st, date: reached[st], done: true }; });
+    if (o.status === 'returned') flow.push('returned');
+
+    const current = flow.indexOf(o.status);
+    return flow.map(function (st, i) {
+        return { status: st, date: reached[st], done: i <= current, current: i === current };
+    });
+}
+
+const STEP_LABELS = {
+    pending: 'Pedido recibido',
+    paid: 'Pago confirmado',
+    shipped: 'En camino',
+    delivered: 'Entregado',
+    cancelled: 'Cancelado',
+    returned: 'Devuelto'
+};
+
+function orderTimeline(o) {
+    const list = clone('tpl-timeline');
+    list.append(...timelineSteps(o).map(function (step) {
+        const item = fill(clone('tpl-timeline-step'), {
+            label: o.delivery_type === 'pickup' && step.status === 'delivered' ? 'Recogido en sucursal' : STEP_LABELS[step.status],
+            date: step.date ? formatDate(step.date, true) : 'Pendiente'
+        });
+        item.classList.toggle('done', step.done);
+        item.classList.toggle('current', Boolean(step.current));
+        item.classList.toggle('bad', step.status === 'cancelled' || step.status === 'returned');
+        if (step.current) item.setAttribute('aria-current', 'step');
+        return item;
+    }));
+    return list;
 }
 
 function orderCard(o) {
@@ -77,6 +147,7 @@ function orderCard(o) {
         slot(card, 'items').before(badge('Envío prioritario', 'gold'));
     }
     slot(card, 'items').append(...o.items.map(orderLine));
+    slot(card, 'timeline').replaceWith(orderTimeline(o));
     return card;
 }
 
@@ -106,6 +177,7 @@ export async function renderAccount(page, params) {
     view.classList.add('account-' + acc.tier);
     slot(view, 'benefits').append(...benefitItems(acc));
     show(field(view, 'adminLink'), acc.can_manage_store);
+    show(field(view, 'marketLink'), isPriority());
 
     const priority = tierInfo('priority');
     if (acc.tier === 'standard' && priority) {
@@ -133,4 +205,40 @@ export async function renderAccount(page, params) {
     } catch (err) {
         orders.replaceChildren(message(err.message, 'bad-text'));
     }
+}
+
+/* Página del enlace que llega por correo para restablecer la contraseña. */
+export function renderReset(page, params) {
+    setTitle('Nueva contraseña');
+    if (!/^[a-f0-9]{64}$/i.test(params.token || '')) {
+        page.replaceChildren(emptyState('Enlace no válido', 'Abre el enlace completo del correo o solicita uno nuevo desde Iniciar sesión.', { href: '#/cuenta', label: 'Ir a iniciar sesión' }));
+        return;
+    }
+    const view = clone('tpl-reset');
+    const form = $('form', view);
+    page.replaceChildren(view);
+
+    form.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        if (form.password.value !== form.confirm.value) {
+            form.confirm.setCustomValidity('Las contraseñas no coinciden.');
+        } else {
+            form.confirm.setCustomValidity('');
+        }
+        if (!form.checkValidity()) {
+            form.reportValidity();
+            return;
+        }
+        const button = form.querySelector('button');
+        button.disabled = true;
+        try {
+            await api('/auth/reset', { method: 'POST', body: { token: params.token, password: form.password.value } });
+            await logout();
+            toast('Contraseña actualizada. Inicia sesión con tu nueva contraseña.');
+            window.location.hash = '#/cuenta';
+        } catch (err) {
+            toast(err.message, { error: true });
+            button.disabled = false;
+        }
+    });
 }

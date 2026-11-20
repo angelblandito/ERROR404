@@ -93,3 +93,30 @@ export async function initTheme() {
     });
     await select(selectEl.value);
 }
+
+/* Fin de la campaña (23:59:59 del último día) si hoy está dentro de sus
+   fechas; null si no es una campaña o todavía no empieza. Las campañas que
+   cruzan de año, como Navidad, terminan el año siguiente. */
+export function campaignEnd(theme, now) {
+    if (!theme || theme.theme_type !== 'campaign') return null;
+    const today = now || new Date();
+    let startMonth = Number(theme.start_month);
+    let startDay = Number(theme.start_day);
+    let endMonth = Number(theme.end_month);
+    let endDay = Number(theme.end_day);
+    if (!endMonth && theme.range) {
+        startMonth = Math.floor(theme.range[0] / 100);
+        startDay = theme.range[0] % 100;
+        endMonth = Math.floor(theme.range[1] / 100);
+        endDay = theme.range[1] % 100;
+    }
+    if (!endMonth) return null;
+    const start = startMonth * 100 + startDay;
+    const end = endMonth * 100 + endDay;
+    const md = (today.getMonth() + 1) * 100 + today.getDate();
+    const wraps = end < start;
+    const active = wraps ? (md >= start || md <= end) : (md >= start && md <= end);
+    if (!active) return null;
+    const year = today.getFullYear() + (wraps && md >= start ? 1 : 0);
+    return new Date(year, endMonth - 1, endDay, 23, 59, 59);
+}

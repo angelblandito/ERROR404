@@ -146,3 +146,9 @@ export function buildQuery(params) {
 export function setTitle(text) {
     document.title = text ? text + ' · JAM Sport' : 'JAM Sport · Calzado, ropa y accesorios deportivos';
 }
+
+/* Fecha de hoy en la zona horaria del navegador (AAAA-MM-DD). */
+export function todayISO() {
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}

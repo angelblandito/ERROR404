@@ -1,5 +1,6 @@
 # JAM Sport en Apache (XAMPP)
 DirectoryIndex index.html
+AddType application/manifest+json .webmanifest
 
 # Archivos internos que no se publican: repositorio, scripts SQL, documentación y prototipos
 RedirectMatch 404 "(?i)^.*/(\.git|\.vscode|API_JAM|docs|phpapi|myapi|temp|test|test3)(/.*)?$"
@@ -11,7 +12,7 @@ RedirectMatch 404 "(?i)^.*/(JAM|LICENSE|README\.md|\.gitignore)$"
 
     # El navegador vuelve a validar HTML, CSS, JS y SVG en cada visita,
     # así los cambios se ven al recargar sin tener que borrar la caché.
-    <FilesMatch "\.(html|css|js|svg)$">
+    <FilesMatch "\.(html|css|js|svg|webmanifest)$">
         Header set Cache-Control "no-cache"
     </FilesMatch>
 </IfModule>

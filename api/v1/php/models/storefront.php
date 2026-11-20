@@ -9,7 +9,8 @@
  *   POST /auth/login                    Iniciar sesión (devuelve token de sesión)
  *   POST /auth/logout                   Cerrar la sesión actual
  *   GET  /auth/me                       Datos del cliente con sesión y su tipo de cuenta
- *   GET  /me/orders                     Pedidos del cliente con sesión
+ *   GET  /me/orders                     Pedidos del cliente con sesión y el historial de cada uno
+ *   GET  /store/products/{id}/also-bought  Productos que otros clientes compraron junto con este
  *
  * La sesión viaja en el encabezado "Authorization: Bearer <token>". En la base
  * solo se guarda el SHA-256 del token.
@@ -249,14 +250,22 @@ function store_validate_registration(array $body): array
     if ($age < STORE_MIN_AGE || $age > 100) {
         throw new StoreHttpException(400, 'Para crear una cuenta necesitas tener al menos ' . STORE_MIN_AGE . ' años.');
     }
-    if (strlen($password) < 8 || !preg_match('/[A-Za-z]/', $password) || !preg_match('/\d/', $password)) {
-        throw new StoreHttpException(400, 'La contraseña necesita al menos 8 caracteres, con letras y números.');
+    if (empty($body['accepts_terms'])) {
+        throw new StoreHttpException(400, 'Para crear la cuenta acepta el aviso de privacidad y los términos y condiciones.');
     }
     if ($data['last_name_maternal'] === '') {
         $data['last_name_maternal'] = null;
     }
-    $data['password_hash'] = password_hash($password, PASSWORD_DEFAULT);
+    $data['password_hash'] = store_password_hash($password);
     return $data;
+}
+
+function store_password_hash(string $password): string
+{
+    if (strlen($password) < 8 || strlen($password) > 72 || !preg_match('/[A-Za-z]/', $password) || !preg_match('/\d/', $password)) {
+        throw new StoreHttpException(400, 'La contraseña necesita entre 8 y 72 caracteres, con letras y números.');
+    }
+    return password_hash($password, PASSWORD_DEFAULT);
 }
 
 /* ---------------------------------------------------------------------
@@ -503,7 +512,9 @@ function store_register(array $body): array
         $stmt->execute();
         $idCustomer = (int)$pdo->lastInsertId();
 
-        $stmt = $pdo->prepare('INSERT INTO dbo.customer_credential (id_customer, password_hash) VALUES (:id, :hash)');
+        $stmt = $pdo->prepare('
+            INSERT INTO dbo.customer_credential (id_customer, password_hash, terms_accepted_at)
+            VALUES (:id, :hash, SYSUTCDATETIME())');
         $stmt->bindValue(':id', $idCustomer, PDO::PARAM_INT);
         $stmt->bindValue(':hash', $data['password_hash'], PDO::PARAM_STR);
         $stmt->execute();
@@ -517,6 +528,10 @@ function store_register(array $body): array
         }
         throw $e;
     }
+
+    notify_safely(function () use ($pdo, $idCustomer, $data) {
+        notify_welcome($pdo, $idCustomer, $data['first_name']);
+    });
 
     return ['token' => $token, 'customer' => store_profile($pdo, $idCustomer)];
 }
@@ -633,17 +648,85 @@ function store_my_orders(): array
         JOIN dbo.color AS cl ON cl.id_color = pv.id_color
         WHERE oi.deleted = 0 AND oi.id_order IN ($ids)");
 
+    $history = store_rows($pdo, "
+        SELECT id_order, from_status, to_status, changed_at
+        FROM dbo.order_status_history
+        WHERE id_order IN ($ids)
+        ORDER BY changed_at, id_history");
+
     $byOrder = [];
     foreach ($items as $it) {
         $byOrder[(int)$it['id_order']][] = $it;
+    }
+    $historyByOrder = [];
+    foreach ($history as $h) {
+        $historyByOrder[(int)$h['id_order']][] = [
+            'from_status' => $h['from_status'],
+            'status' => $h['to_status'],
+            'changed_at' => $h['changed_at'],
+        ];
     }
     foreach ($orders as &$o) {
         $o['id_order'] = (int)$o['id_order'];
         $o['priority_shipping'] = (bool)$o['priority_shipping'];
         $o['items'] = $byOrder[$o['id_order']] ?? [];
+        $o['history'] = $historyByOrder[$o['id_order']] ?? [];
     }
     unset($o);
     return $orders;
+}
+
+/* ---------------------------------------------------------------------
+   Recomendaciones
+   --------------------------------------------------------------------- */
+
+/* Productos que aparecen en los mismos pedidos que el producto indicado.
+   Si hay pocos, se completan con los más vendidos del mismo departamento. */
+function store_also_bought(int $idProduct): array
+{
+    $pdo = store_db();
+    $rows = store_rows($pdo, "
+        SELECT TOP (6) other.id_product, COUNT(DISTINCT oi.id_order) AS orders
+        FROM dbo.order_item AS oi
+        JOIN dbo.product_variant AS pv ON pv.id_variant = oi.id_variant
+        JOIN dbo.customer_order AS co ON co.id_order = oi.id_order
+        JOIN dbo.order_item AS oi2 ON oi2.id_order = oi.id_order AND oi2.deleted = 0
+        JOIN dbo.product_variant AS other ON other.id_variant = oi2.id_variant
+        JOIN dbo.product AS p ON p.id_product = other.id_product AND p.deleted = 0
+        WHERE pv.id_product = :id AND other.id_product <> :id_self
+          AND oi.deleted = 0 AND co.deleted = 0 AND co.status NOT IN ('cancelled', 'returned')
+        GROUP BY other.id_product
+        ORDER BY orders DESC, other.id_product", [':id' => $idProduct, ':id_self' => $idProduct]);
+
+    $ids = array_map(function ($r) {
+        return (int)$r['id_product'];
+    }, $rows);
+    $source = $ids ? 'orders' : 'department';
+
+    if (count($ids) < 4) {
+        $exclude = implode(', ', array_merge([$idProduct], $ids));
+        $fill = store_rows($pdo, "
+            SELECT TOP (" . (4 - count($ids)) . ") p.id_product
+            FROM dbo.product AS p
+            JOIN dbo.category AS c ON c.id_category = p.id_category
+            LEFT JOIN (
+                SELECT pv.id_product, SUM(oi.quantity) AS sold
+                FROM dbo.order_item AS oi
+                JOIN dbo.product_variant AS pv ON pv.id_variant = oi.id_variant
+                WHERE oi.deleted = 0
+                GROUP BY pv.id_product
+            ) AS s ON s.id_product = p.id_product
+            WHERE p.deleted = 0 AND p.id_product NOT IN ($exclude)
+              AND c.department = (SELECT c2.department FROM dbo.product AS p2
+                                  JOIN dbo.category AS c2 ON c2.id_category = p2.id_category
+                                  WHERE p2.id_product = :id)
+            ORDER BY ISNULL(s.sold, 0) DESC, p.id_product", [':id' => $idProduct]);
+        foreach ($fill as $f) {
+            $ids[] = (int)$f['id_product'];
+        }
+    }
+
+    return ['source' => $source, 'products' => $ids];
 }
 
 /* ---------------------------------------------------------------------
@@ -656,6 +739,8 @@ function store_handle(string $method, string $uri, array $body): bool
             store_ok(200, store_catalog(), 'Catálogo');
         } elseif ($method === 'GET' && preg_match('#^/store/products/(\d+)/reviews$#', $uri, $m)) {
             store_ok(200, store_reviews((int)$m[1]), 'Reseñas');
+        } elseif ($method === 'GET' && preg_match('#^/store/products/(\d+)/also-bought$#', $uri, $m)) {
+            store_ok(200, store_also_bought((int)$m[1]), 'También compraron');
         } elseif ($method === 'POST' && $uri === '/store/reviews') {
             store_ok(201, store_create_review($body), 'Reseña publicada');
         } elseif ($method === 'POST' && $uri === '/auth/register') {

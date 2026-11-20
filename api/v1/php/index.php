@@ -68,6 +68,9 @@ require_once("models/distributed.php"); // Endpoints de la base de datos distrib
 require_once("models/storefront.php");  // Tienda en línea: catálogo, cuentas y reseñas
 require_once("models/accounts.php");    // Comunicados y soporte según el tipo de cuenta
 require_once("models/admin.php");       // Administración de la tienda
+require_once("models/notifications.php"); // Bandeja de correos simulada
+require_once("models/recovery.php");    // Recuperación de contraseña
+require_once("models/market.php");      // Comparador de mercado
 
 /* Rutas abiertas sin sesión; el resto del CRUD genérico es solo para administradores. */
 function api_public_route(string $method, string $uri): bool
@@ -125,7 +128,8 @@ if ($DB_Connector === null && $uri !== '/health-check') {
     exit;
 }
 
-if (store_handle($method, $uri, $body) || account_handle($method, $uri, $body) || admin_handle($method, $uri, $body)) {
+if (store_handle($method, $uri, $body) || account_handle($method, $uri, $body) || recovery_handle($method, $uri, $body)
+    || market_handle($method, $uri) || admin_handle($method, $uri, $body)) {
     exit;
 }
 

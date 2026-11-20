@@ -1,12 +1,39 @@
 /* Inicio: banner de temporada, departamentos, carruseles y cupones. */
-import { clone, fill, slot, money, setTitle } from '../ui.js';
+import { clone, field, fill, slot, money, setTitle } from '../ui.js';
 import { productArt } from '../illustrations.js';
 import { announcementsSection, productRail } from '../components.js';
-import { activePromotions, isPriority, loadAnnouncements, newestIds, state } from '../store.js';
-import { currentTheme } from '../theme.js';
+import { activePromotions, isPriority, loadAnnouncements, newestIds, recentProducts, state } from '../store.js';
+import { campaignEnd, currentTheme } from '../theme.js';
+
+let countdownTimer = null;
+
+/* Cuenta regresiva hasta el fin de la campaña (Black Friday, Navidad…). */
+function startCountdown(root, theme) {
+    clearInterval(countdownTimer);
+    const box = field(root, 'countdown');
+    const end = campaignEnd(theme);
+    const tick = function (first) {
+        if (first !== true && !document.body.contains(box)) {
+            clearInterval(countdownTimer);
+            return;
+        }
+        const left = end ? end.getTime() - Date.now() : 0;
+        box.hidden = left <= 0;
+        if (left <= 0) return;
+        const minutes = Math.floor(left / 60000);
+        fill(root, {
+            cdDays: Math.floor(minutes / 1440),
+            cdHours: String(Math.floor(minutes / 60) % 24).padStart(2, '0'),
+            cdMinutes: String(minutes % 60).padStart(2, '0')
+        });
+    };
+    tick(true);
+    if (end) countdownTimer = setInterval(tick, 30000);
+}
 
 function showTheme(root, theme) {
     fill(root, { season: theme.name, heroTitle: theme.hero_title, heroText: theme.hero_text });
+    startCountdown(root, theme);
 }
 
 function couponTile(promo) {
@@ -37,6 +64,7 @@ export async function renderHome(view) {
     slot(home, 'tileApparel').replaceWith(productArt({ name: 'Sudadera', category_code: 'hoodies' }, 'gray'));
     slot(home, 'tileAccessories').replaceWith(productArt({ name: 'Mochila', category_code: 'accessories' }, 'navy'));
 
+    slot(home, 'recent').replaceWith(productRail('Vistos recientemente', recentProducts().slice(0, 8)));
     slot(home, 'bestSellers').replaceWith(productRail('Lo más vendido', bestSellers, { href: '#/tienda?orden=vendidos', label: 'Ver todo' }));
     slot(home, 'newest').replaceWith(productRail('Novedades', newest, { href: '#/tienda?orden=nuevo', label: 'Ver novedades' }));
     slot(home, 'topRated').replaceWith(productRail('Mejor calificados', topRated, { href: '#/tienda?orden=calificacion', label: 'Ver todo' }));

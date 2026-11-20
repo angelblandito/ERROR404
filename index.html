@@ -6,7 +6,18 @@
     <meta name="description" content="JAM Sport: calzado, ropa y accesorios deportivos para jóvenes y adultos. Compra en línea, recoge en Tijuana o CDMX.">
     <meta name="theme-color" content="#3B1F14">
     <title>JAM Sport · Calzado, ropa y accesorios deportivos</title>
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="JAM Sport">
+    <meta property="og:locale" content="es_MX">
+    <meta property="og:title" content="JAM Sport · Calzado, ropa y accesorios deportivos">
+    <meta property="og:description" content="Tenis, ropa y accesorios para entrenar, correr y jugar. Compra en línea y recoge en Tijuana o CDMX.">
+    <meta property="og:image" content="img/og-jam.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta name="twitter:card" content="summary_large_image">
     <link rel="icon" href="img/favicon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="img/icon-192.png">
+    <link rel="manifest" href="manifest.webmanifest">
     <link rel="stylesheet" href="index.css">
 </head>
 <body>
@@ -46,6 +57,9 @@
             </form>
 
             <div class="header-actions">
+                <a class="market-link" href="#/mercado" data-role="priority" hidden aria-label="Comparador de mercado">
+                    <svg aria-hidden="true"><use href="img/iconos.svg#chart"></use></svg><span>Comparador</span>
+                </a>
                 <a class="tier-chip" id="tierChip" href="#/cuenta" hidden></a>
                 <a class="icon-btn" href="#/cuenta" aria-label="Mi cuenta">
                     <svg aria-hidden="true"><use href="img/iconos.svg#user"></use></svg>
@@ -83,6 +97,7 @@
             </nav>
             <div class="mobile-secondary">
                 <a href="#/cuenta">Mi cuenta y pedidos</a>
+                <a href="#/mercado" data-role="priority" hidden>Comparador de mercado</a>
                 <a href="#/soporte">Soporte</a>
                 <a href="#/sucursales">Sucursales</a>
                 <a href="#/ayuda">Ayuda</a>
@@ -102,7 +117,7 @@
                 <a href="#/cuenta">Estado de mi pedido</a>
                 <a href="#/soporte">Soporte técnico</a>
                 <a href="#/ayuda">Envíos y entregas</a>
-                <a href="#/ayuda">Cambios y devoluciones</a>
+                <a href="#/legal/devoluciones">Cambios y devoluciones</a>
                 <a href="#/ayuda">Métodos de pago</a>
             </div>
             <div>
@@ -116,6 +131,7 @@
                 <h3>JAM Sport</h3>
                 <a href="#/sucursales">Sucursales</a>
                 <a href="#/cuenta">Clientes Prioritarios</a>
+                <a href="#/mercado" data-role="priority" hidden>Comparador de mercado</a>
                 <a href="#/admin" data-role="admin" hidden>Administración</a>
                 <a href="#/panel/distribuida" data-role="admin" hidden>Base de datos distribuida</a>
             </div>
@@ -128,6 +144,11 @@
         </div>
         <div class="footer-bottom">
             <span>© 2026 JAM Sport · Proyecto académico de Bases de Datos Distribuidas</span>
+            <nav class="legal-links" aria-label="Legal">
+                <a href="#/legal/privacidad">Aviso de privacidad</a>
+                <a href="#/legal/terminos">Términos y condiciones</a>
+                <a href="#/legal/devoluciones">Devoluciones</a>
+            </nav>
             <div class="footer-settings">
                 <label class="fx-switch" id="fxSwitch" hidden>
                     <input type="checkbox" id="fxToggle">
@@ -262,6 +283,12 @@
                     <p class="eyebrow"><span data-field="season"></span> · Para jóvenes y adultos de 15 a 45 años</p>
                     <h1 data-field="heroTitle"></h1>
                     <p data-field="heroText"></p>
+                    <p class="countdown" data-field="countdown" hidden>
+                        <span>Termina en</span>
+                        <strong data-field="cdDays"></strong><small>días</small>
+                        <strong data-field="cdHours"></strong><small>h</small>
+                        <strong data-field="cdMinutes"></strong><small>min</small>
+                    </p>
                     <div class="hero-cta">
                         <a class="btn btn-accent" href="#/tienda">Comprar ahora</a>
                         <a class="btn btn-outline-light" href="#/ofertas">Ver cupones</a>
@@ -292,6 +319,7 @@
                 </a>
             </section>
 
+            <div data-slot="recent"></div>
             <div data-slot="bestSellers"></div>
 
             <section class="segments">
@@ -426,7 +454,10 @@
                         <div class="swatches" data-slot="swatches"></div>
                     </div>
                     <div class="pdp-block">
-                        <p class="label">Talla</p>
+                        <div class="label-row">
+                            <p class="label">Talla</p>
+                            <button class="link-btn small" type="button" data-action="size-finder" data-field="sizeFinder" hidden>¿Cuál es mi talla?</button>
+                        </div>
                         <div class="sizes" data-slot="sizes"></div>
                         <p class="field-error" data-field="sizeError" hidden>Selecciona una talla.</p>
                     </div>
@@ -472,7 +503,9 @@
                 </div>
             </div>
             <div data-slot="reviews"><p class="muted">Cargando reseñas…</p></div>
+            <div data-slot="alsoBought"></div>
             <div data-slot="related"></div>
+            <div data-slot="recent"></div>
         </div>
     </template>
 
@@ -699,6 +732,14 @@
                     <label class="field"><span>Correo</span><input class="input" type="email" name="email" autocomplete="email" required></label>
                     <label class="field"><span>Contraseña</span><input class="input" type="password" name="password" autocomplete="current-password" required></label>
                     <button class="btn btn-dark btn-block btn-lg">Iniciar sesión</button>
+                    <button class="link-btn small auth-switch" type="button" data-show="forgot">¿Olvidaste tu contraseña?</button>
+                </form>
+                <form class="auth-form" data-form="forgot" hidden novalidate>
+                    <p class="small">Escribe el correo de tu cuenta y te enviaremos un enlace para crear una contraseña nueva. El enlace vence en 30 minutos.</p>
+                    <label class="field"><span>Correo</span><input class="input" type="email" name="email" autocomplete="email" required></label>
+                    <button class="btn btn-dark btn-block btn-lg">Enviar enlace</button>
+                    <p class="ok-text small" data-field="forgotSent" role="status" hidden></p>
+                    <button class="link-btn small auth-switch" type="button" data-show="login">Volver a iniciar sesión</button>
                 </form>
                 <form class="auth-form" data-form="register" hidden novalidate>
                     <div class="field-row">
@@ -719,8 +760,9 @@
                             </select>
                         </label>
                     </div>
-                    <label class="field"><span>Contraseña (mínimo 8, con letras y números)</span><input class="input" type="password" name="password" autocomplete="new-password" minlength="8" required></label>
+                    <label class="field"><span>Contraseña (mínimo 8, con letras y números)</span><input class="input" type="password" name="password" autocomplete="new-password" minlength="8" maxlength="72" required></label>
                     <label class="check"><input type="checkbox" name="accepts_marketing" value="1"> Quiero recibir ofertas y novedades</label>
+                    <label class="check"><input type="checkbox" name="accepts_terms" value="1" required> Leí y acepto el <a href="#/legal/privacidad" target="_blank">aviso de privacidad</a> y los <a href="#/legal/terminos" target="_blank">términos y condiciones</a></label>
                     <button class="btn btn-dark btn-block btn-lg">Crear cuenta</button>
                     <p class="muted small">Debes tener al menos 15 años. Tu contraseña se guarda cifrada.</p>
                 </form>
@@ -747,6 +789,7 @@
                 </div>
                 <div class="tier-actions">
                     <a class="btn btn-dark" href="#/soporte">Contactar a soporte</a>
+                    <a class="btn gold" href="#/mercado" data-field="marketLink" hidden>Comparador de mercado</a>
                     <a class="btn btn-ghost" href="#/admin" data-field="adminLink" hidden>Ir a Administración</a>
                 </div>
                 <div class="tier-upgrade" data-field="upgrade" hidden>
@@ -835,6 +878,7 @@
                 <div><strong>Pedido #<span data-field="id"></span></strong> <span class="muted">· <span data-field="date"></span></span></div>
                 <span data-slot="status"></span>
             </header>
+            <div data-slot="timeline"></div>
             <div class="order-items" data-slot="items"></div>
             <footer><span class="muted small" data-field="info"></span><strong data-field="total"></strong></footer>
         </article>
@@ -846,6 +890,270 @@
             <div><a data-field="name"></a><p class="muted small" data-field="detail"></p></div>
             <span data-field="total"></span>
         </div>
+    </template>
+
+
+    <!-- ===================== Plantillas: comparador de mercado ===================== -->
+    <template id="tpl-market">
+        <div class="market">
+            <header class="market-head">
+                <div>
+                    <p class="eyebrow-dark">Exclusivo para cuentas <span data-field="tier"></span></p>
+                    <h1>Comparador de mercado</h1>
+                    <p class="muted">Nuestros precios contra productos equivalentes de otras marcas en sus tiendas oficiales, Liverpool y Mercado Libre.</p>
+                </div>
+                <p class="market-date">Precios de lista consultados el <strong data-field="date"></strong>. Pueden cambiar sin aviso.</p>
+            </header>
+            <div class="kpi-grid">
+                <article class="kpi kpi-priority"><span>Ahorro promedio con tu precio</span><strong data-field="memberSavings"></strong><em>frente al promedio del mercado</em></article>
+                <article class="kpi"><span>Ahorro con precio de lista</span><strong data-field="listSavings"></strong><em>sin tu descuento</em></article>
+                <article class="kpi"><span>Productos comparados</span><strong data-field="count"></strong><em data-field="offers"></em></article>
+                <article class="kpi"><span>Más baratos que toda la competencia</span><strong data-field="cheapest"></strong><em>con tu precio</em></article>
+            </div>
+            <div class="chip-row" role="group" aria-label="Filtrar por departamento" data-slot="filters"></div>
+            <section class="chart-card">
+                <h2>Precio promedio por tipo de producto</h2>
+                <p class="muted small">Precio de lista JAM, tu precio con <span data-field="discount"></span> de descuento y el promedio de la competencia.</p>
+                <div data-slot="byCategory"></div>
+            </section>
+            <section class="chart-card">
+                <h2>Producto por producto</h2>
+                <p class="muted small">Cada punto naranja es un producto equivalente de la competencia; la franja gris va del más barato al más caro.</p>
+                <div data-slot="ranges"></div>
+            </section>
+            <section>
+                <h2 class="section-title">Detalle y fuentes</h2>
+                <div class="table-wrap">
+                    <table class="table market-table">
+                        <thead><tr><th>Producto JAM</th><th class="num">Lista</th><th class="num">Tu precio</th><th>Competencia</th><th class="num">Promedio</th><th class="num">Ahorras</th></tr></thead>
+                        <tbody data-slot="rows"></tbody>
+                    </table>
+                </div>
+                <p class="muted small market-disclaimer">Los precios de otras marcas son de referencia y se tomaron de sus páginas públicas. Las marcas mencionadas pertenecen a sus respectivos dueños.</p>
+            </section>
+        </div>
+    </template>
+
+    <template id="tpl-market-row">
+        <tr>
+            <td><a data-field="name"></a><small class="muted block" data-field="category"></small></td>
+            <td class="num" data-field="ours"></td>
+            <td class="num member-text" data-field="member"></td>
+            <td><ul class="offer-list" data-slot="offers"></ul></td>
+            <td class="num" data-field="average"></td>
+            <td class="num" data-slot="savings"></td>
+        </tr>
+    </template>
+
+    <template id="tpl-market-offer">
+        <li><a data-field="name" target="_blank" rel="noopener noreferrer"></a> <span class="muted" data-field="where"></span> <strong data-field="price"></strong></li>
+    </template>
+
+    <template id="tpl-market-locked">
+        <div class="narrow market-locked">
+            <p class="eyebrow-dark">Beneficio Prioritario</p>
+            <h1>Comparador de mercado</h1>
+            <p>Compara nuestros precios con productos equivalentes de Nike, Adidas y Puma, por tipo de producto y artículo por artículo.</p>
+            <p class="muted">Está disponible para cuentas Prioritario y Administrador. Con un año como cliente y 50 piezas compradas al año, tu cuenta sube a Prioritario.</p>
+            <a class="btn btn-dark" href="#/cuenta">Ver mis beneficios</a>
+        </div>
+    </template>
+
+    <template id="tpl-chip">
+        <button class="chip" type="button" aria-pressed="false"></button>
+    </template>
+
+    <!-- ===================== Plantillas: seguimiento y contraseña ===================== -->
+    <template id="tpl-timeline">
+        <ol class="timeline" aria-label="Seguimiento del pedido"></ol>
+    </template>
+
+    <template id="tpl-timeline-step">
+        <li class="timeline-step"><strong data-field="label"></strong><span class="muted small" data-field="date"></span></li>
+    </template>
+
+    <template id="tpl-reset">
+        <div class="narrow">
+            <h1>Nueva contraseña</h1>
+            <form class="auth auth-form reset-form" novalidate>
+                <p class="small muted">Al guardarla se cierran las sesiones abiertas en otros dispositivos.</p>
+                <label class="field"><span>Nueva contraseña (mínimo 8, con letras y números)</span><input class="input" type="password" name="password" autocomplete="new-password" minlength="8" maxlength="72" required></label>
+                <label class="field"><span>Confirma la contraseña</span><input class="input" type="password" name="confirm" autocomplete="new-password" minlength="8" maxlength="72" required></label>
+                <button class="btn btn-dark btn-block btn-lg">Guardar contraseña</button>
+            </form>
+        </div>
+    </template>
+
+    <!-- ===================== Plantillas: guía de tallas ===================== -->
+    <template id="tpl-size-finder">
+        <dialog class="size-finder" aria-labelledby="sizeFinderTitle">
+            <form method="dialog" class="size-finder-form">
+                <header>
+                    <h2 id="sizeFinderTitle">¿Cuál es mi talla?</h2>
+                    <button class="icon-btn" value="close" aria-label="Cerrar">
+                        <svg aria-hidden="true"><use href="img/iconos.svg#close"></use></svg>
+                    </button>
+                </header>
+                <div data-field="apparel" hidden>
+                    <p class="small muted">Mide el contorno del pecho y de la cintura con una cinta métrica, sin apretar.</p>
+                    <div class="field-row">
+                        <label class="field"><span>Pecho (cm)</span><input class="input" type="number" name="chest" min="60" max="150" inputmode="numeric"></label>
+                        <label class="field"><span>Cintura (cm)</span><input class="input" type="number" name="waist" min="50" max="140" inputmode="numeric"></label>
+                    </div>
+                </div>
+                <div data-field="footwear" hidden>
+                    <p class="small muted">Párate sobre una hoja, marca el talón y la punta del dedo más largo y mide la distancia.</p>
+                    <label class="field"><span>Largo del pie (cm)</span><input class="input" type="number" name="foot" min="20" max="32" step="0.1" inputmode="decimal"></label>
+                </div>
+                <div class="size-result" aria-live="polite">
+                    <p data-field="result"></p>
+                    <button class="btn btn-dark btn-sm" type="button" data-action="use-size" hidden></button>
+                </div>
+                <div class="table-wrap">
+                    <table class="table size-table">
+                        <thead><tr data-slot="head"></tr></thead>
+                        <tbody data-slot="rows"></tbody>
+                    </table>
+                </div>
+            </form>
+        </dialog>
+    </template>
+
+    <!-- ===================== Plantillas: administración de mercado y correos ===================== -->
+    <template id="tpl-admin-market">
+        <div class="admin-columns">
+            <form class="announcement-form market-form" novalidate>
+                <h2>Registrar precio</h2>
+                <label class="field"><span>Producto JAM</span><select class="input" name="id_product" required></select></label>
+                <label class="field"><span>Marca</span><select class="input" name="id_competitor" required></select></label>
+                <label class="field"><span>Producto de la competencia</span><input class="input" name="competitor_product" maxlength="100" required></label>
+                <label class="field"><span>Tienda donde se consultó</span><input class="input" name="retailer" maxlength="40" placeholder="Nike.com, Liverpool…" required></label>
+                <div class="field-row">
+                    <label class="field"><span>Precio (MXN)</span><input class="input" type="number" name="price" min="1" step="0.01" required></label>
+                    <label class="field"><span>Consultado el</span><input class="input" type="date" name="captured_on" required></label>
+                </div>
+                <label class="field"><span>Fuente (enlace)</span><input class="input" type="url" name="source_url" maxlength="300" placeholder="https://"></label>
+                <button class="btn btn-dark">Guardar precio</button>
+            </form>
+            <section>
+                <p class="muted small">Estos precios los ven los clientes Prioritarios en el <a href="#/mercado">comparador de mercado</a>.</p>
+                <div class="table-wrap">
+                    <table class="table">
+                        <thead><tr><th>Producto JAM</th><th>Competencia</th><th>Tienda</th><th class="num">Precio</th><th>Consultado</th><th></th></tr></thead>
+                        <tbody data-slot="rows"></tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    </template>
+
+    <template id="tpl-admin-market-row">
+        <tr>
+            <td data-field="product"></td>
+            <td><strong data-field="brand"></strong> <span data-field="name"></span></td>
+            <td><a data-field="retailer" target="_blank" rel="noopener noreferrer"></a></td>
+            <td class="num"><input class="input stock-input" type="number" name="price" min="1" step="0.01"></td>
+            <td data-field="date"></td>
+            <td>
+                <div class="row-actions">
+                    <button class="btn btn-ghost btn-xs" type="button" data-action="save">Guardar</button>
+                    <button class="btn btn-ghost btn-xs danger" type="button" data-action="delete">Quitar</button>
+                </div>
+            </td>
+        </tr>
+    </template>
+
+    <template id="tpl-admin-emails">
+        <div>
+            <p class="muted toolbar">La tienda no tiene servidor de correo: cada correo para un cliente se guarda en la tabla email_outbox. Aquí están los últimos 100.</p>
+            <div class="email-list" data-slot="list"></div>
+        </div>
+    </template>
+
+    <template id="tpl-admin-email">
+        <article class="email-card">
+            <header><strong data-field="subject"></strong><span data-slot="kind"></span></header>
+            <p class="muted small" data-field="meta"></p>
+            <p data-field="body"></p>
+            <a class="small" data-field="link" hidden></a>
+        </article>
+    </template>
+
+    <!-- ===================== Plantillas: páginas legales ===================== -->
+    <template id="tpl-legal-privacidad">
+        <article class="plain-page legal">
+            <p class="eyebrow-dark">Legal</p>
+            <h1>Aviso de privacidad</h1>
+            <p class="muted small">Última actualización: 19 de noviembre de 2026</p>
+            <p>JAM Sport (en adelante, "JAM") es responsable del tratamiento de los datos personales que nos proporcionas, conforme a la Ley Federal de Protección de Datos Personales en Posesión de los Particulares. JAM es un proyecto académico de la materia Bases de Datos Distribuidas del Tecnológico Nacional de México, campus Tijuana.</p>
+            <h2>Datos que recabamos</h2>
+            <ul>
+                <li>Identificación y contacto: nombre, apellidos, correo electrónico y teléfono.</li>
+                <li>Fecha de nacimiento y sexo, para verificar la edad mínima de 15 años y mostrarte productos para tu edad.</li>
+                <li>Domicilio de entrega cuando eliges envío a domicilio.</li>
+                <li>Historial de compras, reseñas y tickets de soporte.</li>
+            </ul>
+            <p>No pedimos datos sensibles. Los datos de tarjetas los procesa el proveedor de pagos; JAM no los guarda.</p>
+            <h2>Para qué usamos tus datos</h2>
+            <p><strong>Finalidades necesarias:</strong> crear y administrar tu cuenta, procesar y entregar tus pedidos, atender cambios, devoluciones y soporte, calcular los beneficios de tu tipo de cuenta y enviarte los correos de tus pedidos.</p>
+            <p><strong>Finalidades adicionales:</strong> enviarte ofertas y novedades solo si marcaste esa casilla al registrarte. Puedes pedir que dejemos de enviarlas en cualquier momento.</p>
+            <h2>Con quién compartimos tus datos</h2>
+            <p>Solo con las paqueterías que entregan tus pedidos y con el proveedor de pagos, y únicamente con los datos necesarios para ese servicio. No vendemos tus datos.</p>
+            <h2>Cómo los protegemos</h2>
+            <p>Tu contraseña se guarda cifrada y las sesiones se identifican con un código que también se guarda cifrado. Los datos de contacto viven en un fragmento separado de la base de datos con acceso restringido.</p>
+            <h2>Tus derechos ARCO</h2>
+            <p>Puedes acceder a tus datos, rectificarlos, cancelarlos u oponerte a su uso, y revocar tu consentimiento. Abre un ticket en <a href="#/soporte">Soporte</a> o escribe a privacidad@jamsport.mx indicando tu nombre, tu correo registrado y lo que solicitas. Te respondemos en un máximo de 20 días hábiles.</p>
+            <h2>Almacenamiento en tu navegador</h2>
+            <p>Guardamos en tu navegador el carrito, tus favoritos, los productos que viste y tu sesión, para que no se pierdan al recargar la página. No usamos cookies de publicidad.</p>
+            <h2>Cambios a este aviso</h2>
+            <p>Publicaremos cualquier cambio en esta página con su fecha de actualización.</p>
+        </article>
+    </template>
+
+    <template id="tpl-legal-terminos">
+        <article class="plain-page legal">
+            <p class="eyebrow-dark">Legal</p>
+            <h1>Términos y condiciones</h1>
+            <p class="muted small">Última actualización: 19 de noviembre de 2026</p>
+            <h2>Tu cuenta</h2>
+            <p>Para crear una cuenta necesitas tener al menos 15 años; si eres menor de 18, usa la tienda con autorización de tu madre, padre o tutor. Eres responsable de mantener tu contraseña en secreto.</p>
+            <h2>Precios y existencias</h2>
+            <p>Los precios están en pesos mexicanos e incluyen IVA. Un pedido se confirma cuando lo registramos con existencias suficientes en la sucursal que lo surte. Si un precio publicado tiene un error evidente, te avisaremos antes de cobrar.</p>
+            <h2>Cupones y tipos de cuenta</h2>
+            <p>Se aplica un cupón por pedido, dentro de sus fechas de vigencia. Las cuentas Prioritario tienen un descuento permanente, envío prioritario y compras de mayoreo; el descuento total de un pedido nunca supera el 90 %. JAM puede revisar las condiciones de los tipos de cuenta avisando con anticipación.</p>
+            <h2>Pagos y envíos</h2>
+            <p>Aceptamos tarjeta, OXXO, transferencia y efectivo en sucursal. Los pagos en OXXO y por transferencia se confirman al recibirse. El envío es gratis desde el monto indicado para tu cuenta; recoger en sucursal no tiene costo.</p>
+            <h2>Comparador de mercado</h2>
+            <p>Los precios de otras marcas son una referencia tomada de páginas públicas en la fecha indicada y pueden haber cambiado. Las marcas mencionadas pertenecen a sus respectivos dueños y no están relacionadas con JAM.</p>
+            <h2>Cambios y devoluciones</h2>
+            <p>Consulta la <a href="#/legal/devoluciones">política de devoluciones</a>.</p>
+            <h2>Contacto y quejas</h2>
+            <p>Escríbenos desde <a href="#/soporte">Soporte</a>. También puedes acudir a la Procuraduría Federal del Consumidor (PROFECO).</p>
+        </article>
+    </template>
+
+    <template id="tpl-legal-devoluciones">
+        <article class="plain-page legal">
+            <p class="eyebrow-dark">Legal</p>
+            <h1>Cambios y devoluciones</h1>
+            <p class="muted small">Última actualización: 19 de noviembre de 2026</p>
+            <h2>Plazo</h2>
+            <p>Tienes 30 días naturales desde que recibes tu pedido para cambiarlo o devolverlo.</p>
+            <h2>Condiciones</h2>
+            <ul>
+                <li>El producto debe estar sin uso, con sus etiquetas y en su empaque.</li>
+                <li>Las calcetas y la ropa interior deportiva solo se aceptan cerradas, por higiene.</li>
+                <li>Los productos con defecto de fabricación se cambian aunque se hayan usado.</li>
+            </ul>
+            <h2>Cómo hacerlo</h2>
+            <ol>
+                <li>Abre un ticket en <a href="#/soporte">Soporte</a> y elige el pedido.</li>
+                <li>Llévalo a la sucursal de Tijuana o CDMX, o espera la guía de envío que te mandamos por correo.</li>
+                <li>Al recibirlo, el pedido cambia a "Devuelto" y te avisamos por correo.</li>
+            </ol>
+            <h2>Reembolso</h2>
+            <p>El reembolso se hace al mismo método de pago en un máximo de 10 días hábiles. Los cambios de talla o color no tienen costo si hay existencias.</p>
+        </article>
     </template>
 
     <!-- ===================== Plantillas: páginas informativas ===================== -->
@@ -941,6 +1249,8 @@
                 <a href="#/admin/productos" data-section="productos">Productos</a>
                 <a href="#/admin/soporte" data-section="soporte">Soporte</a>
                 <a href="#/admin/comunicados" data-section="comunicados">Comunicados</a>
+                <a href="#/admin/mercado" data-section="mercado">Mercado</a>
+                <a href="#/admin/correos" data-section="correos">Correos</a>
                 <a href="#/panel/distribuida">Base distribuida</a>
             </nav>
             <div data-slot="content"></div>
@@ -956,6 +1266,32 @@
                 <a class="kpi" href="#/admin/pedidos"><span>Pedidos por surtir</span><strong data-field="pending"></strong><em data-field="pendingPriority"></em></a>
                 <a class="kpi" href="#/admin/soporte"><span>Tickets abiertos</span><strong data-field="tickets"></strong><em data-field="ticketsDetail"></em></a>
                 <a class="kpi" href="#/panel/inventario"><span>Existencias bajas</span><strong data-field="lowStock"></strong><em>variantes en el mínimo</em></a>
+            </div>
+            <section class="chart-card">
+                <h2>Ventas por día</h2>
+                <p class="muted small">Últimos 30 días, hora del centro de México. Pasa el cursor sobre una columna para ver el detalle.</p>
+                <div data-slot="daily"></div>
+                <details class="chart-table">
+                    <summary>Ver como tabla</summary>
+                    <div class="table-wrap">
+                        <table class="table">
+                            <thead><tr><th>Día</th><th class="num">Pedidos</th><th class="num">Ventas</th></tr></thead>
+                            <tbody data-slot="dailyRows"></tbody>
+                        </table>
+                    </div>
+                </details>
+            </section>
+            <div class="chart-pair">
+                <section class="chart-card">
+                    <h2>Ventas por sucursal</h2>
+                    <p class="muted small">30 días. Cada sucursal es un nodo de la base distribuida.</p>
+                    <div data-slot="byStore"></div>
+                </section>
+                <section class="chart-card">
+                    <h2>Ventas por categoría</h2>
+                    <p class="muted small">30 días, sin pedidos cancelados ni devueltos.</p>
+                    <div data-slot="byCategory"></div>
+                </section>
             </div>
             <div class="admin-columns">
                 <section>

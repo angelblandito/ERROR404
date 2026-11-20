@@ -74,6 +74,11 @@ if ($DB_Error === null) {
             $Checkout['id_order'] = (int)$Checkout['id_order'];
             $Checkout['priority_shipping'] = (bool)$Checkout['priority_shipping'];
 
+            $CheckoutOrder = $Checkout['id_order'];
+            notify_safely(function () use ($DB_Connector, $CheckoutOrder) {
+                notify_order_created($DB_Connector, $CheckoutOrder);
+            });
+
             /* El pedido ya quedó en el nodo central; los fragmentos se refrescan
                aquí mismo. Si un nodo no responde, el job de sincronización lo pondrá al día. */
             try {

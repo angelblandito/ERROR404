@@ -1,10 +1,11 @@
 /* Administración de la tienda: pedidos, clientes, precios, inventario, soporte y comunicados. */
 import { api } from '../api.js';
-import { $, $$, clone, field, fill, show, slot, badge, money, message, formatDate, loading, setTitle, toast, ORDER_STATUS } from '../ui.js';
+import { $, $$, clone, field, fill, show, slot, badge, money, message, formatDate, loading, setTitle, toast, todayISO, ORDER_STATUS } from '../ui.js';
 import { productArt } from '../illustrations.js';
 import { tierBadge } from '../components.js';
 import { colorsOf, loadCatalog, state, stockAt } from '../store.js';
 import { ticketStatus } from './support.js';
+import { barChart, chartEmpty, columnChart, compactMoney } from '../charts.js';
 
 const SECTIONS = {
     resumen: ['Resumen', 'Ventas, pedidos por surtir y soporte de un vistazo.', 'tpl-admin-summary'],
@@ -12,7 +13,16 @@ const SECTIONS = {
     clientes: ['Clientes', 'Tipos de cuenta y regla de clientes Prioritarios.', 'tpl-admin-customers'],
     productos: ['Productos', 'Precios de lista y existencias por sucursal.', 'tpl-admin-products'],
     soporte: ['Soporte', 'Cola de tickets ordenada por prioridad y plazo de respuesta.', 'tpl-admin-tickets'],
-    comunicados: ['Comunicados', 'Avisos para todos los clientes o solo para los Prioritarios.', 'tpl-admin-announcements']
+    comunicados: ['Comunicados', 'Avisos para todos los clientes o solo para los Prioritarios.', 'tpl-admin-announcements'],
+    mercado: ['Mercado', 'Precios de la competencia para el comparador de los clientes Prioritarios.', 'tpl-admin-market'],
+    correos: ['Correos', 'Bandeja simulada con los correos que la tienda envía a sus clientes.', 'tpl-admin-emails']
+};
+
+const EMAIL_KINDS = {
+    welcome: ['Bienvenida', 'info'],
+    order_created: ['Pedido', 'ok'],
+    order_status: ['Estado del pedido', 'info'],
+    password_reset: ['Contraseña', 'warn']
 };
 
 const STATUS_ACTIONS = {
@@ -58,6 +68,45 @@ async function loadSummary(content) {
     slot(content, 'top').replaceChildren(...data.top_products.map(function (p) {
         return fill(clone('tpl-top-row'), { name: p.name, units: p.units, revenue: money.format(p.revenue) });
     }));
+    drawSalesCharts(content, data);
+}
+
+function dayLabel(date, long) {
+    const d = new Date(Number(date.slice(0, 4)), Number(date.slice(5, 7)) - 1, Number(date.slice(8, 10)));
+    return d.toLocaleDateString('es-MX', long ? { weekday: 'long', day: 'numeric', month: 'long' } : { day: 'numeric', month: 'short' });
+}
+
+function drawSalesCharts(content, data) {
+    const days = data.sales_by_day || [];
+    const format = function (v) { return money.format(v); };
+
+    slot(content, 'daily').replaceChildren(days.some(function (d) { return d.total > 0; })
+        ? columnChart(days.map(function (d) {
+            return {
+                label: dayLabel(d.date, true),
+                short: dayLabel(d.date),
+                value: d.total,
+                tip: [{ text: 'Ventas', value: format(d.total) }, { text: 'Pedidos', value: String(d.orders) }]
+            };
+        }), { format: format, axisFormat: compactMoney, labelEvery: 5, label: 'Ventas por día de los últimos 30 días' })
+        : chartEmpty('Sin ventas en los últimos 30 días.'));
+    slot(content, 'dailyRows').replaceChildren(...days.slice().reverse().map(function (d) {
+        return fill(clone('tpl-top-row'), { name: dayLabel(d.date, true), units: d.orders, revenue: format(d.total) });
+    }));
+
+    const stores = data.sales_by_store || [];
+    slot(content, 'byStore').replaceChildren(stores.length
+        ? barChart(stores.map(function (s) {
+            return { label: s.store, sub: s.orders + ' pedidos', value: s.total, tip: [{ text: 'Pedidos', value: String(s.orders) }] };
+        }), { format: format, valueName: 'Ventas', label: 'Ventas por sucursal' })
+        : chartEmpty('Sin ventas en los últimos 30 días.'));
+
+    const categories = data.sales_by_category || [];
+    slot(content, 'byCategory').replaceChildren(categories.length
+        ? barChart(categories.map(function (c) {
+            return { label: c.name, sub: c.units + ' piezas', value: c.revenue, tip: [{ text: 'Piezas', value: String(c.units) }] };
+        }), { format: format, valueName: 'Ventas', label: 'Ventas por categoría' })
+        : chartEmpty('Sin ventas en los últimos 30 días.'));
 }
 
 /* ---------- Pedidos ---------- */
@@ -326,6 +375,112 @@ function bindAnnouncementForm(content) {
     });
 }
 
+/* ---------- Mercado ---------- */
+function marketRow(o, reload) {
+    const p = state.byId.get(o.id_product);
+    const row = fill(clone('tpl-admin-market-row'), {
+        product: p ? p.name : '#' + o.id_product,
+        brand: o.competitor,
+        name: o.competitor_product,
+        retailer: o.retailer,
+        date: formatDate(o.captured_on)
+    });
+    const link = field(row, 'retailer');
+    if (o.source_url) link.href = o.source_url; else link.removeAttribute('href');
+    const input = $('input[name="price"]', row);
+    input.value = o.price.toFixed(2);
+    input.setAttribute('aria-label', 'Precio de ' + o.competitor_product);
+
+    $('[data-action="save"]', row).addEventListener('click', async function () {
+        try {
+            await api('/admin/market/' + o.id_market_price, {
+                method: 'PUT',
+                body: { price: Number(input.value), captured_on: todayISO() }
+            });
+            toast('Precio de ' + o.competitor_product + ' actualizado');
+            reload();
+        } catch (err) {
+            toast(err.message, { error: true });
+        }
+    });
+    $('[data-action="delete"]', row).addEventListener('click', async function () {
+        try {
+            await api('/admin/market/' + o.id_market_price, { method: 'DELETE' });
+            toast('Precio quitado del comparador');
+            reload();
+        } catch (err) {
+            toast(err.message, { error: true });
+        }
+    });
+    return row;
+}
+
+async function loadMarket(content) {
+    const reload = function () { loadMarket(content); };
+    const data = await api('/admin/market');
+    const form = $('.market-form', content);
+    if (!form.id_product.options.length) {
+        state.products.forEach(function (p) { form.id_product.add(new Option(p.name, p.id_product)); });
+        data.competitors.forEach(function (c) { form.id_competitor.add(new Option(c.name, c.id_competitor)); });
+        form.captured_on.value = todayISO();
+    }
+    slot(content, 'rows').replaceChildren(...(data.offers.length
+        ? data.offers.map(function (o) { return marketRow(o, reload); })
+        : [rowMessage('Todavía no hay precios registrados.', 6)]));
+}
+
+function bindMarketForm(content) {
+    const form = $('.market-form', content);
+    form.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        if (!form.checkValidity()) {
+            form.reportValidity();
+            return;
+        }
+        const button = form.querySelector('button');
+        button.disabled = true;
+        const body = Object.fromEntries(new FormData(form));
+        body.id_product = Number(body.id_product);
+        body.id_competitor = Number(body.id_competitor);
+        body.price = Number(body.price);
+        try {
+            await api('/admin/market', { method: 'POST', body: body });
+            toast('Precio registrado');
+            form.competitor_product.value = '';
+            form.price.value = '';
+            form.source_url.value = '';
+            loadMarket(content);
+        } catch (err) {
+            toast(err.message, { error: true });
+        }
+        button.disabled = false;
+    });
+}
+
+/* ---------- Correos ---------- */
+function emailItem(m) {
+    const kind = EMAIL_KINDS[m.kind] || [m.kind, ''];
+    const card = fill(clone('tpl-admin-email'), {
+        subject: m.subject,
+        meta: 'Para ' + m.to_email + ' · ' + formatDate(m.created_at, true) + (m.id_order ? ' · Pedido #' + m.id_order : ''),
+        body: m.body
+    });
+    slot(card, 'kind').append(badge(kind[0], kind[1]));
+    if (m.link) {
+        const link = show(field(card, 'link'), true);
+        link.href = m.link;
+        link.textContent = m.kind === 'password_reset' ? 'Abrir enlace para restablecer' : 'Abrir enlace del correo';
+    }
+    return card;
+}
+
+async function loadEmails(content) {
+    const list = await api('/admin/emails');
+    slot(content, 'list').replaceChildren(...(list.length
+        ? list.map(emailItem)
+        : [message('Todavía no se ha enviado ningún correo.')]));
+}
+
 /* ---------- Vista ---------- */
 async function loadSection(section, content) {
     if (section === 'resumen') return loadSummary(content);
@@ -333,6 +488,8 @@ async function loadSection(section, content) {
     if (section === 'clientes') return loadCustomers(content);
     if (section === 'productos') return renderProducts(content);
     if (section === 'soporte') return loadTickets(content);
+    if (section === 'mercado') return loadMarket(content);
+    if (section === 'correos') return loadEmails(content);
     return loadAnnouncementList(content);
 }
 
@@ -355,6 +512,8 @@ function bindSection(section, content) {
         });
     } else if (section === 'comunicados') {
         bindAnnouncementForm(content);
+    } else if (section === 'mercado') {
+        bindMarketForm(content);
     }
 }
 

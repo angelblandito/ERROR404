@@ -4,7 +4,8 @@ import { $, clone, field, fill, show, slot, money, stars, message, toast, emptyS
 import { productArt, colorClass } from '../illustrations.js';
 import { favButton, productRail } from '../components.js';
 import { openMiniCart } from '../minicart.js';
-import { account, addToCart, colorsOf, isPriority, memberPrice, physicalStores, product, state, stockAt } from '../store.js';
+import { account, addToCart, colorsOf, isPriority, memberPrice, physicalStores, product, recentProducts, rememberViewed, state, stockAt } from '../store.js';
+import { openSizeFinder } from '../sizes.js';
 
 function stockLabel(el, text, css) {
     el.textContent = text;
@@ -166,6 +167,9 @@ export function renderProduct(view, id, params) {
     slot(page, 'related').replaceWith(productRail('También te puede interesar', state.products.filter(function (x) {
         return x.department === p.department && x.id_product !== p.id_product;
     }).slice(0, 8)));
+    slot(page, 'recent').replaceWith(productRail('Vistos recientemente', recentProducts(p.id_product).slice(0, 8)));
+    rememberViewed(p.id_product);
+    show(field(page, 'sizeFinder'), p.department !== 'accessories');
 
     view.replaceChildren(page);
 
@@ -209,6 +213,17 @@ export function renderProduct(view, id, params) {
             qtyInput.value = quantity;
             return;
         }
+        if (e.target.closest('[data-action="size-finder"]')) {
+            const available = variantsOf(color).filter(function (v) { return v.stock_total > 0; }).map(function (v) { return v.size; });
+            openSizeFinder(p, available, function (size) {
+                const v = variantsOf(color).find(function (x) { return x.size === size; });
+                if (!v) return;
+                selected = v.id_variant;
+                field(page, 'sizeError').hidden = true;
+                draw();
+            });
+            return;
+        }
         if (e.target.closest('[data-action="scroll-reviews"]')) {
             e.preventDefault();
             const reviews = document.getElementById('resenas');
@@ -233,6 +248,20 @@ export function renderProduct(view, id, params) {
 
     pickColor(color);
     loadReviews(page, p);
+    loadAlsoBought(page, p);
+}
+
+/* Productos que otros clientes compraron en el mismo pedido. */
+async function loadAlsoBought(page, p) {
+    const target = slot(page, 'alsoBought');
+    try {
+        const data = await api('/store/products/' + p.id_product + '/also-bought');
+        const list = data.products.map(product).filter(Boolean);
+        if (!document.body.contains(target)) return;
+        target.replaceWith(productRail(data.source === 'orders' ? 'Clientes que compraron esto también compraron' : 'Combínalo con', list));
+    } catch (e) {
+        target.remove();
+    }
 }
 
 async function loadReviews(page, p) {

@@ -26,6 +26,7 @@ export const state = {
     shipping: { free_from: 999, cost: 99 },
     cart: loadJSON('jam_cart_v2', []),
     favorites: loadJSON('jam_favorites', []),
+    recent: loadJSON('jam_recent', []),
     customer: null,
     accountTiers: [],
     promotions: null,
@@ -231,6 +232,22 @@ export function toggleFavorite(idProduct) {
     saveJSON('jam_favorites', state.favorites);
     emit();
     return isFavorite(id);
+}
+
+/* ---------- Vistos recientemente ---------- */
+const RECENT_MAX = 12;
+
+export function rememberViewed(idProduct) {
+    const id = Number(idProduct);
+    state.recent = [id].concat(state.recent.filter(function (x) { return x !== id; })).slice(0, RECENT_MAX);
+    saveJSON('jam_recent', state.recent);
+}
+
+export function recentProducts(excludeId) {
+    return state.recent
+        .filter(function (id) { return id !== Number(excludeId); })
+        .map(function (id) { return state.byId.get(id); })
+        .filter(Boolean);
 }
 
 /* ---------- Comunicados ---------- */

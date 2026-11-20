@@ -3,6 +3,7 @@ import { $, $$, clone, fill, slot, buildQuery, emptyState, setTitle, sizeLabel, 
 import { productCard } from '../components.js';
 import { colorClass } from '../illustrations.js';
 import { state } from '../store.js';
+import { matchScore, productText } from '../search.js';
 
 const PRICE_RANGES = {
     lt500: ['Menos de $500', 0, 499.99],
@@ -13,10 +14,6 @@ const PRICE_RANGES = {
 
 const RADIO_FILTERS = ['dep', 'genero', 'edad', 'precio', 'talla', 'color'];
 const CHECK_FILTERS = ['disp', 'calif'];
-
-function normalize(text) {
-    return String(text || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-}
 
 function matches(p, f) {
     if (f.dep && p.department !== f.dep) return false;
@@ -30,10 +27,7 @@ function matches(p, f) {
     if (f.color && !p.variants.some(function (v) { return v.color_code === f.color; })) return false;
     if (f.disp === '1' && p.stock_total <= 0) return false;
     if (f.calif && p.rating < Number(f.calif)) return false;
-    if (f.q) {
-        const text = normalize(p.name + ' ' + p.description + ' ' + p.category + ' ' + (DEPARTMENTS[p.department] || ''));
-        if (!normalize(f.q).split(/\s+/).every(function (w) { return text.indexOf(w) >= 0; })) return false;
-    }
+    if (f.q && !matchScore(f.q, productText(p, DEPARTMENTS))) return false;
     return true;
 }
 
@@ -111,7 +105,11 @@ function activeChips(f) {
 
 export function renderCatalog(view, params) {
     const f = Object.assign({}, params);
-    const list = sortProducts(state.products.filter(function (p) { return matches(p, f); }), f.orden);
+    let list = sortProducts(state.products.filter(function (p) { return matches(p, f); }), f.orden);
+    if (f.q && !f.orden) {
+        const score = new Map(list.map(function (p) { return [p.id_product, matchScore(f.q, productText(p, DEPARTMENTS))]; }));
+        list = list.slice().sort(function (a, b) { return score.get(b.id_product) - score.get(a.id_product); });
+    }
     const title = pageTitle(f);
     const options = availableSizesAndColors();
     const page = clone('tpl-catalog');
