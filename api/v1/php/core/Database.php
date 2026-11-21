@@ -25,6 +25,27 @@ function jam_open(array $cfg): PDO
 }
 
 /*
+ * Nodos remotos con 'retry_after': si no respondieron hace poco, se omiten
+ * sin volver a esperar el tiempo de conexión. El aviso se guarda en un
+ * archivo temporal para que lo vean las siguientes peticiones.
+ */
+function jam_down_marker(string $name): string
+{
+    return sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'jam_nodo_caido_' . preg_replace('/\W/', '', $name);
+}
+
+function jam_recently_down(string $name, array $cfg): ?int
+{
+    $wait = (int)($cfg['retry_after'] ?? 0);
+    $file = jam_down_marker($name);
+    if ($wait <= 0 || !is_file($file)) {
+        return null;
+    }
+    $age = time() - (int)@filemtime($file);
+    return $age < $wait ? $wait - $age : null;
+}
+
+/*
  * Devuelve la conexión a un nodo. Si el nodo tiene espejo ('mirror') y el
  * servidor principal no responde, se conecta al espejo automáticamente.
  * Las conexiones (y los fallos) se guardan durante la petición para no
@@ -49,6 +70,15 @@ function jam_node(string $name): PDO
     }
 
     $cfg = $nodes[$name];
+
+    $retryIn = jam_recently_down($name, $cfg);
+    if ($retryIn !== null) {
+        $JAM_CONNECTION_INFO[$name] = ['endpoint' => null, 'server' => $cfg['server'], 'latency_ms' => 0];
+        $error = new RuntimeException("El nodo $name no respondió hace poco; se reintentará en {$retryIn} s.");
+        $JAM_CONNECTIONS[$name] = $error;
+        throw $error;
+    }
+
     $start = microtime(true);
     $endpoint = 'principal';
     $server = $cfg['server'];
@@ -72,7 +102,14 @@ function jam_node(string $name): PDO
             'latency_ms' => (int)round((microtime(true) - $start) * 1000),
         ];
         $JAM_CONNECTIONS[$name] = $e;
+        if (!empty($cfg['retry_after'])) {
+            @touch(jam_down_marker($name));
+        }
         throw $e;
+    }
+
+    if (!empty($cfg['retry_after'])) {
+        @unlink(jam_down_marker($name));
     }
 
     $JAM_CONNECTION_INFO[$name] = [

@@ -20,7 +20,7 @@ LOCAL · SQL Server 2022 Developer
     ├─ fragmentos + pub_catalogo ─► JAM_tijuana   id_store = 1
     ├─ fragmentos + pub_catalogo ─► JAM_cdmx      id_store = 2
     ├─ fragmentos + pub_catalogo ─► JAM_online    id_store = 4  + customer_profile
-    └─ pub_completa (internet) ───► Azure SQL
+    └─ pub_completa (Developer) o copia de la API (Express) ─► Azure SQL
 
 AZURE
   jam-sql-principal / JAM_cloud  (PRIMARY)
@@ -65,6 +65,29 @@ Geo-replicación de Azure SQL con un **grupo de conmutación por error** (`jam-f
 
 En el código (`core/Database.php`), si el servidor principal no responde, la API se conecta sola al espejo (`jam-fog.secondary.database.windows.net`). La pantalla **Base distribuida** lo muestra como “Conectado al espejo”.
 
+Cómo llegan los datos a Azure:
+- Con **SQL Server Developer**, la publicación `pub_completa` de `03_replicacion.sql`.
+- Con **SQL Server Express** (no puede publicar replicación), la API copia `JAM_db` a `JAM_cloud` (`models/mirror.php`): después de cada compra o cambio solo copia lo que cambió (columna `updated_at`), y el botón **Copiar al espejo (Azure)** del panel copia todo. Las tablas del espejo se crean con la sección 0 de `04_espejo_azure.sql`.
+
+### 1.5 Transparencia ante fallos (`07_tolerancia_fallos.sql`)
+
+Objetivo: si se cae un servidor (una sucursal), la tienda y el panel siguen trabajando y los datos de ese nodo se toman de otra copia.
+
+```
+Consulta del fragmento Tijuana (id_store = 1)
+   1. JAM_tijuana ............ ¿responde? → se usa (origen "fragmento")
+   2. Azure JAM_cloud ........ espejo, mismo predicado id_store = 1 (origen "espejo:cloud")
+        └─ si jam-sql-principal no responde → jam-sql-espejo (solo lectura)
+   3. JAM_db (central) ....... mismo predicado id_store = 1 (origen "respaldo:central")
+```
+
+- **Escrituras**: los pedidos, el inventario y los clientes se escriben en el nodo central, así que vender no depende de la sucursal.
+- **Sincronización tolerante**: `dist.sp_sincronizar_nodos` refresca cada nodo en su propia transacción con `TRY…CATCH`. Si un nodo está fuera de línea no detiene a los demás: queda marcado como **pendiente** en `dist.node_sync` con el error.
+- **Recuperación**: en cuanto el nodo vuelve a responder, la API lo detecta al abrir el panel (`GET /nodes`) y lo pone al día sola.
+- **En SSMS**: `dist.vw_estado_nodos` muestra el estado de cada base, y `dist.sp_consulta_global` reconstruye la relación con `UNION ALL` sustituyendo el nodo caído por su copia en el central (la vista normal `dist.vw_inventory_global` falla con el error 942).
+- **En el panel**: un aviso dice qué nodo está caído y quién responde por él; cada tarjeta muestra **Lecturas** (Su fragmento / Espejo Azure / Nodo central) y **Sincronización** (Al día / Pendiente / Puesto al día).
+- Si Azure no está configurado o no hay internet, el respaldo es el nodo central. Cuando Azure falla, la API deja de intentarlo durante 30 s para no hacer esperar cada petición.
+
 ---
 
 ## 2. Instalación local
@@ -92,7 +115,10 @@ En SSMS, conectado a la instancia Developer, ejecutar en orden:
 2. `API_JAM/distribuida/01_fragmentacion_horizontal.sql`
 3. `API_JAM/distribuida/02_fragmentacion_vertical.sql`
 4. `API_JAM/distribuida/06_pedidos_y_seguridad.sql` (procedimiento de pedidos y usuario `jam_api`; antes cambiar la contraseña marcada con `>>>`)
-5. `API_JAM/distribuida/05_validacion.sql` → todas las columnas `diferencias` y `repetidos_entre_fragmentos` deben valer **0**.
+5. `API_JAM/distribuida/07_tolerancia_fallos.sql` (estado de los nodos y consulta tolerante a fallos)
+6. `API_JAM/distribuida/05_validacion.sql` → todas las columnas `diferencias` y `repetidos_entre_fragmentos` deben valer **0**.
+
+`04_espejo_azure.sql` no se ejecuta aquí: se ejecuta conectado a Azure (sección 5.2).
 
 > El usuario `jam_api` necesita que la instancia acepte autenticación de SQL Server:
 > en SSMS, clic derecho en el servidor → *Propiedades → Seguridad → Modo de autenticación de SQL Server y Windows*, y reiniciar el servicio.
@@ -272,13 +298,14 @@ La versión en Azure (sección 5) también se abre desde el celular, en modo con
 
 | Método | Ruta | Descripción |
 |--------|------|-------------|
-| GET | `/nodes` | Estado, latencia, servidor y modo de cada nodo; en la nube incluye el enlace de geo-replicación |
-| GET | `/distributed/inventory?node=tijuana` | Inventario leído del fragmento (sin `node` = todos) |
+| GET | `/nodes` | Estado, latencia, servidor y modo de cada nodo, quién atiende sus lecturas y si está pendiente; pone al día los nodos que volvieron. En la nube incluye el enlace de geo-replicación |
+| GET | `/distributed/inventory?node=tijuana` | Inventario leído del fragmento (sin `node` = todos); si el nodo está caído, del espejo o del central (`source`) |
 | GET | `/distributed/orders?node=cdmx` | Pedidos y artículos leídos del fragmento |
 | GET | `/distributed/customers` | Clientes reconstruidos con los dos fragmentos verticales |
 | GET | `/distributed/fragments` | Renglones de cada fragmento contra lo esperado según el nodo central |
 | GET | `/replication/status` | Conteo y checksum del catálogo en el publicador contra cada suscriptor |
-| POST | `/distributed/sync` | Ejecuta `dist.sp_sincronizar_nodos` |
+| POST | `/distributed/sync` | Ejecuta `dist.sp_sincronizar_nodos` y devuelve los nodos pendientes |
+| POST | `/mirror/sync` | Copia los cambios de `JAM_db` a `JAM_cloud` en Azure (`?full=1` copia todo) |
 | GET | `/season_theme` | Temporadas y campañas con su paleta de colores |
 | GET | `/season_theme/current?date=AAAA-MM-DD` | Temporada vigente para esa fecha (campaña > estación) |
 | GET | `/store/catalog` | Catálogo con variantes, existencias por tienda, calificación, unidades vendidas y precio de outlet (`outlet_percent`, `sale_price`) |
@@ -385,13 +412,31 @@ Puntos de conexión resultantes:
 - Lectura/escritura: `jam-fog-<sufijo>.database.windows.net`
 - Espejo (solo lectura): `jam-fog-<sufijo>.secondary.database.windows.net`
 
-### 5.2 Replicación hacia Azure
+### 5.2 Datos hacia Azure
+
+**Con SQL Server Express (instalación actual):**
+
+1. En SSMS conectarse a `jam-fog-<sufijo>.database.windows.net` (autenticación SQL `jamadmin`, *Cifrar: Obligatorio*), elegir la base `JAM_cloud` y ejecutar `API_JAM/distribuida/04_espejo_azure.sql`. La sección 0 crea las tablas del espejo.
+2. En `api/v1/php/config/settings.php` (local) llenar:
+   ```php
+   'JAM_CLOUD_SERVER' => 'jam-fog-<sufijo>.database.windows.net',
+   'JAM_CLOUD_MIRROR_SERVER' => 'jam-fog-<sufijo>.secondary.database.windows.net',
+   'JAM_CLOUD_DB' => 'JAM_cloud',
+   'JAM_CLOUD_USER' => 'jamadmin',
+   'JAM_CLOUD_PASSWORD' => '<la contraseña de Azure>',
+   ```
+3. Administración → **Base distribuida** → **Copiar al espejo (Azure)**. La tarjeta *Azure SQL* debe mostrar la hora de la copia y el estado del espejo (`jam-sql-espejo`).
+4. Comprobar en Azure con las consultas 5 de `04_espejo_azure.sql`: renglones por `id_store` iguales a los de cada sucursal.
+
+A partir de ahí cada compra o cambio se copia solo a Azure al terminar la petición, y Azure lo pasa a `jam-sql-espejo` por geo-replicación.
+
+**Con SQL Server Developer (replicación real):**
 
 1. En `03_replicacion.sql` llenar `@azure_servidor` (listener `jam-fog-<sufijo>.database.windows.net`), `@azure_usuario` y `@azure_password`.
 2. Ejecutar el script completo otra vez: lo que ya existe se omite y solo se crea la suscripción a Azure.
-3. En unos minutos `JAM_cloud` tendrá todas las tablas. Comprobar con `04_espejo_azure.sql` conectado al listener desde SSMS (autenticación SQL, *Cifrar: Obligatorio*).
+3. En unos minutos `JAM_cloud` tendrá todas las tablas. Comprobar con `04_espejo_azure.sql` (las consultas 1 a 5).
 
-> Si la red de la escuela bloquea el puerto 1433 de salida, hacer este paso desde casa o con datos del celular.
+> Si la red de la escuela bloquea el puerto 1433 de salida, hacer este paso desde casa o con datos del celular. En clase, si no hay salida a Azure, el respaldo es el nodo central y la demostración funciona igual.
 
 ### 5.3 API en App Service
 
@@ -441,9 +486,48 @@ En la nube la tienda funciona en modo consulta: el catálogo, el inventario y lo
 6. **Fragmentación horizontal**: Administración → **Base distribuida** → **Inventario** → pestañas por nodo. En SSMS, `SELECT * FROM JAM_cdmx.dbo.inventory` muestra solo `id_store = 2`, e intentar insertar `id_store = 1` ahí falla por el `CHECK`.
 7. **Pedido distribuido**: comprar en la tienda eligiendo *Sucursal Tijuana* → el pedido aparece en **Pedidos** dentro del fragmento de Tijuana.
 8. **Fragmentación vertical**: **Base distribuida** → tabla de clientes con las columnas de cada fragmento en distinto color.
-9. **Transparencia ante fallos**: desconectar una sucursal (`ALTER DATABASE JAM_cdmx SET OFFLINE WITH ROLLBACK IMMEDIATE;`), actualizar **Inventario** → CDMX aparece como “nodo sin conexión, leído de central”. Volver con `SET ONLINE`.
+9. **Transparencia ante fallos**: seguir la sección 6.1.
 10. **Replicación**: cambiar un precio en `JAM_db` → la matriz de **Replicación del catálogo** pasa a “Sincronizado” en todos los nodos.
 11. **Espejo**: `az sql failover-group set-primary --name jam-fog-<sufijo> --resource-group rg-jam --server jam-sql-espejo-<sufijo>` → en la API de Azure, **Base distribuida** muestra el otro servidor como principal.
+
+### 6.1 Demostración: el maestro tumba un servidor
+
+Preparación: panel **Base distribuida** abierto en el navegador y SSMS conectado a la instancia local con una ventana en `JAM_db`.
+
+1. **Estado inicial**
+   ```sql
+   SELECT * FROM dist.vw_estado_nodos;   -- 3 nodos ONLINE, pendiente = 0
+   EXEC dist.sp_resumen_global;          -- origen "fragmento JAM_..." en los 3
+   ```
+2. **Tumbar la sucursal** que pida el maestro (aquí Tijuana):
+   ```sql
+   ALTER DATABASE JAM_tijuana SET OFFLINE WITH ROLLBACK IMMEDIATE;
+   ```
+3. **Panel → Base distribuida** (recargar): aviso amarillo *“El sistema sigue funcionando con 1 nodo caído”*; la tarjeta de Tijuana en rojo con **Lecturas: Espejo Azure** (o *Nodo central* si Azure no está configurado).
+4. **Inventario por sucursal → Tijuana**: los datos siguen apareciendo, con la etiqueta *“nodo sin conexión, leído desde el espejo en Azure SQL”*.
+5. **En SSMS**, la diferencia entre la vista normal y la tolerante:
+   ```sql
+   SELECT COUNT(*) FROM dist.vw_inventory_global;   -- error 942: la base está fuera de línea
+   EXEC dist.sp_resumen_global;                     -- Tijuana sale de "respaldo JAM_db"
+   ```
+6. **Seguir trabajando**: en la tienda comprar un producto eligiendo *Recoger en Sucursal Tijuana*, o cambiar existencias desde Administración. El pedido se guarda en el central:
+   ```sql
+   EXEC dist.sp_sincronizar_nodos;        -- pending_nodes = 1
+   SELECT * FROM dist.vw_estado_nodos;    -- tijuana: pendiente = 1 y el error
+   ```
+   **Pedidos por nodo → Tijuana** muestra el pedido nuevo aunque la sucursal siga caída.
+7. **Levantar la sucursal**:
+   ```sql
+   ALTER DATABASE JAM_tijuana SET ONLINE;
+   ```
+8. **Recargar el panel**: aviso verde *“Sucursal Tijuana volvió a responder y se puso al día”*, tarjeta con **Sincronización: Puesto al día**. En SSMS:
+   ```sql
+   SELECT * FROM dist.vw_estado_nodos;              -- pendiente = 0
+   SELECT TOP 3 * FROM JAM_tijuana.dbo.customer_order ORDER BY id_order DESC;  -- ya tiene el pedido nuevo
+   ```
+9. **Si el maestro tumba Azure principal**: `az sql failover-group set-primary --name jam-fog-<sufijo> --resource-group rg-jam --server jam-sql-espejo-<sufijo>`. La tarjeta *Azure SQL* muestra el otro servidor como principal y las lecturas de la sucursal caída siguen saliendo del espejo.
+
+> Si el maestro detiene el servicio completo de SQL Server local, se caen a la vez el central y las tres sucursales. En ese caso solo queda Azure: el panel lee los fragmentos de `JAM_cloud`, pero la tienda local no puede vender hasta que el servicio vuelva, porque los pedidos se escriben en el central.
 
 ---
 
@@ -456,4 +540,8 @@ En la nube la tienda funciona en modo consulta: el catálogo, el inventario y lo
 | `Cannot open database "JAM_tijuana"` | Falta ejecutar `01_fragmentacion_horizontal.sql` en la instancia que usa la API. |
 | La replicación no avanza | SQL Server Agent detenido, o `@@SERVERNAME` distinto del nombre del equipo (ver 2.1). |
 | Azure: `Client with IP address … is not allowed` | Agregar la IP a las reglas de firewall de **ambos** servidores. |
+| Copiar al espejo: *La tabla … no existe en JAM_cloud* | Falta ejecutar `04_espejo_azure.sql` conectado a `JAM_cloud` en Azure. |
+| Copiar al espejo: *el espejo secundario es de solo lectura* | El servidor principal de Azure no responde; la copia se reanuda cuando vuelva (o hacer *failover* al otro). |
+| `ALTER DATABASE … SET OFFLINE` se queda esperando | Hay conexiones abiertas a esa base: usar `WITH ROLLBACK IMMEDIATE`. |
+| El nodo volvió pero sigue *Pendiente* | Recargar **Base distribuida** o pulsar **Sincronizar fragmentos**; revisar `last_error` en `dist.vw_estado_nodos`. |
 | El navegador muestra error CORS | Revisar que la URL de `config.js` sea correcta y que la API responda `/health-check`. |

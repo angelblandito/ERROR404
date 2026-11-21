@@ -20,6 +20,8 @@ const ORDER_STATUS = {
 
 const TIER_NAMES = { 1: 'Estándar', 2: 'Prioritario', 3: 'Administrador' };
 
+const ROLE_NAMES = { central: 'central', sucursal: 'sucursal', tienda_en_linea: 'tienda en línea', nube: 'nube' };
+
 const CHANNEL = { in_store: 'En tienda', online: 'En línea', whatsapp: 'WhatsApp' };
 
 const REPLICATION_STATE = {
@@ -61,6 +63,23 @@ function kv(key, value) {
     return fill(clone('tpl-kv'), { key: key, value: value === null || value === undefined ? '—' : value });
 }
 
+/* De dónde salieron los datos de un fragmento: fragmento | espejo:cloud | respaldo:<nodo> | sin_datos */
+function sourceText(source) {
+    const text = String(source || '');
+    if (text === 'fragmento') return 'su propio fragmento';
+    if (text.indexOf('espejo') === 0) return 'el espejo en Azure SQL';
+    if (text.indexOf('respaldo') === 0) return text === 'respaldo:central' ? 'el nodo central JAM_db' : 'el nodo ' + text.split(':')[1];
+    return 'ninguna copia disponible';
+}
+
+function shortSource(source) {
+    const text = String(source || '');
+    if (text === 'fragmento') return 'Su fragmento';
+    if (text.indexOf('espejo') === 0) return 'Espejo Azure';
+    if (text.indexOf('respaldo') === 0) return text === 'respaldo:central' ? 'Nodo central' : 'Nodo ' + text.split(':')[1];
+    return 'Sin copia';
+}
+
 function sourceBadges(sources) {
     return Object.keys(sources || {}).map(function (node) {
         const s = sources[node];
@@ -68,9 +87,9 @@ function sourceBadges(sources) {
         if (s.source === 'fragmento') {
             return badge(label + 'fragmento local (' + s.rows + ')', 'ok');
         }
-        const el = String(s.source).indexOf('respaldo') === 0
-            ? badge(label + 'nodo sin conexión, leído de ' + s.source.split(':')[1], 'warn')
-            : badge(label + 'sin datos', 'bad');
+        const el = s.source === 'sin_datos'
+            ? badge(label + 'sin datos', 'bad')
+            : badge(label + 'nodo sin conexión, leído desde ' + sourceText(s.source) + ' (' + s.rows + ')', 'warn');
         el.title = s.error || '';
         return el;
     });
@@ -186,13 +205,23 @@ function nodeCard(n) {
     show(field(card, 'error'), Boolean(n.error));
 
     const details = [
-        kv('Rol', n.role.replace(/_/g, ' ') + (n.is_default ? ' · por defecto' : '')),
+        kv('Rol', (ROLE_NAMES[n.role] || n.role) + (n.is_default ? ' · por defecto' : '')),
         kv('Base', n.database),
         kv('Servidor', n.server_name || n.server)
     ];
     if (n.id_store) details.push(kv('Predicado', 'id_store = ' + n.id_store));
     if (online) details.push(kv('Modo', n.updateability));
     details.push(kv('Latencia', n.latency_ms !== null ? n.latency_ms + ' ms' : null));
+    if (n.served_by) details.push(kv('Lecturas', shortSource(n.served_by)));
+    if (n.sync) {
+        const row = kv('Sincronización', '');
+        field(row, 'value').replaceChildren(n.sync.pending
+            ? badge('Pendiente', 'warn')
+            : badge(n.caught_up ? 'Puesto al día' : 'Al día', 'ok'));
+        details.push(row);
+        if (n.sync.last_success) details.push(kv('Sincronizado', formatDate(n.sync.last_success, true)));
+    }
+    if (n.node === 'cloud') details.push(kv('Copia', n.last_copy ? formatDate(n.last_copy, true) : 'Sin copiar'));
     (n.geo_replication || []).forEach(function (g) {
         details.push(
             kv('Espejo', g.partner_server),
@@ -221,7 +250,13 @@ function fragmentCard(f) {
     const card = fill(clone('tpl-fragment-card'), { label: f.label, error: f.error || 'Sin conexión' });
     slot(card, 'predicate').replaceWith(badge(f.predicate, 'info'));
     show(field(card, 'error'), f.status !== 'en_linea');
-    slot(card, 'tables').replaceWith(...f.tables.map(fragmentTable));
+    const rows = f.tables.map(fragmentTable);
+    if (f.status !== 'en_linea') {
+        const served = kv('Lecturas', '');
+        field(served, 'value').replaceChildren(badge(shortSource(f.served_by), f.served_by ? 'warn' : 'bad'));
+        rows.unshift(served);
+    }
+    slot(card, 'tables').replaceWith(...rows);
     return card;
 }
 
@@ -249,12 +284,39 @@ function customerRow(r) {
     });
 }
 
+/* Aviso arriba del panel: qué nodo está caído y quién responde por él. */
+function showFailover(content, nodes) {
+    const box = field(content, 'failover');
+    const fragments = nodes.filter(function (n) { return n.id_store; });
+    const down = fragments.filter(function (n) { return n.status !== 'en_linea'; });
+    const back = fragments.filter(function (n) { return n.status === 'en_linea' && n.caught_up; });
+
+    const items = down.map(function (n) {
+        return fill(clone('tpl-failover-item'), {
+            node: n.label + ':',
+            text: 'sin conexión. Sus consultas las responde ' + sourceText(n.served_by)
+                + '. Las ventas y cambios se guardan en el nodo central y se copiarán a la sucursal cuando vuelva.'
+        });
+    }).concat(back.map(function (n) {
+        return fill(clone('tpl-failover-item'), {
+            node: n.label + ':',
+            text: 'volvió a responder y se puso al día con los cambios que hubo mientras estuvo caída.'
+        });
+    }));
+
+    show(box, items.length > 0);
+    box.classList.toggle('ok', down.length === 0);
+    fill(box, { failoverTitle: down.length ? 'El sistema sigue funcionando con ' + down.length + (down.length === 1 ? ' nodo caído' : ' nodos caídos') : 'Todos los nodos en línea' });
+    slot(box, 'failoverList').replaceChildren(...items);
+}
+
 function showNodes(content, result) {
     const grid = slot(content, 'nodes');
     if (result.status !== 'fulfilled') {
         grid.replaceChildren(message('Error: ' + result.reason.message, 'empty'));
         return;
     }
+    showFailover(content, result.value.nodes);
     grid.replaceChildren(...result.value.nodes.map(nodeCard));
 }
 
@@ -345,17 +407,39 @@ async function loadDistributed(content) {
     showReplication(content, results[3]);
 }
 
+function reloadDistributed(content) {
+    const fresh = clone('tpl-panel-distributed');
+    content.replaceWith(fresh);
+    loadDistributed(fresh);
+    return fresh;
+}
+
 async function syncNodes(button, content) {
     button.disabled = true;
     try {
         const data = await api('/distributed/sync', { method: 'POST' });
-        toast('Fragmentos sincronizados: ' + data.synchronized_at);
-        const fresh = clone('tpl-panel-distributed');
-        content.replaceWith(fresh);
-        loadDistributed(fresh);
-        return fresh;
+        const pending = Object.keys(data.pending || {}).map(nodeLabel);
+        toast(pending.length
+            ? 'Sincronizado. Pendiente por estar sin conexión: ' + pending.join(', ')
+            : 'Fragmentos sincronizados: ' + data.synchronized_at);
+        return reloadDistributed(content);
     } catch (e) {
         toast('No se pudo sincronizar: ' + e.message, { error: true });
+        return content;
+    } finally {
+        button.disabled = false;
+    }
+}
+
+async function copyToMirror(button, content) {
+    button.disabled = true;
+    try {
+        const data = await api('/mirror/sync?full=1', { method: 'POST' });
+        const rows = data.tables.reduce(function (sum, t) { return sum + t.rows; }, 0);
+        toast('Espejo actualizado: ' + data.tables.length + ' tablas, ' + rows + ' renglones copiados a ' + (data.server || 'Azure'));
+        return reloadDistributed(content);
+    } catch (e) {
+        toast('No se pudo copiar al espejo: ' + e.message, { error: true });
         return content;
     } finally {
         button.disabled = false;
@@ -392,6 +476,10 @@ export function renderPanel(page, section) {
         const syncButton = show($('[data-action="sync"]', panel), true);
         syncButton.addEventListener('click', async function () {
             content = await syncNodes(syncButton, content);
+        });
+        const mirrorButton = show($('[data-action="mirror"]', panel), true);
+        mirrorButton.addEventListener('click', async function () {
+            content = await copyToMirror(mirrorButton, content);
         });
         loadDistributed(content);
     }

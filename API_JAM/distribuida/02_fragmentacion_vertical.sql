@@ -69,17 +69,10 @@ BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
 
+    /* V2 vive en el nodo central: siempre se puede refrescar. */
     BEGIN TRANSACTION;
 
-    DELETE FROM JAM_online.dbo.customer_profile;
     DELETE FROM dist.customer_private;
-
-    INSERT INTO JAM_online.dbo.customer_profile
-        (id_customer, id_loyalty_level, id_account_tier, id_store, first_name, last_name_paternal, last_name_maternal,
-         accepts_marketing, customer_since, source_node, updated_at, deleted)
-    SELECT id_customer, id_loyalty_level, id_account_tier, id_store, first_name, last_name_paternal, last_name_maternal,
-           accepts_marketing, customer_since, source_node, updated_at, deleted
-    FROM dbo.customer;
 
     INSERT INTO dist.customer_private
         (id_customer, id_address, birth_date, sex, phone, email, updated_at)
@@ -87,6 +80,42 @@ BEGIN
     FROM dbo.customer;
 
     COMMIT TRANSACTION;
+
+    /* V1 vive en el nodo de la tienda en línea. Si está fuera de línea el
+       nodo queda pendiente y se pone al día en la siguiente sincronización. */
+    DECLARE @db SYSNAME = (SELECT db_name FROM dist.node WHERE node_name = 'online');
+    DECLARE @mensaje NVARCHAR(400);
+    DECLARE @sql NVARCHAR(MAX) = REPLACE(N'
+BEGIN TRANSACTION;
+
+DELETE FROM {db}.dbo.customer_profile;
+
+INSERT INTO {db}.dbo.customer_profile
+    (id_customer, id_loyalty_level, id_account_tier, id_store, first_name, last_name_paternal, last_name_maternal,
+     accepts_marketing, customer_since, source_node, updated_at, deleted)
+SELECT id_customer, id_loyalty_level, id_account_tier, id_store, first_name, last_name_paternal, last_name_maternal,
+       accepts_marketing, customer_since, source_node, updated_at, deleted
+FROM JAM_db.dbo.customer;
+
+COMMIT TRANSACTION;', N'{db}', QUOTENAME(@db));
+
+    BEGIN TRY
+        IF dist.fn_nodo_en_linea(@db) = 0
+        BEGIN
+            SET @mensaje = N'La base ' + @db + N' no está en línea (estado: '
+                + ISNULL(CAST(DATABASEPROPERTYEX(@db, 'Status') AS NVARCHAR(30)), N'no existe') + N').';
+            THROW 50100, @mensaje, 1;
+        END;
+
+        EXEC sys.sp_executesql @sql;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+
+        UPDATE dist.node_sync
+        SET pending = 1, last_error = LEFT(ERROR_MESSAGE(), 400)
+        WHERE node_name = 'online';
+    END CATCH;
 END;
 GO
 
@@ -126,7 +155,8 @@ BEGIN
     EXEC dist.sp_refrescar_fragmentos_horizontales;
     EXEC dist.sp_refrescar_fragmentos_verticales;
 
-    SELECT GETDATE() AS synchronized_at;
+    SELECT GETDATE() AS synchronized_at,
+           (SELECT COUNT(*) FROM dist.node_sync WHERE pending = 1) AS pending_nodes;
 END;
 GO
 

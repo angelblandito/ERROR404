@@ -11,9 +11,15 @@
  *   POST /distributed/sync         Ejecuta dist.sp_sincronizar_nodos en el nodo central
  *
  * Los filtros por nodo se envían como ?node=tijuana|cdmx|online.
- * Si un nodo fragmento no responde, sus datos se leen del nodo por defecto
- * (central o réplica en la nube) filtrando por id_store; la respuesta lo
- * indica en el campo "source".
+ *
+ * Transparencia ante fallos: si un nodo fragmento no responde, sus datos se
+ * leen de otra copia con el mismo predicado id_store = N, en este orden:
+ *   1. espejo en Azure SQL (nodo cloud, si está configurado)
+ *   2. nodo central JAM_db
+ * La respuesta indica en el campo "source" de dónde salieron los datos:
+ *   fragmento | espejo:cloud | respaldo:central | sin_datos
+ * Los cambios hechos mientras el nodo estaba caído quedan en el central; en
+ * cuanto el nodo vuelve a responder, GET /nodes lo pone al día.
  */
 
 const DIST_FRAGMENTS = [
@@ -79,9 +85,44 @@ function dist_selected_fragments(?string $filter): array
     return [$filter => DIST_FRAGMENTS[$filter]];
 }
 
+/* Copias completas que pueden responder por un fragmento caído, en orden de preferencia. */
+function dist_backup_nodes(): array
+{
+    $nodes = jam_nodes_config();
+    $backups = [];
+    foreach (['cloud', JAM_DEFAULT_NODE, 'central'] as $name) {
+        if (isset($nodes[$name]) && !in_array($name, $backups, true)) {
+            $backups[] = $name;
+        }
+    }
+    return $backups;
+}
+
+function dist_source_label(string $node): string
+{
+    return ($node === 'cloud' ? 'espejo:' : 'respaldo:') . $node;
+}
+
+/*
+ * Ejecuta una consulta en la primera copia que responda.
+ * Devuelve [renglones, nodo] o lanza el último error.
+ */
+function dist_query_backup(string $sql, array $params = []): array
+{
+    $last = null;
+    foreach (dist_backup_nodes() as $backup) {
+        try {
+            return [dist_query(jam_node($backup), $sql, $params), $backup];
+        } catch (Throwable $e) {
+            $last = $e;
+        }
+    }
+    throw $last ?? new RuntimeException('No hay copias configuradas.');
+}
+
 /*
  * Lee una consulta en el nodo fragmento. Si el nodo no responde, ejecuta la
- * consulta de respaldo en el nodo por defecto.
+ * consulta de respaldo (con :id_store) en el espejo o en el central.
  * Devuelve [renglones, origen, error].
  */
 function dist_read_with_fallback(string $node, string $fragmentSql, string $fallbackSql, int $idStore): array
@@ -91,12 +132,93 @@ function dist_read_with_fallback(string $node, string $fragmentSql, string $fall
         return [$rows, 'fragmento', null];
     } catch (Throwable $fragmentError) {
         try {
-            $rows = dist_query(jam_node(JAM_DEFAULT_NODE), $fallbackSql, [':id_store' => $idStore]);
-            return [$rows, 'respaldo:' . JAM_DEFAULT_NODE, dist_error_text($fragmentError)];
+            [$rows, $backup] = dist_query_backup($fallbackSql, [':id_store' => $idStore]);
+            return [$rows, dist_source_label($backup), dist_error_text($fragmentError)];
         } catch (Throwable $fallbackError) {
             return [[], 'sin_datos', dist_error_text($fragmentError)];
         }
     }
+}
+
+/* Qué copia atiende hoy las lecturas de un fragmento. */
+function dist_served_by(string $node): ?string
+{
+    try {
+        jam_node($node);
+        return 'fragmento';
+    } catch (Throwable $e) {
+        foreach (dist_backup_nodes() as $backup) {
+            try {
+                jam_node($backup);
+                return dist_source_label($backup);
+            } catch (Throwable $ignored) {
+            }
+        }
+    }
+    return null;
+}
+
+/* Estado de sincronización de cada fragmento guardado en JAM_db.dist.node_sync. */
+function dist_node_sync_info(bool $refresh = false): array
+{
+    static $info = null;
+    if ($info !== null && !$refresh) {
+        return $info;
+    }
+    $info = [];
+    try {
+        $rows = dist_query(jam_node('central'), '
+            SELECT node_name, pending,
+                   CONVERT(VARCHAR(19), last_success, 120) AS last_success,
+                   CONVERT(VARCHAR(19), last_attempt, 120) AS last_attempt,
+                   last_error
+            FROM dist.node_sync');
+        foreach ($rows as $r) {
+            $info[$r['node_name']] = [
+                'pending' => (bool)$r['pending'],
+                'last_success' => $r['last_success'],
+                'last_attempt' => $r['last_attempt'],
+                'last_error' => $r['last_error'],
+            ];
+        }
+    } catch (Throwable $e) {
+        error_log('dist.node_sync no disponible: ' . $e->getMessage());
+    }
+    return $info;
+}
+
+/*
+ * Si un nodo quedó pendiente porque estaba caído y ya responde, se vuelve
+ * a sincronizar. Devuelve los nodos que se pusieron al día.
+ */
+function dist_catch_up(): array
+{
+    $ready = [];
+    foreach (dist_node_sync_info() as $node => $state) {
+        if (!$state['pending']) {
+            continue;
+        }
+        try {
+            jam_node($node);
+            $ready[] = $node;
+        } catch (Throwable $e) {
+        }
+    }
+    if (!$ready) {
+        return [];
+    }
+
+    try {
+        dist_sync();
+    } catch (Throwable $e) {
+        error_log('Puesta al día de nodos: ' . $e->getMessage());
+        return [];
+    }
+
+    $after = dist_node_sync_info(true);
+    return array_values(array_filter($ready, function ($node) use ($after) {
+        return empty($after[$node]['pending']);
+    }));
 }
 
 /* Catálogo (variantes y tiendas) leído del nodo por defecto para enriquecer los fragmentos. */
@@ -109,8 +231,7 @@ function dist_catalog(): array
 
     $catalog = ['variants' => [], 'stores' => []];
     try {
-        $pdo = jam_node(JAM_DEFAULT_NODE);
-        $variants = dist_query($pdo, '
+        [$variants] = dist_query_backup('
             SELECT pv.id_variant, pv.sku, p.id_product, p.name AS product_name, p.base_price,
                    s.code AS size, c.name AS color
             FROM dbo.product_variant AS pv
@@ -120,7 +241,8 @@ function dist_catalog(): array
         foreach ($variants as $v) {
             $catalog['variants'][(int)$v['id_variant']] = $v;
         }
-        foreach (dist_query($pdo, 'SELECT id_store, store_name FROM dbo.store') as $s) {
+        [$stores] = dist_query_backup('SELECT id_store, store_name FROM dbo.store');
+        foreach ($stores as $s) {
             $catalog['stores'][(int)$s['id_store']] = $s['store_name'];
         }
     } catch (Throwable $e) {
@@ -144,6 +266,9 @@ function dist_variant_fields(int $idVariant): array
 
 function dist_nodes_status(): array
 {
+    $caughtUp = dist_catch_up();
+    $syncInfo = dist_node_sync_info();
+
     $result = [];
     foreach (jam_nodes_config() as $name => $cfg) {
         $item = [
@@ -158,6 +283,9 @@ function dist_nodes_status(): array
             'server' => $cfg['server'],
             'latency_ms' => null,
             'error' => null,
+            'sync' => $syncInfo[$name] ?? null,
+            'caught_up' => in_array($name, $caughtUp, true),
+            'served_by' => null,
         ];
 
         try {
@@ -174,6 +302,7 @@ function dist_nodes_status(): array
             $item['updateability'] = $row['updateability'];
 
             if ($name === 'cloud') {
+                $item['last_copy'] = mirror_last_copy($pdo);
                 try {
                     $item['geo_replication'] = dist_query($pdo, '
                         SELECT partner_server, partner_database, role_desc, replication_state_desc,
@@ -187,6 +316,10 @@ function dist_nodes_status(): array
             $info = jam_node_info($name);
             $item['latency_ms'] = $info['latency_ms'] ?? null;
             $item['error'] = dist_error_text($e);
+        }
+
+        if (isset(DIST_FRAGMENTS[$name])) {
+            $item['served_by'] = dist_served_by($name);
         }
 
         $result[] = $item;
@@ -336,7 +469,7 @@ function dist_customers(): array
 
     if ($fragments['customer_profile']['status'] !== 'ok' || $fragments['customer_private']['status'] !== 'ok') {
         try {
-            $all = dist_query(jam_node(JAM_DEFAULT_NODE), '
+            [$all, $backup] = dist_query_backup('
                 SELECT id_customer, id_loyalty_level, id_account_tier, id_store, id_address, first_name, last_name_paternal,
                        last_name_maternal, birth_date, sex, phone, email, accepts_marketing, customer_since
                 FROM dbo.customer WHERE deleted = 0');
@@ -346,7 +479,7 @@ function dist_customers(): array
                 $profiles[] = array_intersect_key($c, array_flip($profileColumns));
                 $private[] = array_intersect_key($c, array_flip($privateColumns));
             }
-            $source = 'respaldo:' . JAM_DEFAULT_NODE;
+            $source = dist_source_label($backup);
         } catch (Throwable $e) {
             $source = 'sin_datos';
         }
@@ -393,12 +526,18 @@ function dist_fragments_summary(): array
         'payment' => 'SELECT COUNT(*) AS n FROM dbo.payment AS p JOIN dbo.customer_order AS co ON co.id_order = p.id_order WHERE co.id_store = :id_store',
     ];
 
+    /* Lo esperado sale del central; si no responde, del espejo. */
     $central = null;
-    try {
-        $central = jam_node('central');
-    } catch (Throwable $e) {
-        $central = null;
+    foreach (dist_backup_nodes() as $backup) {
+        try {
+            $central = jam_node($backup);
+            break;
+        } catch (Throwable $e) {
+            $central = null;
+        }
     }
+
+    $syncInfo = dist_node_sync_info();
 
     $result = [];
     foreach (DIST_FRAGMENTS as $node => $fragment) {
@@ -408,6 +547,8 @@ function dist_fragments_summary(): array
             'predicate' => 'id_store = ' . $fragment['id_store'],
             'status' => 'en_linea',
             'error' => null,
+            'served_by' => dist_served_by($node),
+            'sync' => $syncInfo[$node] ?? null,
             'tables' => [],
         ];
 
@@ -544,8 +685,42 @@ function dist_sync(): array
             break;
         }
     } while ($stmt->nextRowset());
+    $stmt->closeCursor();
 
-    return ['synchronized_at' => $row['synchronized_at'] ?? date('Y-m-d H:i:s')];
+    $pending = [];
+    foreach (dist_node_sync_info(true) as $node => $state) {
+        if ($state['pending']) {
+            $pending[$node] = $state['last_error'];
+        }
+    }
+
+    return [
+        'synchronized_at' => $row['synchronized_at'] ?? date('Y-m-d H:i:s'),
+        'pending' => $pending,
+    ];
+}
+
+/*
+ * Después de cada escritura que terminó bien: refresca los fragmentos y
+ * copia los cambios al espejo de Azure. Se ejecuta cuando la respuesta ya
+ * se envió al navegador, así el cliente no espera la copia a la nube.
+ */
+function dist_after_write(): void
+{
+    try {
+        dist_sync();
+    } catch (Throwable $e) {
+        error_log('Sincronización de fragmentos: ' . $e->getMessage());
+    }
+
+    if (!mirror_enabled()) {
+        return;
+    }
+    try {
+        mirror_copy(false);
+    } catch (Throwable $e) {
+        error_log('Copia al espejo: ' . $e->getMessage());
+    }
 }
 
 /* ---------------------------------------------------------------------

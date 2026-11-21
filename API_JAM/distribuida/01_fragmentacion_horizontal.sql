@@ -184,26 +184,57 @@ DEALLOCATE nodos;
 GO
 
 /* ---------------------------------------------------------------------
+   Control de sincronización por nodo.
+   pending = 1 indica que el nodo estuvo fuera de línea y le faltan cambios
+   del nodo central; se pone al día en cuanto vuelve a responder.
+   --------------------------------------------------------------------- */
+IF OBJECT_ID(N'dist.node_sync', N'U') IS NULL
+CREATE TABLE dist.node_sync (
+    node_name     VARCHAR(20)   NOT NULL,
+    last_attempt  DATETIME2(3)  NULL,
+    last_success  DATETIME2(3)  NULL,
+    pending       BIT           NOT NULL CONSTRAINT df_node_sync_pending DEFAULT 0,
+    last_error    NVARCHAR(400) NULL,
+    CONSTRAINT pk_node_sync PRIMARY KEY (node_name),
+    CONSTRAINT fk_node_sync_node FOREIGN KEY (node_name) REFERENCES dist.node (node_name)
+);
+GO
+
+INSERT INTO dist.node_sync (node_name)
+SELECT n.node_name
+FROM dist.node AS n
+WHERE n.id_store IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM dist.node_sync AS s WHERE s.node_name = n.node_name);
+GO
+
+/* 1 si la base del nodo está en línea (no OFFLINE, RESTORING, SUSPECT ni borrada). */
+CREATE OR ALTER FUNCTION dist.fn_nodo_en_linea (@db SYSNAME)
+RETURNS BIT
+AS
+BEGIN
+    RETURN CASE WHEN CAST(DATABASEPROPERTYEX(@db, 'Status') AS VARCHAR(20)) = 'ONLINE' THEN 1 ELSE 0 END;
+END;
+GO
+
+/* ---------------------------------------------------------------------
    Distribución de los datos: copia de JAM_db a cada fragmento.
    Cada nodo se refresca en su propia transacción (todo o nada).
+   Si un nodo está fuera de línea no se detiene el proceso: los demás se
+   refrescan y el nodo caído queda marcado como pendiente en dist.node_sync.
+   Las sentencias que tocan los nodos van en SQL dinámico porque una
+   referencia directa a una base fuera de línea falla al compilar el
+   procedimiento completo.
    --------------------------------------------------------------------- */
 CREATE OR ALTER PROCEDURE dist.sp_refrescar_fragmentos_horizontales
+    @solo_nodo VARCHAR(20) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
 
-    DECLARE @db SYSNAME, @id INT, @sql NVARCHAR(MAX);
+    DECLARE @nodo VARCHAR(20), @db SYSNAME, @id INT, @sql NVARCHAR(MAX), @mensaje NVARCHAR(400);
 
-    DECLARE nodos CURSOR LOCAL FAST_FORWARD FOR
-        SELECT db_name, id_store FROM dist.node WHERE id_store IS NOT NULL;
-
-    OPEN nodos;
-    FETCH NEXT FROM nodos INTO @db, @id;
-
-    WHILE @@FETCH_STATUS = 0
-    BEGIN
-        SET @sql = REPLACE(N'
+    DECLARE @plantilla NVARCHAR(MAX) = N'
 BEGIN TRANSACTION;
 
 DELETE FROM {db}.dbo.payment;
@@ -250,11 +281,45 @@ FROM JAM_db.dbo.payment AS p
 JOIN JAM_db.dbo.customer_order AS co ON co.id_order = p.id_order
 WHERE co.id_store = @id;
 
-COMMIT TRANSACTION;', N'{db}', QUOTENAME(@db));
+COMMIT TRANSACTION;';
 
-        EXEC sys.sp_executesql @sql, N'@id INT', @id = @id;
+    DECLARE nodos CURSOR LOCAL FAST_FORWARD FOR
+        SELECT node_name, db_name, id_store
+        FROM dist.node
+        WHERE id_store IS NOT NULL
+          AND (@solo_nodo IS NULL OR node_name = @solo_nodo);
 
-        FETCH NEXT FROM nodos INTO @db, @id;
+    OPEN nodos;
+    FETCH NEXT FROM nodos INTO @nodo, @db, @id;
+
+    WHILE @@FETCH_STATUS = 0
+    BEGIN
+        UPDATE dist.node_sync SET last_attempt = SYSUTCDATETIME() WHERE node_name = @nodo;
+
+        BEGIN TRY
+            IF dist.fn_nodo_en_linea(@db) = 0
+            BEGIN
+                SET @mensaje = N'La base ' + @db + N' no está en línea (estado: '
+                    + ISNULL(CAST(DATABASEPROPERTYEX(@db, 'Status') AS NVARCHAR(30)), N'no existe') + N').';
+                THROW 50100, @mensaje, 1;
+            END;
+
+            SET @sql = REPLACE(@plantilla, N'{db}', QUOTENAME(@db));
+            EXEC sys.sp_executesql @sql, N'@id INT', @id = @id;
+
+            UPDATE dist.node_sync
+            SET last_success = SYSUTCDATETIME(), pending = 0, last_error = NULL
+            WHERE node_name = @nodo;
+        END TRY
+        BEGIN CATCH
+            IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+
+            UPDATE dist.node_sync
+            SET pending = 1, last_error = LEFT(ERROR_MESSAGE(), 400)
+            WHERE node_name = @nodo;
+        END CATCH;
+
+        FETCH NEXT FROM nodos INTO @nodo, @db, @id;
     END
 
     CLOSE nodos;

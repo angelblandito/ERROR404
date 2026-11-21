@@ -5,6 +5,9 @@ require_once("core/Response.php");
 // Los avisos de PHP se escriben en el log del servidor, nunca dentro de la respuesta JSON.
 ini_set('display_errors', '0');
 
+// La respuesta se guarda en memoria para poder enviarla completa antes de las tareas posteriores.
+ob_start();
+
 // Manejo de peticiones preflight OPTIONS (para CORS en navegadores)
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
@@ -65,6 +68,7 @@ $StoreTypeId = null;
 $VerificationCodeId = null;
 
 require_once("models/distributed.php"); // Endpoints de la base de datos distribuida
+require_once("models/mirror.php");      // Copia del nodo central al espejo en Azure SQL
 require_once("models/storefront.php");  // Tienda en línea: catálogo, cuentas y reseñas
 require_once("models/accounts.php");    // Comunicados y soporte según el tipo de cuenta
 require_once("models/admin.php");       // Administración de la tienda
@@ -83,8 +87,39 @@ function api_public_route(string $method, string $uri): bool
 
 function api_distributed_route(string $uri): bool
 {
-    return $uri === '/nodes' || strpos($uri, '/distributed/') === 0 || strpos($uri, '/replication/') === 0;
+    return $uri === '/nodes' || strpos($uri, '/distributed/') === 0 || strpos($uri, '/replication/') === 0
+        || strpos($uri, '/mirror/') === 0;
 }
+
+/* Envía la respuesta al navegador y deja que el script siga trabajando. */
+function api_finish_response(): void
+{
+    ignore_user_abort(true);
+    if (function_exists('fastcgi_finish_request')) {
+        fastcgi_finish_request();
+        return;
+    }
+    $output = '';
+    while (ob_get_level() > 0) {
+        $output = ob_get_clean() . $output;
+    }
+    if (!headers_sent()) {
+        header('Content-Length: ' . strlen($output));
+        header('Connection: close');
+    }
+    echo $output;
+    flush();
+}
+
+/* Después de una escritura que terminó bien se refrescan los fragmentos y el espejo. */
+register_shutdown_function(function () use ($method, $uri) {
+    $status = (int)http_response_code();
+    if ($method === 'GET' || $status >= 400 || in_array($uri, ['/distributed/sync', '/mirror/sync'], true)) {
+        return;
+    }
+    api_finish_response();
+    dist_after_write();
+});
 
 /* Si la sesión no es de administrador responde 401/403 y devuelve false. */
 function api_admin_allowed(): bool
@@ -101,7 +136,7 @@ if (api_distributed_route($uri) && !api_admin_allowed()) {
     exit;
 }
 
-if (dist_handle($method, $uri)) {
+if (dist_handle($method, $uri) || mirror_handle($method, $uri)) {
     exit;
 }
 

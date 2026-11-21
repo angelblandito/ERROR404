@@ -1711,7 +1711,10 @@
                     <h1 data-field="title"></h1>
                     <p class="muted" data-field="subtitle"></p>
                 </div>
-                <button class="btn btn-dark" type="button" data-action="sync" hidden>Sincronizar fragmentos</button>
+                <div class="panel-actions">
+                    <button class="btn btn-ghost" type="button" data-action="mirror" hidden>Copiar al espejo (Azure)</button>
+                    <button class="btn btn-dark" type="button" data-action="sync" hidden>Sincronizar fragmentos</button>
+                </div>
             </div>
             <nav class="panel-tabs">
                 <a href="#/admin">← Administración</a>
@@ -1807,6 +1810,11 @@
 
     <template id="tpl-panel-distributed">
         <div>
+            <section class="failover" data-field="failover" hidden>
+                <h2 data-field="failoverTitle"></h2>
+                <ul data-slot="failoverList"></ul>
+            </section>
+
             <h2 class="section-title">Nodos</h2>
             <div class="node-grid" data-slot="nodes"></div>
 
@@ -1849,6 +1857,10 @@
 
     <template id="tpl-kv">
         <div class="kv"><span data-field="key"></span><span data-field="value"></span></div>
+    </template>
+
+    <template id="tpl-failover-item">
+        <li><strong data-field="node"></strong> <span data-field="text"></span></li>
     </template>
 
     <template id="tpl-fragment-card">

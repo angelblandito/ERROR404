@@ -794,6 +794,11 @@ textarea.input { resize: vertical; }
 .kv span:first-child { color: var(--muted); }
 .kv span:last-child { font-weight: 600; text-align: right; word-break: break-all; }
 .node-error { font-size: .78rem; color: var(--bad); background: var(--bad-bg); padding: .4rem .55rem; border-radius: 8px; }
+.panel-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.failover { border-radius: var(--radius); padding: 1rem 1.2rem; margin-bottom: 1.25rem; background: var(--warn-bg); color: var(--warn); border-left: 5px solid #f59e0b; }
+.failover.ok { background: var(--ok-bg); color: var(--ok); border-left-color: #22c55e; }
+.failover h2 { font-size: 1.05rem; margin-bottom: .45rem; color: inherit; }
+.failover ul { display: grid; gap: .3rem; padding-left: 1.1rem; font-size: .92rem; color: var(--ink); }
 
 /* ---------- Pie de página ---------- */
 .site-footer { background: #111; color: #fff; margin-top: 3rem; transition: background .4s; }

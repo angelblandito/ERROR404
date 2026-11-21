@@ -93,13 +93,9 @@ if ($DB_Error === null) {
                 notify_order_created($DB_Connector, $CheckoutOrder);
             });
 
-            /* El pedido ya quedó en el nodo central; los fragmentos se refrescan
-               aquí mismo. Si un nodo no responde, el job de sincronización lo pondrá al día. */
-            try {
-                dist_sync();
-            } catch (Throwable $syncError) {
-                error_log('Sincronización después del pedido: ' . $syncError->getMessage());
-            }
+            /* El pedido queda en el nodo central. Al terminar la petición,
+               dist_after_write() lo copia a los fragmentos y al espejo; si la
+               sucursal está caída, se pone al día cuando vuelva a responder. */
         }
     }
     catch (PDOException $ex) {

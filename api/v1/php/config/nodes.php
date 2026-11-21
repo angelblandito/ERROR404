@@ -39,6 +39,9 @@ define('JAM_DEFAULT_NODE', jam_env('JAM_DEFAULT_NODE', 'central'));
  *   cdmx     JAM_cdmx     fragmento id_store = 2
  *   online   JAM_online   fragmento id_store = 4 + fragmento vertical customer_profile
  *   cloud    JAM_cloud    réplica completa en Azure SQL con espejo (failover group)
+ *
+ * Cuando un fragmento no responde, sus datos se leen de la nube (si está
+ * configurada) y después del nodo central: ver dist_backup_nodes().
  */
 function jam_nodes_config(): array
 {
@@ -70,6 +73,8 @@ function jam_nodes_config(): array
             'user' => jam_env('JAM_CLOUD_USER'),
             'password' => jam_env('JAM_CLOUD_PASSWORD'),
             'encrypt' => true,
+            'timeout' => (int)jam_env('JAM_CLOUD_TIMEOUT', 4),
+            'retry_after' => (int)jam_env('JAM_CLOUD_RETRY_AFTER', 30),
             'role' => 'nube',
             'label' => 'Azure SQL',
             'id_store' => null,
