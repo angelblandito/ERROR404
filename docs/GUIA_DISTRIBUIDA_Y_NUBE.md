@@ -15,12 +15,12 @@ El proyecto cubre los cuatro puntos del pizarrón:
 ## 1. Arquitectura
 
 ```
-LOCAL · SQL Server 2022 Developer
+MÁQUINA VIRTUAL EN AZURE · SQL Server 2022 Developer (en la laptop, Express para programar)
   JAM_db  (nodo central: publicador, catálogo maestro, dist.customer_private)
     ├─ fragmentos + pub_catalogo ─► JAM_tijuana   id_store = 1
     ├─ fragmentos + pub_catalogo ─► JAM_cdmx      id_store = 2
     ├─ fragmentos + pub_catalogo ─► JAM_online    id_store = 4  + customer_profile
-    └─ pub_completa (Developer) o copia de la API (Express) ─► Azure SQL
+    └─ copia de la API después de cada escritura ─► Azure SQL
 
 AZURE
   jam-sql-principal / JAM_cloud  (PRIMARY)
@@ -30,8 +30,9 @@ AZURE
   Listener del grupo: jam-fog.database.windows.net
 
 USO
-  Local: navegador ─► API PHP (php -S :8080) ─► JAM_db y nodos
-  Nube:  Static Web Apps ─► App Service (API, solo lectura) ─► jam-fog (principal o espejo)
+  Laptop: navegador ─► Apache de XAMPP ─► API PHP ─► JAM_db y nodos
+  Nube:   navegador o app ─► https (Caddy) ─► Apache de la VM ─► API PHP ─► JAM_db y nodos
+                                                         └─► jam-fog (espejo cuando una sucursal se cae)
 ```
 
 ### 1.1 Fragmentación horizontal (`01_fragmentacion_horizontal.sql`)
@@ -57,7 +58,7 @@ Se reconstruye con `JOIN` por `id_customer` (vista `dist.vw_customer_reconstruid
 ### 1.3 Replicación (`03_replicacion.sql`)
 
 - **pub_catalogo**: replicación transaccional de las tablas de catálogo (`product`, `product_variant`, `store`, `promotion`…) de `JAM_db` a las 3 sucursales. Cada sucursal tiene su catálogo local y puede seguir vendiendo aunque el nodo central no responda.
-- **pub_completa**: copia completa de `JAM_db` hacia Azure SQL (`JAM_cloud`).
+- **pub_completa**: publicación de todas las tablas de `JAM_db` para un suscriptor en Azure SQL. Queda sin suscriptor porque `JAM_cloud` ya recibe la copia de la API (sección 5.2); las dos a la vez chocarían.
 
 ### 1.4 Espejo (`04_espejo_azure.sql`)
 
@@ -65,9 +66,7 @@ Geo-replicación de Azure SQL con un **grupo de conmutación por error** (`jam-f
 
 En el código (`core/Database.php`), si el servidor principal no responde, la API se conecta sola al espejo (`jam-fog.secondary.database.windows.net`). La pantalla **Base distribuida** lo muestra como “Conectado al espejo”.
 
-Cómo llegan los datos a Azure:
-- Con **SQL Server Developer**, la publicación `pub_completa` de `03_replicacion.sql`.
-- Con **SQL Server Express** (no puede publicar replicación), la API copia `JAM_db` a `JAM_cloud` (`models/mirror.php`): después de cada compra o cambio solo copia lo que cambió (columna `updated_at`), y el botón **Copiar al espejo (Azure)** del panel copia todo. Las tablas del espejo se crean con la sección 0 de `04_espejo_azure.sql`.
+Cómo llegan los datos a Azure: la API copia `JAM_db` a `JAM_cloud` (`models/mirror.php`). Después de cada compra o cambio solo copia lo que cambió (columna `updated_at`), y el botón **Copiar al espejo (Azure)** del panel copia todo. Las tablas del espejo se crean con la sección 0 de `04_espejo_azure.sql`. Funciona igual con SQL Server Express y con Developer.
 
 ### 1.5 Transparencia ante fallos (`07_tolerancia_fallos.sql`)
 
@@ -114,7 +113,7 @@ En SSMS, conectado a la instancia Developer, ejecutar en orden:
 1. `API_JAM/db_jam.sql`
 2. `API_JAM/distribuida/01_fragmentacion_horizontal.sql`
 3. `API_JAM/distribuida/02_fragmentacion_vertical.sql`
-4. `API_JAM/distribuida/06_pedidos_y_seguridad.sql` (procedimiento de pedidos y usuario `jam_api`; antes cambiar la contraseña marcada con `>>>`)
+4. `API_JAM/distribuida/06_pedidos_y_seguridad.sql` (procedimiento de pedidos y usuario `jam_api`; antes escribir la contraseña de `jam_api` en la línea marcada con `>>>` y borrarla después de ejecutar)
 5. `API_JAM/distribuida/07_tolerancia_fallos.sql` (estado de los nodos y consulta tolerante a fallos)
 6. `API_JAM/distribuida/05_validacion.sql` → todas las columnas `diferencias` y `repetidos_entre_fragmentos` deben valer **0**.
 
@@ -201,15 +200,15 @@ Cómo funciona en la base:
 - `announcement.audience = 'priority'` solo se entrega a cuentas Prioritario y Administrador.
 - `customer.id_account_tier` y `customer_since` viajan en el fragmento vertical `customer_profile`; `account_tier` se replica con el catálogo.
 
-Cuentas de demostración:
+Cuentas de demostración (las contraseñas las tiene el equipo; no se publican en el repositorio):
 
-| Tipo | Correo | Contraseña |
-|---|---|---|
-| Estándar | `ana.ruiz@email.com` | `Estandar2026` |
-| Prioritario | `luis.gomez@email.com` | `Prioritario2026` |
-| Administrador | `admin@jamsport.mx` | `Admin2026JAM` |
+| Tipo | Correo |
+|---|---|
+| Estándar | `ana.ruiz@email.com` |
+| Prioritario | `luis.gomez@email.com` |
+| Administrador | `admin@jamsport.mx` |
 
-> Cambia la contraseña del administrador si publicas la tienda en internet: entra como administrador, cierra sesión y usa **¿Olvidaste tu contraseña?** con `admin@jamsport.mx`; el enlace aparece en Administración → **Correos**.
+> Antes de publicar la tienda en internet cambia la contraseña del administrador: entra como administrador, cierra sesión y usa **¿Olvidaste tu contraseña?** con `admin@jamsport.mx`; el enlace aparece en Administración → **Correos**.
 
 ### 2.6.1 Comparador de mercado (Prioritario y Administrador)
 
@@ -420,7 +419,7 @@ az group create -n $RG -l $A
 az sql server create -n jam-sql-principal-$SUF -g $RG -l $A -u jamadmin -p $PWD_SQL
 az sql server create -n jam-sql-espejo-$SUF    -g $RG -l $B -u jamadmin -p $PWD_SQL
 
-# Permitir servicios de Azure (App Service) y la IP de tu casa en ambos servidores
+# Permitir servicios de Azure (incluida la máquina virtual) y la IP de tu casa en ambos servidores
 foreach ($s in "jam-sql-principal-$SUF","jam-sql-espejo-$SUF") {
   az sql server firewall-rule create -g $RG -s $s -n AzureServices --start-ip-address 0.0.0.0 --end-ip-address 0.0.0.0
   az sql server firewall-rule create -g $RG -s $s -n MiIP --start-ip-address <TU_IP_PUBLICA> --end-ip-address <TU_IP_PUBLICA>
@@ -439,10 +438,10 @@ Puntos de conexión resultantes:
 
 ### 5.2 Datos hacia Azure
 
-**Con SQL Server Express (instalación actual):**
+La API copia `JAM_db` a `JAM_cloud` (`models/mirror.php`). Funciona igual con SQL Server Express (laptop) y con Developer (máquina virtual).
 
 1. En SSMS conectarse a `jam-fog-<sufijo>.database.windows.net` (autenticación SQL `jamadmin`, *Cifrar: Obligatorio*), elegir la base `JAM_cloud` y ejecutar `API_JAM/distribuida/04_espejo_azure.sql`. La sección 0 crea las tablas del espejo.
-2. En `api/v1/php/config/settings.php` (local) llenar:
+2. En `api/v1/php/config/settings.php` llenar:
    ```php
    'JAM_CLOUD_SERVER' => 'jam-fog-<sufijo>.database.windows.net',
    'JAM_CLOUD_MIRROR_SERVER' => 'jam-fog-<sufijo>.secondary.database.windows.net',
@@ -455,49 +454,57 @@ Puntos de conexión resultantes:
 
 A partir de ahí cada compra o cambio se copia solo a Azure al terminar la petición, y Azure lo pasa a `jam-sql-espejo` por geo-replicación.
 
-**Con SQL Server Developer (replicación real):**
-
-1. En `03_replicacion.sql` llenar `@azure_servidor` (listener `jam-fog-<sufijo>.database.windows.net`), `@azure_usuario` y `@azure_password`.
-2. Ejecutar el script completo otra vez: lo que ya existe se omite y solo se crea la suscripción a Azure.
-3. En unos minutos `JAM_cloud` tendrá todas las tablas. Comprobar con `04_espejo_azure.sql` (las consultas 1 a 5).
+En `03_replicacion.sql`, `@azure_servidor` se deja vacío: si la publicación `pub_completa` también escribiera en `JAM_cloud`, chocaría con la copia de la API.
 
 > Si la red de la escuela bloquea el puerto 1433 de salida, hacer este paso desde casa o con datos del celular. En clase, si no hay salida a Azure, el respaldo es el nodo central y la demostración funciona igual.
 
-### 5.3 API en App Service
+### 5.3 Máquina virtual Windows
+
+La tienda, la API y las cuatro bases corren en una VM `Standard_B2s` (2 núcleos, 4 GB) con Windows Server 2022, igual que en la laptop pero con SQL Server Developer.
 
 ```powershell
-$APP="jam-api-$SUF"
-az appservice plan create -n plan-jam -g $RG -l $A --is-linux --sku B1
-az webapp create -n $APP -g $RG -p plan-jam --runtime "PHP:8.3"
+$VM="jam-vm"; $PWD_VM="<Otra-Contraseña-Fuerte-123!>"
+az vm create -g $RG -n $VM -l $A --image Win2022Datacenter --size Standard_B2s --admin-username jamadmin --admin-password $PWD_VM --public-ip-address-dns-name jam-sport-$SUF --storage-sku StandardSSD_LRS
+az vm open-port -g $RG -n $VM --port 80,443 --priority 900
+az vm auto-shutdown -g $RG -n $VM --time 0800
 
-az webapp config appsettings set -n $APP -g $RG --settings `
-  JAM_DEFAULT_NODE=cloud JAM_ENABLED_NODES=cloud JAM_READ_ONLY=1 `
-  JAM_CLOUD_SERVER=jam-fog-$SUF.database.windows.net `
-  JAM_CLOUD_MIRROR_SERVER=jam-fog-$SUF.secondary.database.windows.net `
-  JAM_CLOUD_DB=JAM_cloud JAM_CLOUD_USER=jamadmin JAM_CLOUD_PASSWORD=$PWD_SQL
-
-az webapp config set -n $APP -g $RG --startup-file "bash /home/site/wwwroot/azure/startup.sh"
-
-# Publicar el contenido de api/v1/php
-cd C:\xampp\htdocs\ERROR404\api\v1\php
-Compress-Archive -Path * -DestinationPath ..\api.zip -Force
-az webapp deploy -n $APP -g $RG --src-path ..\api.zip --type zip
+# La VM también necesita entrar a Azure SQL
+$VMIP=(az vm show -d -g $RG -n $VM --query publicIps -o tsv)
+foreach ($s in "jam-sql-principal-$SUF","jam-sql-espejo-$SUF") {
+  az sql server firewall-rule create -g $RG -s $s -n MaquinaVirtual --start-ip-address $VMIP --end-ip-address $VMIP
+}
 ```
 
-- Si `PHP:8.3` no aparece, revisar los disponibles con `az webapp list-runtimes --os linux`.
-- Comprobar `https://jam-api-<sufijo>.azurewebsites.net/health-check` → `"pdo_sqlsrv": true`.
-- No activar CORS en el portal de App Service: la API ya envía sus encabezados CORS y duplicarlos hace que el navegador rechace la respuesta.
-- `settings.php` no se sube: en Azure la configuración sale de las variables de entorno.
-- El plan B1 tiene costo (se cubre con el crédito de estudiante). Apagar o borrar el grupo al terminar: `az group delete -n rg-jam`.
+- Entrar con Escritorio remoto: `mstsc /v:jam-sport-<sufijo>.<región>.cloudapp.azure.com`, usuario `jamadmin`.
+- El apagado automático es a las 08:00 UTC (00:00 en Tijuana). Encenderla: `az vm start -g rg-jam -n jam-vm`.
 
-### 5.4 Frontend en Static Web Apps
+### 5.4 Instalación en la máquina virtual
 
-1. En `config.js` cambiar `AZURE_API_URL` por `https://jam-api-<sufijo>.azurewebsites.net` y subir el cambio a GitHub.
-2. Portal de Azure → **Static Web Apps → Crear** → plan **Free** → origen **GitHub** → repo `ERROR404`, rama `main`.
-3. Detalles de compilación: *Custom*, **App location** `/`, **Output location** vacío.
-4. Azure crea un workflow de GitHub Actions; al terminar, la URL pública queda en la página del recurso.
+1. SQL Server 2022 Developer como en la sección 2.1 (motor, replicación, Agente automático, modo mixto) y SSMS.
+2. XAMPP con PHP 8.2, Microsoft ODBC Driver 18 y las DLL de `pdo_sqlsrv` copiadas de la laptop (`C:\xampp\php\ext` y sus líneas `extension=` del `php.ini`).
+3. Git for Windows y `git clone -b mejoras-tienda https://github.com/angelblandito/ERROR404.git` dentro de `C:\xampp\htdocs`.
+4. Scripts en el orden de la sección 2.2, después `03_replicacion.sql` (sección 2.3) y `04_espejo_azure.sql` en Azure (sección 5.2).
+5. `settings.php` con `JAM_LOCAL_SERVER = localhost`, el usuario `jam_api` y los datos `JAM_CLOUD_*`.
+6. Apache como servicio desde el panel de XAMPP. Comprobar `http://localhost/ERROR404/api/v1/php/health-check`.
 
-En la nube la tienda funciona en modo consulta: el catálogo, el inventario y los pedidos se leen de la réplica `JAM_cloud`. Los pedidos nuevos se registran en el nodo central local, que los replica hacia Azure.
+### 5.5 Dirección pública con https
+
+Caddy recibe el tráfico en los puertos 80 y 443, obtiene un certificado gratuito de Let's Encrypt y lo pasa a Apache. Sin https no funcionan la cámara del escáner ni la instalación de la app.
+
+1. Apache a `Listen 8080` en `httpd.conf` (y `ServerName localhost:8080`); en `extra\httpd-ssl.conf`, `Listen 4443`.
+2. Firewall de Windows: `New-NetFirewallRule -DisplayName "Tienda JAM 80 y 443" -Direction Inbound -Protocol TCP -LocalPort 80,443 -Action Allow`.
+3. `C:\caddy\caddy.exe` (de caddyserver.com) y `C:\caddy\Caddyfile`:
+
+   ```
+   jam-sport-<sufijo>.<región>.cloudapp.azure.com {
+       redir / /ERROR404/
+       reverse_proxy localhost:8080
+   }
+   ```
+
+4. Como servicio: `sc.exe create caddy start= auto binPath= "C:\caddy\caddy.exe run --config C:\caddy\Caddyfile"` y `sc.exe start caddy`.
+
+Costos aproximados: la VM con Windows unos US$0.05 por hora encendida más unos US$10 al mes de disco, y dos bases Basic de Azure SQL de unos US$5 al mes cada una. Al terminar el semestre: `az group delete -n rg-jam`.
 
 ---
 

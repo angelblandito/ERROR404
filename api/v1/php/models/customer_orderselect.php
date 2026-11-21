@@ -17,5 +17,4 @@ try {
 }
 catch (PDOException $ex) {
     $DB_Error = api_db_error($ex);
-};
-?>
+}

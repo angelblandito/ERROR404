@@ -1270,124 +1270,6 @@
         </tr>
     </template>
 
-    <template id="tpl-admin-visits">
-        <div>
-            <section class="live-card">
-                <div class="live-head">
-                    <span class="live-dot" aria-hidden="true"></span>
-                    <h2>Conectados ahora</h2>
-                    <span class="muted small" data-field="liveNote"></span>
-                </div>
-                <div class="kpi-grid">
-                    <article class="kpi"><span>En total</span><strong data-field="onlineTotal"></strong><em data-field="onlineCustomers"></em></article>
-                    <article class="kpi kpi-web"><span><i class="swatch-dot series-1"></i> Página web</span><strong data-field="onlineWeb"></strong><em>desde el navegador</em></article>
-                    <article class="kpi kpi-app"><span><i class="swatch-dot series-2"></i> Aplicación móvil</span><strong data-field="onlineApp"></strong><em>desde la app instalada</em></article>
-                </div>
-                <div class="chart-pair">
-                    <section class="chart-card">
-                        <h2>Por dispositivo</h2>
-                        <p class="muted small">Conectados en este momento.</p>
-                        <div data-slot="onlineDevices"></div>
-                    </section>
-                    <section class="chart-card">
-                        <h2>Qué están viendo</h2>
-                        <p class="muted small">Página abierta por cada visitante conectado.</p>
-                        <div data-slot="onlinePages"></div>
-                    </section>
-                </div>
-            </section>
-
-            <section class="chart-card">
-                <h2>Visitas por periodo</h2>
-                <p class="muted small">Hoy, semana desde el lunes, mes y año en curso, separadas por página web y aplicación. Una visita termina tras 30 minutos sin actividad.</p>
-                <div class="period-grid" data-slot="periods"></div>
-                <details class="chart-table">
-                    <summary>Ver como tabla</summary>
-                    <div class="table-wrap">
-                        <table class="table">
-                            <thead><tr><th>Periodo</th><th class="num">Página web</th><th class="num">Aplicación</th><th class="num">Total</th></tr></thead>
-                            <tbody data-slot="periodRows"></tbody>
-                        </table>
-                    </div>
-                </details>
-            </section>
-
-            <div class="chart-pair">
-                <section class="chart-card">
-                    <h2>Visitas por día</h2>
-                    <p class="muted small">Últimos 30 días. Pasa el cursor para ver web y app.</p>
-                    <div data-slot="daily"></div>
-                </section>
-                <section class="chart-card">
-                    <h2>Visitas por mes</h2>
-                    <p class="muted small">Últimos 12 meses.</p>
-                    <div data-slot="monthly"></div>
-                </section>
-            </div>
-
-            <div class="chart-pair">
-                <section class="chart-card">
-                    <div class="chart-card-head">
-                        <h2>Lo más buscado</h2>
-                        <label class="inline-select">Periodo
-                            <select class="input input-sm" name="searchPeriod">
-                                <option value="day">Hoy</option>
-                                <option value="week">Esta semana</option>
-                                <option value="month" selected>Este mes</option>
-                                <option value="year">Este año</option>
-                            </select>
-                        </label>
-                    </div>
-                    <p class="muted small" data-field="searchNote"></p>
-                    <div data-slot="searches"></div>
-                    <div class="search-missing" data-field="missingBox" hidden>
-                        <h3>Buscaron y no encontraron</h3>
-                        <p class="muted small">Productos que conviene agregar al catálogo.</p>
-                        <div class="term-chips" data-slot="missing"></div>
-                    </div>
-                </section>
-                <section class="chart-card">
-                    <h2>Descargas de la app</h2>
-                    <p class="muted small">Instalaciones de la tienda como aplicación en el teléfono o la computadora.</p>
-                    <div class="install-total">
-                        <strong data-field="installsTotal"></strong>
-                        <span>descargas en total</span>
-                    </div>
-                    <div class="mini-kpis">
-                        <div><span>Hoy</span><strong data-field="installsDay"></strong></div>
-                        <div><span>Semana</span><strong data-field="installsWeek"></strong></div>
-                        <div><span>Mes</span><strong data-field="installsMonth"></strong></div>
-                        <div><span>Año</span><strong data-field="installsYear"></strong></div>
-                    </div>
-                    <div data-slot="platforms"></div>
-                </section>
-            </div>
-        </div>
-    </template>
-
-    <template id="tpl-period-card">
-        <article class="period-card">
-            <span class="period-name" data-field="name"></span>
-            <strong data-field="total"></strong>
-            <div class="split-bar" role="img">
-                <span class="split-web series-1"></span>
-                <span class="split-app series-2"></span>
-            </div>
-            <div class="split-legend">
-                <span><i class="swatch-dot series-1"></i> Web <b data-field="web"></b></span>
-                <span><i class="swatch-dot series-2"></i> App <b data-field="app"></b></span>
-            </div>
-        </article>
-    </template>
-
-    <template id="tpl-period-row">
-        <tr><td data-field="period"></td><td class="num" data-field="web"></td><td class="num" data-field="app"></td><td class="num" data-field="total"></td></tr>
-    </template>
-
-    <template id="tpl-missing-chip">
-        <span class="term-chip"><span data-field="term"></span> <small data-field="times"></small></span>
-    </template>
-
     <template id="tpl-admin-emails">
         <div>
             <p class="muted toolbar">La tienda no tiene servidor de correo: cada correo para un cliente se guarda en la tabla email_outbox. Aquí están los últimos 100.</p>
@@ -1641,6 +1523,124 @@
                 </section>
             </div>
         </div>
+    </template>
+
+    <template id="tpl-admin-visits">
+        <div>
+            <section class="live-card">
+                <div class="live-head">
+                    <span class="live-dot" aria-hidden="true"></span>
+                    <h2>Conectados ahora</h2>
+                    <span class="muted small" data-field="liveNote"></span>
+                </div>
+                <div class="kpi-grid">
+                    <article class="kpi"><span>En total</span><strong data-field="onlineTotal"></strong><em data-field="onlineCustomers"></em></article>
+                    <article class="kpi kpi-web"><span><i class="swatch-dot series-1"></i> Página web</span><strong data-field="onlineWeb"></strong><em>desde el navegador</em></article>
+                    <article class="kpi kpi-app"><span><i class="swatch-dot series-2"></i> Aplicación móvil</span><strong data-field="onlineApp"></strong><em>desde la app instalada</em></article>
+                </div>
+                <div class="chart-pair">
+                    <section class="chart-card">
+                        <h2>Por dispositivo</h2>
+                        <p class="muted small">Conectados en este momento.</p>
+                        <div data-slot="onlineDevices"></div>
+                    </section>
+                    <section class="chart-card">
+                        <h2>Qué están viendo</h2>
+                        <p class="muted small">Página abierta por cada visitante conectado.</p>
+                        <div data-slot="onlinePages"></div>
+                    </section>
+                </div>
+            </section>
+
+            <section class="chart-card">
+                <h2>Visitas por periodo</h2>
+                <p class="muted small">Hoy, semana desde el lunes, mes y año en curso, separadas por página web y aplicación. Una visita termina tras 30 minutos sin actividad.</p>
+                <div class="period-grid" data-slot="periods"></div>
+                <details class="chart-table">
+                    <summary>Ver como tabla</summary>
+                    <div class="table-wrap">
+                        <table class="table">
+                            <thead><tr><th>Periodo</th><th class="num">Página web</th><th class="num">Aplicación</th><th class="num">Total</th></tr></thead>
+                            <tbody data-slot="periodRows"></tbody>
+                        </table>
+                    </div>
+                </details>
+            </section>
+
+            <div class="chart-pair">
+                <section class="chart-card">
+                    <h2>Visitas por día</h2>
+                    <p class="muted small">Últimos 30 días. Pasa el cursor para ver web y app.</p>
+                    <div data-slot="daily"></div>
+                </section>
+                <section class="chart-card">
+                    <h2>Visitas por mes</h2>
+                    <p class="muted small">Últimos 12 meses.</p>
+                    <div data-slot="monthly"></div>
+                </section>
+            </div>
+
+            <div class="chart-pair">
+                <section class="chart-card">
+                    <div class="chart-card-head">
+                        <h2>Lo más buscado</h2>
+                        <label class="inline-select">Periodo
+                            <select class="input input-sm" name="searchPeriod">
+                                <option value="day">Hoy</option>
+                                <option value="week">Esta semana</option>
+                                <option value="month" selected>Este mes</option>
+                                <option value="year">Este año</option>
+                            </select>
+                        </label>
+                    </div>
+                    <p class="muted small" data-field="searchNote"></p>
+                    <div data-slot="searches"></div>
+                    <div class="search-missing" data-field="missingBox" hidden>
+                        <h3>Buscaron y no encontraron</h3>
+                        <p class="muted small">Productos que conviene agregar al catálogo.</p>
+                        <div class="term-chips" data-slot="missing"></div>
+                    </div>
+                </section>
+                <section class="chart-card">
+                    <h2>Descargas de la app</h2>
+                    <p class="muted small">Instalaciones de la tienda como aplicación en el teléfono o la computadora.</p>
+                    <div class="install-total">
+                        <strong data-field="installsTotal"></strong>
+                        <span>descargas en total</span>
+                    </div>
+                    <div class="mini-kpis">
+                        <div><span>Hoy</span><strong data-field="installsDay"></strong></div>
+                        <div><span>Semana</span><strong data-field="installsWeek"></strong></div>
+                        <div><span>Mes</span><strong data-field="installsMonth"></strong></div>
+                        <div><span>Año</span><strong data-field="installsYear"></strong></div>
+                    </div>
+                    <div data-slot="platforms"></div>
+                </section>
+            </div>
+        </div>
+    </template>
+
+    <template id="tpl-period-card">
+        <article class="period-card">
+            <span class="period-name" data-field="name"></span>
+            <strong data-field="total"></strong>
+            <div class="split-bar" role="img">
+                <span class="split-web series-1"></span>
+                <span class="split-app series-2"></span>
+            </div>
+            <div class="split-legend">
+                <span><i class="swatch-dot series-1"></i> Web <b data-field="web"></b></span>
+                <span><i class="swatch-dot series-2"></i> App <b data-field="app"></b></span>
+            </div>
+        </article>
+    </template>
+
+    <template id="tpl-period-row">
+        <tr><td data-field="period"></td><td class="num" data-field="web"></td><td class="num" data-field="app"></td><td class="num" data-field="total"></td></tr>
+    </template>
+
+    <template id="tpl-missing-chip">
+        <span class="term-chip"><span data-field="term"></span> <small data-field="times"></small></span>
     </template>
 
     <template id="tpl-top-row">

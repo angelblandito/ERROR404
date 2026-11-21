@@ -1,25 +1,24 @@
 <?php
 try {
     $SQL_Query = 'INSERT INTO store_config (id_store, config_key, config_value, source_node) VALUES (
-        :id_store, 
-        :config_key, 
-        :config_value, 
+        :id_store,
+        :config_key,
+        :config_value,
         :source_node)';
-        
+
     $SQL_Sentence = $DB_Connector->prepare($SQL_Query);
     $SQL_Sentence->bindParam(':id_store', $body['id_store'], PDO::PARAM_INT);
     $SQL_Sentence->bindParam(':config_key', $body['config_key'], PDO::PARAM_STR);
     $SQL_Sentence->bindParam(':config_value', $body['config_value'], PDO::PARAM_STR);
     $SQL_Sentence->bindParam(':source_node', $body['source_node'], PDO::PARAM_STR);
     $SQL_Sentence->execute();
-    
+
     if ($SQL_Sentence->rowCount() != 0) {
         $StoreConfigId = $body['id_store'] . '-' . $body['config_key']; // Composite key (no AUTO_INCREMENT)
     } else {
         $DB_Error = api_error(400, 'No se pudo crear el registro.');
-    };
+    }
 }
 catch (PDOException $ex) {
     $DB_Error = api_db_error($ex);
-};
-?>
+}

@@ -14,10 +14,6 @@ export function ean13CheckDigit(first12) {
     return (10 - sum % 10) % 10;
 }
 
-export function isEan13(code) {
-    return /^\d{13}$/.test(code) && ean13CheckDigit(code.slice(0, 12)) === Number(code[12]);
-}
-
 /* Secuencia de 95 módulos (1 = barra) del código. */
 function modules(code) {
     const parity = PARITY[Number(code[0])];

@@ -1,4 +1,4 @@
-/* Administración de la tienda: pedidos, clientes, precios, inventario, soporte y comunicados. */
+/* Administración de la tienda: resumen, visitas, pedidos, clientes, precios, inventario, soporte, comunicados, mercado, correos y etiquetas. */
 import { api } from '../api.js';
 import { $, $$, clone, field, fill, show, slot, badge, money, message, formatDate, loading, setTitle, toast, todayISO, ORDER_STATUS } from '../ui.js';
 import { productArt } from '../illustrations.js';

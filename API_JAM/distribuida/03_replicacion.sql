@@ -15,7 +15,9 @@
                    Cada sucursal tiene una copia local del catálogo, así puede
                    vender aunque el nodo central no responda.
      pub_completa  Todas las tablas de JAM_db -> Azure SQL (JAM_cloud)
-                   Réplica en la nube de solo lectura para la API desplegada en Azure.
+                   Opcional: se deja sin suscriptor (@azure_servidor vacío)
+                   porque la API ya copia JAM_db a JAM_cloud; las dos copias
+                   a la vez chocarían.
 
    Edite las variables marcadas con >>> antes de ejecutar.
    ===================================================================== */
@@ -34,10 +36,13 @@ USE master;
 GO
 
 DECLARE @servidor SYSNAME = @@SERVERNAME;
-DECLARE @password_distribuidor SYSNAME = N'Jam_Distribuidor_2026!';   -- >>> cambiar
+DECLARE @password_distribuidor SYSNAME = N'';   -- >>> contraseña del distribuidor (borrarla antes de subir a GitHub)
 
 IF NOT EXISTS (SELECT 1 FROM sys.databases WHERE is_distributor = 1)
 BEGIN
+    IF LEN(@password_distribuidor) = 0
+        THROW 50021, N'Escriba la contraseña del distribuidor en @password_distribuidor y vuelva a ejecutar el script.', 1;
+
     EXEC sp_adddistributor @distributor = @servidor, @password = @password_distribuidor;
     EXEC sp_adddistributiondb @database = N'distribution', @security_mode = 1;
     EXEC sp_adddistpublisher @publisher = @servidor, @distribution_db = N'distribution', @security_mode = 1;

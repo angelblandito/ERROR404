@@ -1,21 +1,21 @@
 <?php
 try {
     $SQL_Query = 'UPDATE store SET
-        id_owner = :id_owner, 
-        id_store_type = :id_store_type, 
-        id_address = :id_address, 
-        store_name = :store_name, 
-        tax_id = :tax_id, 
-        contact_phone = :contact_phone, 
-        email = :email, 
-        whatsapp = :whatsapp, 
-        opened_at = :opened_at, 
-        active = :active, 
-        source_node = :source_node 
-        WHERE 
-        deleted = 0 AND 
+        id_owner = :id_owner,
+        id_store_type = :id_store_type,
+        id_address = :id_address,
+        store_name = :store_name,
+        tax_id = :tax_id,
+        contact_phone = :contact_phone,
+        email = :email,
+        whatsapp = :whatsapp,
+        opened_at = :opened_at,
+        active = :active,
+        source_node = :source_node
+        WHERE
+        deleted = 0 AND
         id_store = :id_store';
-        
+
     $SQL_Sentence = $DB_Connector->prepare($SQL_Query);
     $SQL_Sentence->bindParam(':id_store', $resourceId, PDO::PARAM_INT);
     $SQL_Sentence->bindParam(':id_owner', $body['id_owner'], PDO::PARAM_INT);
@@ -30,14 +30,13 @@ try {
     $SQL_Sentence->bindParam(':active', $body['active'], PDO::PARAM_INT);
     $SQL_Sentence->bindParam(':source_node', $body['source_node'], PDO::PARAM_STR);
     $SQL_Sentence->execute();
-    
+
     if ($SQL_Sentence->rowCount() != 0) {
         $newData = $body;
     } else {
         $DB_Error = api_error(404, 'El registro no existe o fue eliminado.');
-    };
+    }
 }
 catch (PDOException $ex) {
     $DB_Error = api_db_error($ex);
-};
-?>
+}

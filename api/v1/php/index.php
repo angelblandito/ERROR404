@@ -21,7 +21,7 @@ $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 $uri = preg_replace('#^.*?/api/v1/php(?=/|$)#', '', $uri);
 $uri = $uri === '' ? '/' : $uri;
 $resourceId = explode('/', $uri)[2] ?? null;
-$subResourceId = explode('/', $uri)[3] ?? null; // second key part (only used by store_config)
+$subResourceId = explode('/', $uri)[3] ?? null; // Segunda parte de la llave (solo la usa store_config)
 
 $rawBody = file_get_contents('php://input');
 $body = json_decode($rawBody, true);
@@ -32,7 +32,7 @@ if (in_array($method, ['POST', 'PUT'], true) && trim($rawBody) !== '' && !is_arr
 }
 $body = is_array($body) ? $body : [];
 
-require_once("core/Database.php"); // Database Connection
+require_once("core/Database.php"); // Conexión a los nodos de SQL Server
 
 // Variables de resultado: las asignan los archivos models/*.php incluidos con require_once.
 // Se declaran aquí para que siempre existan (y para que el editor no las marque como indefinidas).
@@ -1376,4 +1376,3 @@ if ($method === 'GET' && $uri === '/health-check') {
         'message' => 'Recurso no encontrado'
     ], JSON_UNESCAPED_UNICODE);
 }
-?>

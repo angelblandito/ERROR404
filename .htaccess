@@ -2,8 +2,8 @@
 DirectoryIndex index.html
 AddType application/manifest+json .webmanifest
 
-# Archivos internos que no se publican: repositorio, scripts SQL, documentación y prototipos
-RedirectMatch 404 "(?i)^.*/(\.git|\.vscode|API_JAM|docs|phpapi|myapi|temp|test|test3)(/.*)?$"
+# Archivos internos que no se publican: repositorio, scripts SQL y documentación
+RedirectMatch 404 "(?i)^.*/(\.git|\.vscode|API_JAM|docs)(/.*)?$"
 RedirectMatch 404 "(?i)^.*/(JAM|LICENSE|README\.md|\.gitignore)$"
 
 <IfModule mod_headers.c>

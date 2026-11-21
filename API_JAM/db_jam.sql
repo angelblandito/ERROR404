@@ -1811,7 +1811,7 @@ GO
 CREATE INDEX ix_customer_session_customer ON customer_session (id_customer);
 GO
 
--- Cuentas de demostración (contraseñas en docs/GUIA_DISTRIBUIDA_Y_NUBE.md):
+-- Cuentas de demostración (solo el hash bcrypt; las contraseñas las tiene el equipo):
 -- 2 Prioritario, 5 Estándar, 6 Administrador.
 INSERT INTO customer_credential (id_customer, password_hash) VALUES
 (2, '$2y$10$LDms8HUAs32X0f71yGG97O/Pu.KMdrT60igDgm.22wExN7IQ8QWsa'),

@@ -3,7 +3,7 @@
  * Configuración de los nodos de la base de datos distribuida.
  *
  * Cada valor se toma, en este orden, de:
- *   1. Variables de entorno (en Azure App Service: "Configuración > Variables de entorno").
+ *   1. Variables de entorno del servidor.
  *   2. config/settings.php (copia local de settings.example.php, no se sube a GitHub).
  *   3. El valor por defecto escrito aquí.
  */

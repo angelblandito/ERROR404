@@ -330,11 +330,19 @@ GO
 USE master;
 GO
 
+/* La contraseña se escribe solo al ejecutar el script; no se guarda en el
+   repositorio. Si el usuario ya existe, esta sección no hace nada. */
+DECLARE @clave_api NVARCHAR(128) = N'';   -- >>> contraseña de jam_api (borrarla antes de subir a GitHub)
+
 IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE name = N'jam_api')
-    CREATE LOGIN jam_api
-        WITH PASSWORD = N'Cambiar_Esta_Clave_2026!',     -- >>> cambiar
-             DEFAULT_DATABASE = JAM_db,
-             CHECK_POLICY = ON;
+BEGIN
+    IF LEN(@clave_api) = 0
+        THROW 50020, N'Escriba la contraseña de jam_api en @clave_api y vuelva a ejecutar el script.', 1;
+
+    DECLARE @crear NVARCHAR(MAX) = N'CREATE LOGIN jam_api WITH PASSWORD = ' + QUOTENAME(@clave_api, N'''')
+        + N', DEFAULT_DATABASE = JAM_db, CHECK_POLICY = ON;';
+    EXEC sys.sp_executesql @crear;
+END;
 GO
 
 USE JAM_db;
