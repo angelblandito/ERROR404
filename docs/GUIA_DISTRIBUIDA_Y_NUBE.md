@@ -95,7 +95,7 @@ Consulta del fragmento Tijuana (id_store = 1)
 
 SQL Server Express no puede publicar replicación ni tiene SQL Server Agent, por eso se usa la edición Developer. Es gratuita y se instala junto a Express sin afectarlo.
 
-1. Descargar **SQL Server 2022 Developer** desde la página oficial de Microsoft (*SQL Server downloads*).
+1. Descargar **SQL Server 2022 Developer** desde `https://aka.ms/sqlserver2022developer` (descarga oficial de Microsoft). No usar la 2025: cambió el cifrado de las conexiones internas y la replicación puede fallar sin un certificado de confianza.
 2. Instalación **Personalizada** → *Nueva instalación independiente*.
 3. Características: **Servicios de motor de base de datos** y **Replicación de SQL Server**.
 4. Instancia: **predeterminada** (`MSSQLSERVER`). El servidor se llamará `localhost` (o el nombre del equipo, p. ej. `JONATHAN`).
