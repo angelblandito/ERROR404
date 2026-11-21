@@ -273,7 +273,28 @@ Los precios viven en `competitor` y `market_price` (sección 12 de `db_jam.sql`)
 
 El script también carga un **historial de 32 ventas** de las últimas cuatro semanas en Tijuana, CDMX y en línea (fechas relativas al día en que se ejecuta), para que las gráficas y las recomendaciones tengan datos.
 
-> Después de actualizar a esta versión hay que volver a ejecutar `db_jam.sql` y los scripts `01` a `06` de `API_JAM/distribuida` (en ese orden), porque se agregaron tablas, columnas y triggers.
+> Después de actualizar a esta versión hay que volver a ejecutar `db_jam.sql` y los scripts `01`, `02`, `06` y `07` de `API_JAM/distribuida` (en ese orden), porque se agregaron tablas, columnas y triggers.
+
+### 2.6.5 Visitas, búsquedas y descargas (Administrador)
+
+**Administración → Visitas** (solo cuentas de Administrador):
+
+| Apartado | Qué muestra |
+|---|---|
+| Conectados ahora | Visitantes con actividad en los últimos 90 s, separados en **Página web** (navegador) y **Aplicación móvil** (app instalada), cuántos tienen sesión, por dispositivo (teléfono, tableta, computadora) y qué página tienen abierta. Se actualiza cada 15 s |
+| Visitas por periodo | Hoy, esta semana (desde el lunes), este mes y este año, cada uno con web y app |
+| Visitas por día y por mes | Últimos 30 días y últimos 12 meses; el tooltip separa web y app |
+| Lo más buscado | Los 10 términos más buscados del periodo elegido, cuántas búsquedas vinieron de la app y los términos que **no encontraron** productos |
+| Descargas de la app | Total de instalaciones, de hoy, la semana, el mes y el año, y por sistema (Android, iPhone y iPad, Windows, Mac) |
+
+Cómo se mide (`js/analytics.js` y `models/analytics.php`):
+- El navegador genera un identificador aleatorio (`localStorage`) y avisa a la API al abrir la tienda, al cambiar de página y cada 45 s mientras la pestaña está a la vista. Al cerrar o cambiar de pestaña avisa que se fue (`sendBeacon`). No se guarda la IP.
+- **Web o app**: si la tienda se abrió instalada (`display-mode: standalone`) cuenta como app; si no, como página web.
+- **Visita**: se abre con la primera señal y se cierra tras 30 minutos sin actividad (`site_visit`).
+- **Búsquedas**: el catálogo registra el término (sin acentos ni mayúsculas) y cuántos productos encontró (`search_log`).
+- **Descargas**: el evento `appinstalled` del navegador, o la primera vez que la app se abre instalada en iPhone/iPad, que no envían ese evento (`app_install`, una fila por dispositivo).
+- `db_jam.sql` carga un año de **datos de ejemplo** (unas 9,000 visitas, 1,500 búsquedas y 640 descargas) con fechas relativas al día en que se ejecuta. Las visitas reales se suman a esas.
+- Son tablas del nodo central: no se fragmentan ni se copian al espejo.
 
 ### 2.7 Entrar desde el celular
 
@@ -328,6 +349,10 @@ La versión en Azure (sección 5) también se abre desde el celular, en modo con
 | GET | `/market` | Comparador de mercado por producto y por categoría (solo Prioritario y Administrador) |
 | GET, POST, PUT, DELETE | `/admin/market`, `/admin/market/{id}` | Precios de la competencia |
 | GET | `/admin/emails` | Bandeja de correos simulada (últimos 100) |
+| POST | `/analytics/ping`, `/analytics/leave` | Señal de visita (cada 45 s y al cambiar de página) y salida del visitante |
+| POST | `/analytics/search`, `/analytics/install` | Término buscado con su número de resultados; instalación de la app |
+| GET | `/admin/analytics` | Conectados, visitas por periodo, por día y por mes, lo más buscado y descargas |
+| GET | `/admin/analytics/online` | Solo los conectados (el panel lo consulta cada 15 s) |
 | POST | `/auth/forgot`, `/auth/reset` | Enlace para restablecer la contraseña y cambio de contraseña |
 | GET | `/store/products/{id}/also-bought` | Productos comprados junto con este |
 | GET | `/postal-codes/{cp}` | Estado, ciudad y colonias de un código postal (404 si no está en la tabla) |
@@ -478,7 +503,7 @@ En la nube la tienda funciona en modo consulta: el catálogo, el inventario y lo
 
 ## 6. Guion para la presentación (≈ 10 min)
 
-1. **Tienda** (móvil y escritorio): mostrar el menú hamburguesa y la cuadrícula adaptable (media queries).
+1. **Tienda** (móvil y escritorio): mostrar el menú hamburguesa y la cuadrícula adaptable (media queries). Abrir **Administración → Visitas** en la laptop: al entrar desde el celular con la app instalada, *Aplicación móvil* sube en menos de un minuto; buscar algo en el celular y aparece en **Lo más buscado** al recargar.
 2. **Tipos de usuario**: entrar como Estándar y como Prioritario y comparar precio, envío, piezas permitidas y plazo de soporte; luego entrar como Administrador, responder el ticket y aplicar la regla de Prioritarios.
 3. **Comparador de mercado**: como Prioritario, botón **Comparador** del encabezado → filtrar *Calzado* y pasar el cursor sobre los puntos para ver cada marca y su fuente.
 4. **Escáner y regalo** (en el celular, por el túnel `https`): abrir Administración → Etiquetas en la laptop, escanear una etiqueta con *Escanear* y mostrar existencias y comparación; agregar al carrito, aceptar el empaque de regalo, escribir el código postal `22020` y ver cómo se llenan colonia, ciudad y estado.

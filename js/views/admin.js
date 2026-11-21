@@ -5,12 +5,13 @@ import { productArt } from '../illustrations.js';
 import { tierBadge } from '../components.js';
 import { colorsOf, loadCatalog, state, stockAt } from '../store.js';
 import { ticketStatus } from './support.js';
-import { barChart, chartEmpty, columnChart, compactMoney } from '../charts.js';
+import { barChart, chartEmpty, columnChart, compactMoney, groupedBars } from '../charts.js';
 import { ean13Svg } from '../barcode.js';
 import { giftSummary } from '../gift.js';
 
 const SECTIONS = {
     resumen: ['Resumen', 'Ventas, pedidos por surtir y soporte de un vistazo.', 'tpl-admin-summary'],
+    visitas: ['Visitas', 'Conectados en este momento, visitas por periodo, lo más buscado y descargas de la app.', 'tpl-admin-visits'],
     pedidos: ['Pedidos', 'Cambia el estado de los pedidos del nodo central.', 'tpl-admin-orders'],
     clientes: ['Clientes', 'Tipos de cuenta y regla de clientes Prioritarios.', 'tpl-admin-customers'],
     productos: ['Productos', 'Precios de lista y existencias por sucursal.', 'tpl-admin-products'],
@@ -110,6 +111,168 @@ function drawSalesCharts(content, data) {
             return { label: c.name, sub: c.units + ' piezas', value: c.revenue, tip: [{ text: 'Piezas', value: String(c.units) }] };
         }), { format: format, valueName: 'Ventas', label: 'Ventas por categoría' })
         : chartEmpty('Sin ventas en los últimos 30 días.'));
+}
+
+/* ---------- Visitas ---------- */
+const LIVE_SECONDS = 15;
+const count = new Intl.NumberFormat('es-MX');
+const compactCount = new Intl.NumberFormat('es-MX', { notation: 'compact', maximumFractionDigits: 1 });
+const CHANNEL_SERIES = [{ name: 'Página web', css: 'series-1' }, { name: 'Aplicación móvil', css: 'series-2' }];
+const PERIOD_NAMES = { day: 'Hoy', week: 'Esta semana', month: 'Este mes', year: 'Este año' };
+const DEVICE_NAMES = { movil: 'Teléfono', tableta: 'Tableta', escritorio: 'Computadora' };
+const PLATFORM_NAMES = { android: 'Android', ios: 'iPhone y iPad', windows: 'Windows', mac: 'Mac', linux: 'Linux', otro: 'Otro' };
+const PAGE_NAMES = {
+    '/': 'Inicio', '/tienda': 'Tienda', '/producto': 'Ficha de producto', '/outlet': 'Outlet', '/ofertas': 'Ofertas',
+    '/carrito': 'Carrito', '/pago': 'Pago', '/pedido': 'Pedido confirmado', '/cuenta': 'Mi cuenta', '/favoritos': 'Favoritos',
+    '/escanear': 'Escáner', '/mercado': 'Comparador', '/soporte': 'Soporte', '/sucursales': 'Sucursales', '/ayuda': 'Ayuda'
+};
+
+function fmt(n) {
+    return count.format(n);
+}
+
+function axisCount(n) {
+    return n >= 1000 ? compactCount.format(n) : String(Math.round(n));
+}
+
+function pageName(path) {
+    if (PAGE_NAMES[path]) return PAGE_NAMES[path];
+    if (path.indexOf('/admin') === 0) return 'Administración';
+    if (path.indexOf('/panel') === 0) return 'Base distribuida';
+    if (path.indexOf('/legal') === 0) return 'Avisos legales';
+    return path;
+}
+
+function channelTip(web, app) {
+    return [
+        { text: 'Página web', value: fmt(web), swatch: 'series-1' },
+        { text: 'Aplicación móvil', value: fmt(app), swatch: 'series-2' },
+        { text: 'Total', value: fmt(web + app) }
+    ];
+}
+
+function monthLabel(month, long) {
+    const d = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - 1, 1);
+    return d.toLocaleDateString('es-MX', long ? { month: 'long', year: 'numeric' } : { month: 'short' });
+}
+
+function showOnline(content, online) {
+    fill(content, {
+        onlineTotal: fmt(online.total),
+        onlineWeb: fmt(online.web),
+        onlineApp: fmt(online.app),
+        onlineCustomers: fmt(online.customers) + ' con sesión iniciada',
+        liveNote: 'Actividad en los últimos ' + online.window_seconds + ' s · se actualiza cada ' + LIVE_SECONDS + ' s'
+    });
+
+    slot(content, 'onlineDevices').replaceChildren(online.total
+        ? groupedBars(Object.keys(DEVICE_NAMES).map(function (d) {
+            const v = online.devices[d] || { web: 0, app: 0 };
+            return { label: DEVICE_NAMES[d], values: [v.web, v.app] };
+        }), CHANNEL_SERIES, { format: fmt, label: 'Conectados por dispositivo' })
+        : chartEmpty('Nadie conectado en este momento.'));
+
+    slot(content, 'onlinePages').replaceChildren(online.pages.length
+        ? barChart(online.pages.map(function (p) {
+            return { label: pageName(p.path), value: p.visitors };
+        }), { format: fmt, valueName: 'Visitantes', label: 'Páginas abiertas ahora' })
+        : chartEmpty('Nadie conectado en este momento.'));
+}
+
+function showSearches(content, period) {
+    const data = content.visitsReport.searches[period];
+    const fromApp = data.searches ? Math.round(data.from_app * 100 / data.searches) : 0;
+    fill(content, {
+        searchNote: data.searches
+            ? fmt(data.searches) + ' búsquedas · ' + fromApp + ' % desde la app · ' + fmt(data.without_results) + ' sin resultados'
+            : 'Sin búsquedas en este periodo.'
+    });
+    slot(content, 'searches').replaceChildren(data.top.length
+        ? barChart(data.top.map(function (t) {
+            return {
+                label: t.term,
+                sub: t.found ? '' : 'sin resultados',
+                value: t.times,
+                tip: [{ text: 'Página web', value: fmt(t.web), swatch: 'series-1' }, { text: 'Aplicación móvil', value: fmt(t.app), swatch: 'series-2' }]
+            };
+        }), { format: fmt, valueName: 'Búsquedas', label: 'Términos más buscados' })
+        : chartEmpty('Sin búsquedas en este periodo.'));
+    show(field(content, 'missingBox'), data.missing.length > 0);
+    slot(content, 'missing').replaceChildren(...data.missing.map(function (m) {
+        return fill(clone('tpl-missing-chip'), { term: m.term, times: '×' + fmt(m.times) });
+    }));
+}
+
+function drawVisits(content, report) {
+    const periods = report.visits.periods;
+    slot(content, 'periods').replaceChildren(...Object.keys(PERIOD_NAMES).map(function (p) {
+        const v = periods[p];
+        const card = fill(clone('tpl-period-card'), {
+            name: PERIOD_NAMES[p], total: fmt(v.total) + ' visitas', web: fmt(v.web), app: fmt(v.app)
+        });
+        const webShare = v.total ? Math.round(v.web * 100 / v.total) : 0;
+        $('.split-web', card).style.flexBasis = (v.total ? webShare : 0) + '%';
+        $('.split-app', card).style.flexBasis = (v.total ? 100 - webShare : 0) + '%';
+        $('.split-bar', card).setAttribute('aria-label', v.total
+            ? webShare + ' % página web y ' + (100 - webShare) + ' % aplicación'
+            : 'Sin visitas');
+        return card;
+    }));
+    slot(content, 'periodRows').replaceChildren(...Object.keys(PERIOD_NAMES).map(function (p) {
+        return fill(clone('tpl-period-row'), {
+            period: PERIOD_NAMES[p], web: fmt(periods[p].web), app: fmt(periods[p].app), total: fmt(periods[p].total)
+        });
+    }));
+
+    const daily = report.visits.daily;
+    slot(content, 'daily').replaceChildren(daily.some(function (d) { return d.total > 0; })
+        ? columnChart(daily.map(function (d) {
+            return { label: dayLabel(d.date, true), short: dayLabel(d.date), value: d.total, tip: channelTip(d.web, d.app) };
+        }), { format: fmt, axisFormat: axisCount, labelEvery: 6, label: 'Visitas por día de los últimos 30 días' })
+        : chartEmpty('Sin visitas en los últimos 30 días.'));
+
+    const monthly = report.visits.monthly;
+    slot(content, 'monthly').replaceChildren(monthly.some(function (m) { return m.total > 0; })
+        ? columnChart(monthly.map(function (m) {
+            return { label: monthLabel(m.month, true), short: monthLabel(m.month), value: m.total, tip: channelTip(m.web, m.app) };
+        }), { format: fmt, axisFormat: axisCount, labelEvery: 2, css: 'series-1', label: 'Visitas por mes de los últimos 12 meses' })
+        : chartEmpty('Sin visitas en los últimos 12 meses.'));
+
+    const installs = report.installs;
+    fill(content, {
+        installsTotal: fmt(installs.total),
+        installsDay: fmt(installs.periods.day),
+        installsWeek: fmt(installs.periods.week),
+        installsMonth: fmt(installs.periods.month),
+        installsYear: fmt(installs.periods.year)
+    });
+    slot(content, 'platforms').replaceChildren(installs.platforms.length
+        ? barChart(installs.platforms.map(function (p) {
+            return { label: PLATFORM_NAMES[p.platform] || p.platform, value: p.installs };
+        }), { format: fmt, valueName: 'Descargas', css: 'series-2', label: 'Descargas por sistema' })
+        : chartEmpty('Todavía no hay descargas.'));
+}
+
+async function loadVisits(content) {
+    const report = await api('/admin/analytics');
+    content.visitsReport = report;
+    showOnline(content, report.online);
+    drawVisits(content, report);
+    showSearches(content, $('select[name="searchPeriod"]', content).value);
+
+    clearInterval(content.liveTimer);
+    content.liveTimer = setInterval(async function () {
+        if (!content.isConnected) {
+            clearInterval(content.liveTimer);
+            return;
+        }
+        if (document.visibilityState === 'hidden') return;
+        try {
+            showOnline(content, await api('/admin/analytics/online'));
+        } catch (e) {
+            /* se reintenta en la siguiente vuelta */
+        }
+    }, LIVE_SECONDS * 1000);
 }
 
 /* ---------- Pedidos ---------- */
@@ -516,6 +679,7 @@ function renderLabels(content) {
 /* ---------- Vista ---------- */
 async function loadSection(section, content) {
     if (section === 'resumen') return loadSummary(content);
+    if (section === 'visitas') return loadVisits(content);
     if (section === 'pedidos') return loadOrders(content);
     if (section === 'clientes') return loadCustomers(content);
     if (section === 'productos') return renderProducts(content);
@@ -542,6 +706,10 @@ function bindSection(section, content) {
         });
         content.addEventListener('change', function (e) {
             if (e.target.matches('.stock-input')) saveStock(e.target);
+        });
+    } else if (section === 'visitas') {
+        $('select[name="searchPeriod"]', content).addEventListener('change', function (e) {
+            if (content.visitsReport) showSearches(content, e.target.value);
         });
     } else if (section === 'comunicados') {
         bindAnnouncementForm(content);

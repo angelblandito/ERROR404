@@ -69,6 +69,7 @@ $VerificationCodeId = null;
 
 require_once("models/distributed.php"); // Endpoints de la base de datos distribuida
 require_once("models/mirror.php");      // Copia del nodo central al espejo en Azure SQL
+require_once("models/analytics.php");   // Visitas, búsquedas y descargas de la app
 require_once("models/storefront.php");  // Tienda en línea: catálogo, cuentas y reseñas
 require_once("models/accounts.php");    // Comunicados y soporte según el tipo de cuenta
 require_once("models/admin.php");       // Administración de la tienda
@@ -114,7 +115,8 @@ function api_finish_response(): void
 /* Después de una escritura que terminó bien se refrescan los fragmentos y el espejo. */
 register_shutdown_function(function () use ($method, $uri) {
     $status = (int)http_response_code();
-    if ($method === 'GET' || $status >= 400 || in_array($uri, ['/distributed/sync', '/mirror/sync'], true)) {
+    if ($method === 'GET' || $status >= 400 || in_array($uri, ['/distributed/sync', '/mirror/sync'], true)
+        || strpos($uri, '/analytics/') === 0) {
         return;
     }
     api_finish_response();
@@ -164,7 +166,7 @@ if ($DB_Connector === null && $uri !== '/health-check') {
 }
 
 if (store_handle($method, $uri, $body) || account_handle($method, $uri, $body) || recovery_handle($method, $uri, $body)
-    || market_handle($method, $uri) || admin_handle($method, $uri, $body)) {
+    || market_handle($method, $uri) || analytics_handle($method, $uri, $body) || admin_handle($method, $uri, $body)) {
     exit;
 }
 

@@ -7,6 +7,7 @@ import { initTheme, currentTheme } from './theme.js';
 import { initEffects } from './effects.js';
 import { closeMiniCart } from './minicart.js';
 import { matchScore } from './search.js';
+import { initAnalytics } from './analytics.js';
 import { renderHome } from './views/home.js';
 import { renderCatalog, renderOutlet } from './views/catalog.js';
 import { renderProduct } from './views/product.js';
@@ -240,7 +241,10 @@ updateCounts();
 rotateAnnouncements();
 initEffects();
 initTheme();
-loadCustomer().finally(route);
+loadCustomer().finally(function () {
+    route();
+    initAnalytics();
+});
 
 /* La tienda se puede instalar como aplicación (PWA). El service worker solo
    funciona en https o en localhost. */

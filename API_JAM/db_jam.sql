@@ -2518,6 +2518,184 @@ GO
 
 
 -- =====================================================================
+-- 14. VISITAS, BÚSQUEDAS Y DESCARGAS DE LA APP
+-- El navegador genera un identificador aleatorio (visitor_id) y lo guarda
+-- en localStorage. No se guarda la IP ni ningún dato personal.
+--   channel  'web' = página en el navegador, 'app' = aplicación instalada (PWA)
+--   device   'movil' | 'tableta' | 'escritorio'
+-- Una visita dura mientras el visitante siga enviando señales; después de
+-- 30 minutos sin actividad, la siguiente señal abre una visita nueva.
+-- Un visitante está "conectado" si su última señal tiene menos de 90 s.
+-- Son tablas del nodo central: la analítica es global, no se fragmenta.
+-- =====================================================================
+
+CREATE TABLE site_visit (
+    id_visit      BIGINT IDENTITY(1,1) PRIMARY KEY,
+    visitor_id    CHAR(36)      NOT NULL,
+    channel       VARCHAR(3)    NOT NULL,
+    device        VARCHAR(10)   NOT NULL,
+    id_customer   INT           NULL,
+    landing_path  NVARCHAR(120) NULL,
+    current_path  NVARCHAR(120) NULL,
+    page_views    INT           NOT NULL CONSTRAINT df_site_visit_page_views DEFAULT 1,
+    started_at    DATETIME2(3)  NOT NULL CONSTRAINT df_site_visit_started_at DEFAULT SYSUTCDATETIME(),
+    last_seen     DATETIME2(3)  NOT NULL CONSTRAINT df_site_visit_last_seen DEFAULT SYSUTCDATETIME(),
+    CONSTRAINT fk_site_visit_customer FOREIGN KEY (id_customer) REFERENCES customer (id_customer),
+    CONSTRAINT ck_site_visit_channel CHECK (channel IN ('web','app')),
+    CONSTRAINT ck_site_visit_device CHECK (device IN ('movil','tableta','escritorio')),
+    CONSTRAINT ck_site_visit_dates CHECK (last_seen >= started_at)
+);
+GO
+
+CREATE INDEX ix_site_visit_visitor ON site_visit (visitor_id, last_seen);
+CREATE INDEX ix_site_visit_started ON site_visit (started_at) INCLUDE (channel, device);
+CREATE INDEX ix_site_visit_last_seen ON site_visit (last_seen) INCLUDE (channel, device, current_path, id_customer);
+GO
+
+CREATE TABLE search_log (
+    id_search    BIGINT IDENTITY(1,1) PRIMARY KEY,
+    visitor_id   CHAR(36)     NULL,
+    channel      VARCHAR(3)   NOT NULL,
+    term         NVARCHAR(80) NOT NULL,
+    results      INT          NOT NULL,
+    searched_at  DATETIME2(3) NOT NULL CONSTRAINT df_search_log_searched_at DEFAULT SYSUTCDATETIME(),
+    CONSTRAINT ck_search_log_channel CHECK (channel IN ('web','app')),
+    CONSTRAINT ck_search_log_results CHECK (results >= 0)
+);
+GO
+
+CREATE INDEX ix_search_log_date ON search_log (searched_at) INCLUDE (term, results);
+GO
+
+-- Una fila por instalación. source = 'instalacion' cuando el navegador avisa
+-- que se instaló (Android, Windows, Mac) o 'primer_uso' cuando la app se abre
+-- por primera vez sin ese aviso (iPhone y iPad no lo envían).
+CREATE TABLE app_install (
+    visitor_id    CHAR(36)     NOT NULL PRIMARY KEY,
+    device        VARCHAR(10)  NOT NULL,
+    platform      VARCHAR(10)  NOT NULL,
+    source        VARCHAR(12)  NOT NULL,
+    installed_at  DATETIME2(3) NOT NULL CONSTRAINT df_app_install_installed_at DEFAULT SYSUTCDATETIME(),
+    CONSTRAINT ck_app_install_device CHECK (device IN ('movil','tableta','escritorio')),
+    CONSTRAINT ck_app_install_platform CHECK (platform IN ('android','ios','windows','mac','linux','otro')),
+    CONSTRAINT ck_app_install_source CHECK (source IN ('instalacion','primer_uso'))
+);
+GO
+
+CREATE INDEX ix_app_install_date ON app_install (installed_at);
+GO
+
+-- ---------------------------------------------------------------------
+-- Datos de ejemplo: un año de visitas, búsquedas y descargas para que el
+-- panel tenga historia desde el primer día. Las fechas son relativas a la
+-- fecha en que se ejecuta el script; hay más visitas en los meses recientes.
+-- ---------------------------------------------------------------------
+SET NOCOUNT ON;
+
+IF OBJECT_ID('tempdb..#azar') IS NOT NULL DROP TABLE #azar;
+
+SELECT TOP (9000)
+    ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS n,
+    ABS(CHECKSUM(NEWID())) % 10000 AS r_dia,
+    ABS(CHECKSUM(NEWID())) % 100   AS r_canal,
+    ABS(CHECKSUM(NEWID())) % 100   AS r_disp,
+    ABS(CHECKSUM(NEWID())) % 1440  AS r_minuto,
+    ABS(CHECKSUM(NEWID())) % 100   AS r_pagina,
+    ABS(CHECKSUM(NEWID())) % 9     AS r_vistas,
+    ABS(CHECKSUM(NEWID())) % 25    AS r_duracion
+INTO #azar
+FROM sys.all_objects AS a CROSS JOIN sys.all_objects AS b;
+
+INSERT INTO site_visit (visitor_id, channel, device, landing_path, current_path, page_views, started_at, last_seen)
+SELECT
+    CONVERT(CHAR(36), NEWID()),
+    v.channel,
+    CASE
+        WHEN v.channel = 'app' AND z.r_disp < 85 THEN 'movil'
+        WHEN v.channel = 'app' AND z.r_disp < 92 THEN 'tableta'
+        WHEN v.channel = 'app' THEN 'escritorio'
+        WHEN z.r_disp < 56 THEN 'movil'
+        WHEN z.r_disp < 62 THEN 'tableta'
+        ELSE 'escritorio'
+    END,
+    p.path,
+    p.path,
+    1 + z.r_vistas,
+    v.started_at,
+    DATEADD(MINUTE, 1 + z.r_duracion, v.started_at)
+FROM #azar AS z
+CROSS APPLY (
+    SELECT
+        CASE WHEN z.r_canal < 62 THEN 'web' ELSE 'app' END AS channel,
+        DATEADD(MINUTE, -z.r_minuto,
+            DATEADD(DAY, -CAST(FLOOR(POWER(z.r_dia / 10000.0, 1.6) * 365) AS INT),
+                DATEADD(HOUR, -1, SYSUTCDATETIME()))) AS started_at
+) AS v
+CROSS APPLY (
+    SELECT CASE
+        WHEN z.r_pagina < 40 THEN N'/'
+        WHEN z.r_pagina < 62 THEN N'/tienda'
+        WHEN z.r_pagina < 74 THEN N'/outlet'
+        WHEN z.r_pagina < 84 THEN N'/ofertas'
+        WHEN z.r_pagina < 93 THEN N'/producto'
+        ELSE N'/escanear'
+    END AS path
+) AS p;
+
+DROP TABLE #azar;
+GO
+
+DECLARE @terminos TABLE (term NVARCHAR(80), peso INT, results INT);
+INSERT INTO @terminos (term, peso, results) VALUES
+(N'tenis para correr', 42, 9), (N'sudadera', 31, 6), (N'jersey de futbol', 26, 4),
+(N'leggings', 23, 5), (N'balon de futbol', 19, 2), (N'gorra', 17, 3), (N'outlet', 15, 12),
+(N'shorts', 14, 5), (N'lentes para correr', 12, 2), (N'tenis blancos', 11, 4),
+(N'guantes de box', 10, 1), (N'mochila', 9, 2), (N'chamarra', 8, 3), (N'calcetas', 7, 2),
+(N'raqueta de padel', 6, 0), (N'patines', 4, 0), (N'tenis nike', 5, 0), (N'goggles natacion', 5, 1);
+
+INSERT INTO search_log (visitor_id, channel, term, results, searched_at)
+SELECT
+    CONVERT(CHAR(36), NEWID()),
+    CASE WHEN ABS(CHECKSUM(NEWID())) % 100 < 58 THEN 'web' ELSE 'app' END,
+    t.term,
+    t.results,
+    DATEADD(MINUTE, -(ABS(CHECKSUM(NEWID())) % 1440),
+        DATEADD(DAY, -CAST(FLOOR(POWER((ABS(CHECKSUM(NEWID())) % 10000) / 10000.0, 1.5) * 365) AS INT),
+            DATEADD(HOUR, -1, SYSUTCDATETIME())))
+FROM @terminos AS t
+JOIN (SELECT TOP (300) ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS n FROM sys.all_objects) AS k
+  ON k.n <= t.peso * 6;
+GO
+
+INSERT INTO app_install (visitor_id, device, platform, source, installed_at)
+SELECT
+    CONVERT(CHAR(36), NEWID()),
+    x.device,
+    CASE
+        WHEN x.device = 'escritorio' THEN CASE WHEN x.r_plat < 70 THEN 'windows' ELSE 'mac' END
+        WHEN x.r_plat < 64 THEN 'android'
+        ELSE 'ios'
+    END,
+    CASE WHEN x.device <> 'escritorio' AND x.r_plat >= 64 THEN 'primer_uso' ELSE 'instalacion' END,
+    x.installed_at
+FROM (
+    SELECT
+        CASE WHEN ABS(CHECKSUM(NEWID())) % 100 < 84 THEN 'movil'
+             WHEN ABS(CHECKSUM(NEWID())) % 100 < 50 THEN 'tableta'
+             ELSE 'escritorio' END AS device,
+        ABS(CHECKSUM(NEWID())) % 100 AS r_plat,
+        DATEADD(MINUTE, -(ABS(CHECKSUM(NEWID())) % 1440),
+            DATEADD(DAY, -CAST(FLOOR(POWER((ABS(CHECKSUM(NEWID())) % 10000) / 10000.0, 1.4) * 365) AS INT),
+                DATEADD(HOUR, -1, SYSUTCDATETIME()))) AS installed_at
+    FROM (SELECT TOP (640) 1 AS x FROM sys.all_objects AS a CROSS JOIN sys.all_objects AS b) AS k
+) AS x;
+GO
+
+SET NOCOUNT OFF;
+GO
+
+
+-- =====================================================================
 -- INTEGRIDAD DEL NODO CENTRAL
 -- En JAM_db todas las referencias entre servicios se validan con FK.
 -- En los fragmentos de las sucursales quedan como referencias lógicas.

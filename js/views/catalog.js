@@ -4,6 +4,7 @@ import { productCard } from '../components.js';
 import { colorClass } from '../illustrations.js';
 import { outletProducts, salePrice, shopProducts } from '../store.js';
 import { matchScore, productText } from '../search.js';
+import { trackSearch } from '../analytics.js';
 
 const PRICE_RANGES = {
     lt500: ['Menos de $500', 0, 499.99],
@@ -115,6 +116,7 @@ export function renderCatalog(view, params, mode) {
         const score = new Map(list.map(function (p) { return [p.id_product, matchScore(f.q, productText(p, DEPARTMENTS))]; }));
         list = list.slice().sort(function (a, b) { return score.get(b.id_product) - score.get(a.id_product); });
     }
+    if (f.q) trackSearch(f.q, list.length);
     const title = pageTitle(f, outlet);
     const options = availableSizesAndColors(source);
     const page = clone('tpl-catalog');
