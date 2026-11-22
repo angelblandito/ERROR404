@@ -528,7 +528,7 @@ function dist_fragments_summary(): array
 
     /* Lo esperado sale del central; si no responde, del espejo. */
     $central = null;
-    foreach (dist_backup_nodes() as $backup) {
+    foreach (array_unique(array_merge(['central'], dist_backup_nodes())) as $backup) {
         try {
             $central = jam_node($backup);
             break;
