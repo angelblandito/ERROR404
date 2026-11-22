@@ -981,8 +981,12 @@ SET pv.barcode = b.base + CAST((10 - s.total % 10) % 10 AS CHAR(1))
 FROM product_variant AS pv
 CROSS APPLY (SELECT CAST('7501234' + RIGHT('00000' + CAST(pv.id_variant AS VARCHAR(5)), 5) AS CHAR(12)) AS base) AS b
 CROSS APPLY (
-    SELECT SUM(CAST(SUBSTRING(b.base, d.n, 1) AS INT) * CASE WHEN d.n % 2 = 0 THEN 3 ELSE 1 END) AS total
-    FROM (VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9), (10), (11), (12)) AS d (n)
+    SELECT SUM(x.digito * x.peso) AS total
+    FROM (
+        SELECT CAST(SUBSTRING(b.base, d.n, 1) AS INT) AS digito,
+               CASE WHEN d.n % 2 = 0 THEN 3 ELSE 1 END AS peso
+        FROM (VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9), (10), (11), (12)) AS d (n)
+    ) AS x
 ) AS s
 WHERE pv.barcode IS NULL;
 GO
