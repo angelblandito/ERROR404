@@ -412,7 +412,7 @@ Requisitos: cuenta **Azure for Students** (correo escolar) y **Azure CLI** (`win
 
 ```powershell
 az login
-$RG="rg-jam"; $A="westus2"; $B="westus3"; $PWD_SQL="<Contraseña-Fuerte-123!>"; $SUF="je"
+$RG="rg-jam"; $A="westus2"; $B="westus"; $PWD_SQL="<Contraseña-Fuerte-123!>"; $SUF="je"
 
 az group create -n $RG -l $A
 
