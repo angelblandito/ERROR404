@@ -1609,7 +1609,7 @@ BEGIN
     INSERT INTO customer_order (id_store, id_customer, order_date, status, channel, subtotal, discount, total,
                                 delivery_type, shipping_cost, priority_shipping, notes, source_node)
     SELECT h.id_store, h.id_customer,
-           DATEADD(MINUTE, 600 + (h.n * 37) % 540, CAST(DATEADD(DAY, -h.days_ago, CAST(SYSUTCDATETIME() AS DATE)) AS DATETIME2(3))),
+           DATEADD(MINUTE, -(60 + (h.n * 37) % 540), DATEADD(DAY, -h.days_ago, SYSUTCDATETIME())),
            h.status,
            CASE WHEN h.id_store = 4 THEN 'online' ELSE 'in_store' END,
            x.subtotal, 0,
