@@ -460,13 +460,12 @@ En `03_replicacion.sql`, `@azure_servidor` se deja vacío: si la publicación `p
 
 ### 5.3 Máquina virtual Windows
 
-La tienda, la API y las cuatro bases corren en una VM `Standard_B2s` (2 núcleos, 4 GB) con Windows Server 2022, igual que en la laptop pero con SQL Server Developer.
+La tienda, la API y las cuatro bases corren en una VM `Standard_B2als_v2` (2 núcleos, 4 GB) con Windows Server 2022, igual que en la laptop pero con SQL Server Developer.
 
 ```powershell
-$VM="jam-vm"; $PWD_VM="<Otra-Contraseña-Fuerte-123!>"
-az vm create -g $RG -n $VM -l $A --image Win2022Datacenter --size Standard_B2s --admin-username jamadmin --admin-password $PWD_VM --public-ip-address-dns-name jam-sport-$SUF --storage-sku StandardSSD_LRS
+$VM="jam-vm-cl"; $VMREG="chilecentral"; $PWD_VM="<Otra-Contraseña-Fuerte-123!>"
+az vm create -g $RG -n $VM -l $VMREG --image Win2022Datacenter --size Standard_B2als_v2 --admin-username jamadmin --admin-password $PWD_VM --public-ip-address-dns-name jam-sport-$SUF --storage-sku StandardSSD_LRS
 az vm open-port -g $RG -n $VM --port 80,443 --priority 900
-az vm auto-shutdown -g $RG -n $VM --time 0800
 
 # La VM también necesita entrar a Azure SQL
 $VMIP=(az vm show -d -g $RG -n $VM --query publicIps -o tsv)
@@ -475,8 +474,9 @@ foreach ($s in "jam-sql-principal-$SUF","jam-sql-espejo-$SUF") {
 }
 ```
 
-- Entrar con Escritorio remoto: `mstsc /v:jam-sport-<sufijo>.<región>.cloudapp.azure.com`, usuario `jamadmin`.
-- El apagado automático es a las 08:00 UTC (00:00 en Tijuana). Encenderla: `az vm start -g rg-jam -n jam-vm`.
+- Entrar con Escritorio remoto: `mstsc /v:jam-sport-<sufijo>.chilecentral.cloudapp.azure.com`, usuario `jamadmin`.
+- Antes de elegir región y tamaño: `az vm list-skus -l <región> --resource-type virtualMachines` y quedarse con los que no tienen restricciones. En Canadá Central la cuenta de estudiante solo ofrecía tamaños ARM (con *p* en el nombre), que no corren Windows Server; en Chile Central sí hay `B2als_v2`.
+- Chile Central no tiene apagado automático (`Microsoft.DevTestLab/schedules`). Al terminar: `az vm deallocate -g rg-jam -n jam-vm-cl` (deja de cobrar; apagarla desde Windows no). Encenderla: `az vm start -g rg-jam -n jam-vm-cl`.
 
 ### 5.4 Instalación en la máquina virtual
 
