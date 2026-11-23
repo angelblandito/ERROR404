@@ -41,7 +41,7 @@ function recovery_forgot(array $body): array
         SELECT c.id_customer, c.first_name,
                (SELECT MAX(pr.created_at) FROM dbo.password_reset AS pr
                 WHERE pr.id_customer = c.id_customer
-                  AND pr.created_at > DATEADD(SECOND, -:cooldown, SYSUTCDATETIME())) AS recent
+                  AND pr.created_at > DATEADD(SECOND, -CAST(:cooldown AS INT), SYSUTCDATETIME())) AS recent
         FROM dbo.customer AS c
         JOIN dbo.customer_credential AS cr ON cr.id_customer = c.id_customer
         WHERE c.email = :email AND c.deleted = 0',
