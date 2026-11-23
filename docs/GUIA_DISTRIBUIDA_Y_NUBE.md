@@ -527,21 +527,23 @@ Costos aproximados: la VM con Windows unos US$0.05 por hora encendida más unos 
 
 ## 6. Guion para la presentación (≈ 10 min)
 
+Antes de empezar (10 min antes): `az vm start -g rg-jam -n jam-vm-cl`, abrir `https://jam-sport-jp31.chilecentral.cloudapp.azure.com` en la laptop y en el celular, y entrar por Escritorio remoto (`mstsc /v:jam-sport-jp31.chilecentral.cloudapp.azure.com`, usuario `jam-vm-cl\jamadmin`) con SSMS abierto en `localhost`.
+
 1. **Tienda** (móvil y escritorio): mostrar el menú hamburguesa y la cuadrícula adaptable (media queries). Abrir **Administración → Visitas** en la laptop: al entrar desde el celular con la app instalada, *Aplicación móvil* sube en menos de un minuto; buscar algo en el celular y aparece en **Lo más buscado** al recargar.
 2. **Tipos de usuario**: entrar como Estándar y como Prioritario y comparar precio, envío, piezas permitidas y plazo de soporte; luego entrar como Administrador, responder el ticket y aplicar la regla de Prioritarios.
 3. **Comparador de mercado**: como Prioritario, botón **Comparador** del encabezado → filtrar *Calzado* y pasar el cursor sobre los puntos para ver cada marca y su fuente.
-4. **Escáner y regalo** (en el celular, por el túnel `https`): abrir Administración → Etiquetas en la laptop, escanear una etiqueta con *Escanear* y mostrar existencias y comparación; agregar al carrito, aceptar el empaque de regalo, escribir el código postal `22020` y ver cómo se llenan colonia, ciudad y estado.
+4. **Escáner y regalo** (en el celular, en la dirección pública `https`): abrir Administración → Etiquetas en la laptop, escanear una etiqueta con *Escanear* y mostrar existencias y comparación; agregar al carrito, aceptar el empaque de regalo, escribir el código postal `22020` y ver cómo se llenan colonia, ciudad y estado.
 5. **Seguimiento**: como Administrador, marcar un pedido como *Enviado* → en Mi cuenta del cliente aparece el paso con su hora y en **Correos** el aviso; en SSMS `SELECT * FROM dbo.order_status_history ORDER BY id_history DESC` muestra quién lo cambió.
 6. **Fragmentación horizontal**: Administración → **Base distribuida** → **Inventario** → pestañas por nodo. En SSMS, `SELECT * FROM JAM_cdmx.dbo.inventory` muestra solo `id_store = 2`, e intentar insertar `id_store = 1` ahí falla por el `CHECK`.
 7. **Pedido distribuido**: comprar en la tienda eligiendo *Sucursal Tijuana* → el pedido aparece en **Pedidos** dentro del fragmento de Tijuana.
 8. **Fragmentación vertical**: **Base distribuida** → tabla de clientes con las columnas de cada fragmento en distinto color.
 9. **Transparencia ante fallos**: seguir la sección 6.1.
 10. **Replicación**: cambiar un precio en `JAM_db` → la matriz de **Replicación del catálogo** pasa a “Sincronizado” en todos los nodos.
-11. **Espejo**: `az sql failover-group set-primary --name jam-fog-<sufijo> --resource-group rg-jam --server jam-sql-espejo-<sufijo>` → en la API de Azure, **Base distribuida** muestra el otro servidor como principal.
+11. **Espejo**: `az sql failover-group set-primary --name jam-fog-jp3 --resource-group rg-jam --server jam-sql-espejo-jp31` → **Base distribuida** muestra a `jam-sql-espejo-jp31` (Chile) como principal. Para regresar: el mismo comando con `--server jam-sql-principal-jp31`.
 
 ### 6.1 Demostración: el maestro tumba un servidor
 
-Preparación: panel **Base distribuida** abierto en el navegador y SSMS conectado a la instancia local con una ventana en `JAM_db`.
+Preparación: panel **Base distribuida** abierto en el navegador y, en la máquina virtual (Escritorio remoto), SSMS conectado a `localhost` con una ventana en `JAM_db`.
 
 1. **Estado inicial**
    ```sql
@@ -574,7 +576,7 @@ Preparación: panel **Base distribuida** abierto en el navegador y SSMS conectad
    SELECT * FROM dist.vw_estado_nodos;              -- pendiente = 0
    SELECT TOP 3 * FROM JAM_tijuana.dbo.customer_order ORDER BY id_order DESC;  -- ya tiene el pedido nuevo
    ```
-9. **Si el maestro tumba Azure principal**: `az sql failover-group set-primary --name jam-fog-<sufijo> --resource-group rg-jam --server jam-sql-espejo-<sufijo>`. La tarjeta *Azure SQL* muestra el otro servidor como principal y las lecturas de la sucursal caída siguen saliendo del espejo.
+9. **Si el maestro tumba Azure principal**: `az sql failover-group set-primary --name jam-fog-jp3 --resource-group rg-jam --server jam-sql-espejo-jp31`. La tarjeta *Azure SQL* muestra el otro servidor como principal y las lecturas de la sucursal caída siguen saliendo del espejo.
 
 > Si el maestro detiene el servicio completo de SQL Server local, se caen a la vez el central y las tres sucursales. En ese caso solo queda Azure: el panel lee los fragmentos de `JAM_cloud`, pero la tienda local no puede vender hasta que el servicio vuelva, porque los pedidos se escriben en el central.
 
