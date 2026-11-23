@@ -1,6 +1,14 @@
 ﻿USE master;
 GO
 
+/* Si JAM_db está publicada (03_replicacion.sql), se quita la replicación
+   y se cierran las conexiones antes de borrarla. */
+IF EXISTS (SELECT 1 FROM sys.databases WHERE name = N'JAM_db' AND is_published = 1)
+    EXEC sp_removedbreplication @dbname = N'JAM_db';
+IF DB_ID(N'JAM_db') IS NOT NULL
+    ALTER DATABASE JAM_db SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+GO
+
 DROP DATABASE IF EXISTS JAM_db;
 GO
 
