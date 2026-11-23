@@ -125,9 +125,13 @@ En SSMS, conectado a la instancia Developer, ejecutar en orden:
 ### 2.3 Replicación local
 
 1. Confirmar que el servicio **SQL Server Agent (MSSQLSERVER)** está iniciado (Administrador de configuración de SQL Server).
-2. Ejecutar `API_JAM/distribuida/03_replicacion.sql`. La suscripción a Azure se omite mientras `@azure_servidor` esté vacío.
-3. Esperar 1–2 minutos y abrir **Replicación → Iniciar el Monitor de replicación** en SSMS.
-4. Prueba rápida:
+2. Dar permiso de escritura al Agente en la carpeta de instantáneas (sin esto el snapshot falla con *Access to the path … is denied* y las sucursales se quedan en *The initial snapshot … is not yet available*):
+   ```powershell
+   icacls "C:\Program Files\Microsoft SQL Server\MSSQL16.MSSQLSERVER\MSSQL\ReplData" /grant "NT SERVICE\SQLSERVERAGENT:(OI)(CI)M" /T
+   ```
+3. Ejecutar `API_JAM/distribuida/03_replicacion.sql` (escribir antes la contraseña del distribuidor en la línea `>>>`). La suscripción a Azure se omite mientras `@azure_servidor` esté vacío.
+4. Esperar 1–2 minutos y abrir **Replicación → Iniciar el Monitor de replicación** en SSMS.
+5. Prueba rápida:
    ```sql
    UPDATE JAM_db.dbo.product SET base_price = 499.00 WHERE id_product = 1;
    -- unos segundos después:
