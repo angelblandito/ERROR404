@@ -480,12 +480,23 @@ foreach ($s in "jam-sql-principal-$SUF","jam-sql-espejo-$SUF") {
 
 ### 5.4 Instalación en la máquina virtual
 
-1. SQL Server 2022 Developer como en la sección 2.1 (motor, replicación, Agente automático, modo mixto) y SSMS.
-2. XAMPP con PHP 8.2, Microsoft ODBC Driver 18 y las DLL de `pdo_sqlsrv` copiadas de la laptop (`C:\xampp\php\ext` y sus líneas `extension=` del `php.ini`).
-3. Git for Windows y `git clone -b mejoras-tienda https://github.com/angelblandito/ERROR404.git` dentro de `C:\xampp\htdocs`.
-4. Scripts en el orden de la sección 2.2, después `03_replicacion.sql` (sección 2.3) y `04_espejo_azure.sql` en Azure (sección 5.2).
-5. `settings.php` con `JAM_LOCAL_SERVER = localhost`, el usuario `jam_api` y los datos `JAM_CLOUD_*`.
-6. Apache como servicio desde el panel de XAMPP. Comprobar `http://localhost/ERROR404/api/v1/php/health-check`.
+1. SQL Server 2022 Developer (instalación *Custom*): **Database Engine Services** y **SQL Server Replication**, instancia predeterminada, Agente en **Automatic**, collation `Modern_Spanish_CI_AS` (*Windows collation designator* `Modern_Spanish` + *Accent-sensitive*), **Mixed Mode** y *Max Server Memory* 2048 MB (la VM tiene 4 GB). Después SSMS.
+2. XAMPP 8.2 (solo Apache y PHP) en `C:\xampp` y Git for Windows.
+3. Proyecto (si la descarga se corta, usar OpenSSL y solo la última versión):
+   ```powershell
+   git config --global http.sslBackend openssl
+   cd C:\xampp\htdocs
+   git clone --depth 1 -b mejoras-tienda https://github.com/angelblandito/ERROR404.git
+   ```
+4. Conector de PHP: `php_pdo_sqlsrv-5.12.0-8.2-ts-vs16-x64.zip` de `downloads.php.net/~windows/pecl/releases/pdo_sqlsrv/`, copiar `php_pdo_sqlsrv.dll` a `C:\xampp\php\ext` y agregar `extension=pdo_sqlsrv` al `php.ini`. Los drivers ODBC 17 y 18 ya vienen con SQL Server.
+5. Scripts con `sqlcmd` desde `API_JAM` (`-I` enciende `QUOTED_IDENTIFIER`, que exigen los índices filtrados; `-f 65001` lee los archivos en UTF-8):
+   ```powershell
+   sqlcmd -S localhost -E -C -I -f 65001 -b -i db_jam.sql
+   ```
+   Orden: `db_jam.sql`, `01`, `02`, login `jam_api`, `06`, `07` y `05` (validación).
+6. `settings.php` con `JAM_LOCAL_SERVER = localhost`, el usuario `jam_api` y los datos `JAM_CLOUD_*`. Apache como servicio: `httpd.exe -k install` y `Start-Service Apache2.4`. Comprobar `http://localhost:8080/ERROR404/api/v1/php/health-check`.
+
+Solo una instalación debe copiar a `JAM_cloud` (la máquina virtual): en la laptop se deja vacío `JAM_CLOUD_PASSWORD` para no mezclar pedidos de dos bases distintas en el espejo.
 
 ### 5.5 Dirección pública con https
 
@@ -502,7 +513,9 @@ Caddy recibe el tráfico en los puertos 80 y 443, obtiene un certificado gratuit
    }
    ```
 
-4. Como servicio: `sc.exe create caddy start= auto binPath= "C:\caddy\caddy.exe run --config C:\caddy\Caddyfile"` y `sc.exe start caddy`.
+4. Como servicio: `sc.exe create caddy start= auto binPath= "C:\caddy\caddy.exe run --config C:\caddy\Caddyfile --adapter caddyfile"` y `sc.exe start caddy`.
+
+Dirección pública: `https://jam-sport-jp31.chilecentral.cloudapp.azure.com` (Apache, SQL Server y Caddy arrancan solos al encender la VM).
 
 Costos aproximados: la VM con Windows unos US$0.05 por hora encendida más unos US$10 al mes de disco, y dos bases Basic de Azure SQL de unos US$5 al mes cada una. Al terminar el semestre: `az group delete -n rg-jam`.
 
