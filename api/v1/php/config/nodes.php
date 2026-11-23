@@ -85,7 +85,7 @@ function jam_nodes_config(): array
     ];
 
     /* La nube solo se habilita cuando hay credenciales configuradas. */
-    if (empty($nodes['cloud']['user'])) {
+    if (empty($nodes['cloud']['user']) || empty($nodes['cloud']['password'])) {
         unset($nodes['cloud']);
     }
 
