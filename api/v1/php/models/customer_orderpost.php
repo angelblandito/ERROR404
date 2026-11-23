@@ -1,18 +1,19 @@
 <?php
 try {
     $SQL_Query = 'INSERT INTO customer_order (id_store, id_customer, id_employee, id_promotion, status, channel, subtotal, discount, total, notes, source_node) VALUES (
-        :id_store, 
-        :id_customer, 
-        :id_employee, 
-        :id_promotion, 
-        :status, 
-        :channel, 
-        :subtotal, 
-        :discount, 
-        :total, 
-        :notes, 
-        :source_node)';
-        
+        :id_store,
+        :id_customer,
+        :id_employee,
+        :id_promotion,
+        :status,
+        :channel,
+        :subtotal,
+        :discount,
+        :total,
+        :notes,
+        :source_node);
+        SELECT CAST(SCOPE_IDENTITY() AS INT) AS id_order;';
+
     $SQL_Sentence = $DB_Connector->prepare($SQL_Query);
     $SQL_Sentence->bindParam(':id_store', $body['id_store'], PDO::PARAM_INT);
     $SQL_Sentence->bindParam(':id_customer', $body['id_customer'], PDO::PARAM_INT);
@@ -26,14 +27,19 @@ try {
     $SQL_Sentence->bindParam(':notes', $body['notes'], PDO::PARAM_STR);
     $SQL_Sentence->bindParam(':source_node', $body['source_node'], PDO::PARAM_STR);
     $SQL_Sentence->execute();
-    
-    if ($SQL_Sentence->rowCount() != 0) {
-        $CustomerOrderId = $DB_Connector->lastInsertId(); // Get newly created record ID
+    $Inserted = $SQL_Sentence->rowCount();
+
+    // SCOPE_IDENTITY y no lastInsertId(): el trigger de historial inserta en
+    // order_status_history y lastInsertId() devolvería ese id.
+    $SQL_Sentence->nextRowset();
+    $NewOrder = $SQL_Sentence->fetch(PDO::FETCH_ASSOC);
+
+    if ($Inserted != 0 && $NewOrder) {
+        $CustomerOrderId = (int)$NewOrder['id_order'];
     } else {
-        $CustomerOrderId = 'Error: Cannot create new record';
-    };
+        $DB_Error = api_error(400, 'No se pudo crear el registro.');
+    }
 }
 catch (PDOException $ex) {
-    $CustomerOrderId = 'Error: ' . $ex->getMessage();
-};
-?>
+    $DB_Error = api_db_error($ex);
+}

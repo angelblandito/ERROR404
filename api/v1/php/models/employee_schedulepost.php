@@ -1,12 +1,12 @@
 <?php
 try {
     $SQL_Query = 'INSERT INTO employee_schedule (id_employee, weekday, start_time, end_time, source_node) VALUES (
-        :id_employee, 
-        :weekday, 
-        :start_time, 
-        :end_time, 
+        :id_employee,
+        :weekday,
+        :start_time,
+        :end_time,
         :source_node)';
-        
+
     $SQL_Sentence = $DB_Connector->prepare($SQL_Query);
     $SQL_Sentence->bindParam(':id_employee', $body['id_employee'], PDO::PARAM_INT);
     $SQL_Sentence->bindParam(':weekday', $body['weekday'], PDO::PARAM_STR);
@@ -14,14 +14,13 @@ try {
     $SQL_Sentence->bindParam(':end_time', $body['end_time'], PDO::PARAM_STR);
     $SQL_Sentence->bindParam(':source_node', $body['source_node'], PDO::PARAM_STR);
     $SQL_Sentence->execute();
-    
+
     if ($SQL_Sentence->rowCount() != 0) {
-        $EmployeeScheduleId = $DB_Connector->lastInsertId(); // Get newly created record ID
+        $EmployeeScheduleId = $DB_Connector->lastInsertId(); // Id del registro recién creado
     } else {
-        $EmployeeScheduleId = 'Error: Cannot create new record';
-    };
+        $DB_Error = api_error(400, 'No se pudo crear el registro.');
+    }
 }
 catch (PDOException $ex) {
-    $EmployeeScheduleId = 'Error: ' . $ex->getMessage();
-};
-?>
+    $DB_Error = api_db_error($ex);
+}

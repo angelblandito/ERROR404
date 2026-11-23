@@ -1,19 +1,19 @@
 <?php
 try {
     $SQL_Query = 'INSERT INTO employee (id_store, id_role, first_name, last_name_paternal, last_name_maternal, phone, phone_verified, email, password_hash, must_change_password, hire_date, source_node) VALUES (
-        :id_store, 
-        :id_role, 
-        :first_name, 
-        :last_name_paternal, 
-        :last_name_maternal, 
-        :phone, 
-        :phone_verified, 
-        :email, 
-        :password_hash, 
-        :must_change_password, 
-        :hire_date, 
+        :id_store,
+        :id_role,
+        :first_name,
+        :last_name_paternal,
+        :last_name_maternal,
+        :phone,
+        :phone_verified,
+        :email,
+        :password_hash,
+        :must_change_password,
+        :hire_date,
         :source_node)';
-        
+
     $SQL_Sentence = $DB_Connector->prepare($SQL_Query);
     $SQL_Sentence->bindParam(':id_store', $body['id_store'], PDO::PARAM_INT);
     $SQL_Sentence->bindParam(':id_role', $body['id_role'], PDO::PARAM_INT);
@@ -28,14 +28,13 @@ try {
     $SQL_Sentence->bindParam(':hire_date', $body['hire_date'], PDO::PARAM_STR);
     $SQL_Sentence->bindParam(':source_node', $body['source_node'], PDO::PARAM_STR);
     $SQL_Sentence->execute();
-    
+
     if ($SQL_Sentence->rowCount() != 0) {
-        $EmployeeId = $DB_Connector->lastInsertId(); // Get newly created record ID
+        $EmployeeId = $DB_Connector->lastInsertId(); // Id del registro recién creado
     } else {
-        $EmployeeId = 'Error: Cannot create new record';
-    };
+        $DB_Error = api_error(400, 'No se pudo crear el registro.');
+    }
 }
 catch (PDOException $ex) {
-    $EmployeeId = 'Error: ' . $ex->getMessage();
-};
-?>
+    $DB_Error = api_db_error($ex);
+}
