@@ -12,6 +12,7 @@ use Apicore\Middlewares\RateLimitMiddleware;
 use Apicore\Middlewares\SecurityMiddleware;
 use Apicore\Middlewares\SyncMiddleware;
 use Apicore\Routers\RouterRegistry;
+use Apicore\Services\DistributedService;
 use Apicore\Services\TokenService;
 use Closure;
 use ValueError;
@@ -78,6 +79,7 @@ final class Application
     {
         $request = Request::fromGlobals();
         $this->emit(($this->pipeline)($request), $request->method !== 'HEAD');
+        DistributedService::finishPendingWork();
     }
 
     /** Handle protocol-specific routes and delegate application routes to Router. */

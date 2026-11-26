@@ -62,6 +62,9 @@ final class JamTest extends TestCase
         $this->assertFalse(SyncMiddleware::shouldSync('POST', '/product', 400));
         $this->assertFalse(SyncMiddleware::shouldSync('POST', '/distributed/sync', 200));
         $this->assertFalse(SyncMiddleware::shouldSync('POST', '/analytics/ping', 200));
+        $this->assertFalse(SyncMiddleware::shouldSync('POST', '/auth/login', 200));
+        $this->assertFalse(SyncMiddleware::shouldSync('POST', '/auth/register', 202));
+        $this->assertTrue(SyncMiddleware::shouldSync('POST', '/auth/confirm', 201));
     }
 
     public function testRateLimitAnswers429AfterTheBudget(): void

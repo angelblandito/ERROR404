@@ -37,6 +37,9 @@ use ValueError;
  */
 final class DistributedService
 {
+    /** A write asked for the copy to the mirror; it runs in finishPendingWork(). */
+    private static bool $mirrorPending = false;
+
     public const FRAGMENTS = [
         'tijuana' => ['id_store' => 1, 'label' => 'Sucursal Tijuana'],
         'cdmx' => ['id_store' => 2, 'label' => 'Sucursal CDMX'],
@@ -720,10 +723,31 @@ final class DistributedService
         } catch (Throwable $e) {
             error_log('Sincronización de fragmentos: ' . $e->getMessage());
         }
+        self::$mirrorPending = MirrorService::enabled();
+    }
 
-        if (!MirrorService::enabled()) {
+    /**
+     * Copy to the mirror after the answer was sent: the copy to Azure SQL takes
+     * several seconds and the client must not wait for it.
+     */
+    public static function finishPendingWork(): void
+    {
+        if (!self::$mirrorPending) {
             return;
         }
+        self::$mirrorPending = false;
+
+        ignore_user_abort(true);
+        set_time_limit(120);
+        if (function_exists('fastcgi_finish_request')) {
+            fastcgi_finish_request();
+        } else {
+            while (ob_get_level() > 0) {
+                ob_end_flush();
+            }
+            flush();
+        }
+
         try {
             MirrorService::copy(false);
         } catch (Throwable $e) {
