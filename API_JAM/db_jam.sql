@@ -3012,3 +3012,1720 @@ LEFT JOIN customer_order AS co
 GROUP BY c.id_customer, c.first_name, c.last_name_paternal, ll.name
 ORDER BY total_spent DESC;
 GO
+
+/* =====================================================================
+   JAM - Base de datos distribuida
+   01. Nodos y fragmentación horizontal
+   ---------------------------------------------------------------------
+   Requisitos: haber ejecutado API_JAM/db_jam.sql (crea JAM_db).
+   Instancia recomendada: SQL Server 2022 Developer (funciona también
+   en Express para esta parte).
+
+   Nodos:
+     JAM_db       Nodo central (administración, catálogo maestro)
+     JAM_tijuana  Sucursal Tijuana          id_store = 1
+     JAM_cdmx     Sucursal CDMX Reforma     id_store = 2
+     JAM_online   Tienda en línea           id_store = 4
+
+   Fragmentación horizontal primaria (predicado id_store = N):
+     employee, inventory, customer_order
+   Fragmentación horizontal derivada (por la FK a customer_order):
+     order_item, payment
+
+   El script es re-ejecutable: no borra datos de JAM_db.
+   ===================================================================== */
+
+USE master;
+GO
+
+IF DB_ID(N'JAM_tijuana') IS NULL CREATE DATABASE JAM_tijuana COLLATE Modern_Spanish_CI_AS;
+GO
+IF DB_ID(N'JAM_cdmx') IS NULL CREATE DATABASE JAM_cdmx COLLATE Modern_Spanish_CI_AS;
+GO
+IF DB_ID(N'JAM_online') IS NULL CREATE DATABASE JAM_online COLLATE Modern_Spanish_CI_AS;
+GO
+
+USE JAM_db;
+GO
+
+IF SCHEMA_ID(N'dist') IS NULL EXEC (N'CREATE SCHEMA dist');
+GO
+
+/* ---------------------------------------------------------------------
+   Catálogo de nodos (esquema de asignación)
+   --------------------------------------------------------------------- */
+IF OBJECT_ID(N'dist.node', N'U') IS NULL
+CREATE TABLE dist.node (
+    node_name    VARCHAR(20)  NOT NULL PRIMARY KEY,
+    db_name      SYSNAME      NOT NULL,
+    id_store     INT          NULL,
+    node_role    VARCHAR(20)  NOT NULL,
+    description  VARCHAR(150) NULL,
+    CONSTRAINT uq_node_db_name UNIQUE (db_name),
+    CONSTRAINT ck_node_role CHECK (node_role IN ('central','sucursal','tienda_en_linea','nube'))
+);
+GO
+
+MERGE dist.node AS t
+USING (VALUES
+    ('central', 'JAM_db',      NULL, 'central',         'Nodo central: administración y catálogo maestro'),
+    ('tijuana', 'JAM_tijuana', 1,    'sucursal',        'Sucursal JAM Tijuana Flagship'),
+    ('cdmx',    'JAM_cdmx',    2,    'sucursal',        'Sucursal JAM CDMX Reforma'),
+    ('online',  'JAM_online',  4,    'tienda_en_linea', 'JAM Online Store')
+) AS s (node_name, db_name, id_store, node_role, description)
+ON t.node_name = s.node_name
+WHEN MATCHED THEN UPDATE SET db_name = s.db_name, id_store = s.id_store, node_role = s.node_role, description = s.description
+WHEN NOT MATCHED THEN INSERT (node_name, db_name, id_store, node_role, description)
+                      VALUES (s.node_name, s.db_name, s.id_store, s.node_role, s.description);
+GO
+
+/* ---------------------------------------------------------------------
+   Creación de las tablas fragmento en cada nodo.
+   Las PK conservan el id global de JAM_db (sin IDENTITY) para que la
+   reconstrucción por UNION ALL no tenga choques de llaves.
+   El CHECK (id_store = N) documenta y garantiza el predicado del fragmento.
+   --------------------------------------------------------------------- */
+DECLARE @db SYSNAME, @id INT, @sql NVARCHAR(MAX);
+
+DECLARE nodos CURSOR LOCAL FAST_FORWARD FOR
+    SELECT db_name, id_store FROM dist.node WHERE id_store IS NOT NULL;
+
+OPEN nodos;
+FETCH NEXT FROM nodos INTO @db, @id;
+
+WHILE @@FETCH_STATUS = 0
+BEGIN
+    SET @sql = N'
+IF OBJECT_ID(N''{db}.dbo.employee'', N''U'') IS NULL
+CREATE TABLE {db}.dbo.employee (
+    id_employee            INT          NOT NULL,
+    id_store               INT          NOT NULL,
+    id_role                TINYINT      NOT NULL,
+    first_name             NVARCHAR(50)  NOT NULL,
+    last_name_paternal     NVARCHAR(50)  NOT NULL,
+    last_name_maternal     NVARCHAR(50)  NULL,
+    phone                  VARCHAR(15)  NOT NULL,
+    phone_verified         BIT          NOT NULL,
+    email                  VARCHAR(100) NOT NULL,
+    password_hash          VARCHAR(100) NOT NULL,
+    must_change_password   BIT          NOT NULL,
+    hire_date              DATE         NOT NULL,
+    source_node            VARCHAR(20)  NOT NULL,
+    updated_at             DATETIME2(3)     NOT NULL,
+    deleted                BIT          NOT NULL,
+    CONSTRAINT pk_employee PRIMARY KEY (id_employee),
+    CONSTRAINT ck_employee_fragment CHECK (id_store = {id})
+);
+
+IF OBJECT_ID(N''{db}.dbo.inventory'', N''U'') IS NULL
+CREATE TABLE {db}.dbo.inventory (
+    id_inventory  INT          NOT NULL,
+    id_store      INT          NOT NULL,
+    id_variant    INT          NOT NULL,
+    stock         INT          NOT NULL,
+    min_stock     INT          NOT NULL,
+    source_node   VARCHAR(20)  NOT NULL,
+    updated_at    DATETIME2(3)     NOT NULL,
+    deleted       BIT          NOT NULL,
+    CONSTRAINT pk_inventory PRIMARY KEY (id_inventory),
+    CONSTRAINT uq_inventory_store_variant UNIQUE (id_store, id_variant),
+    CONSTRAINT ck_inventory_fragment CHECK (id_store = {id})
+);
+
+IF OBJECT_ID(N''{db}.dbo.customer_order'', N''U'') IS NULL
+CREATE TABLE {db}.dbo.customer_order (
+    id_order       INT           NOT NULL,
+    id_store       INT           NOT NULL,
+    id_customer    INT           NOT NULL,
+    id_employee    INT           NULL,
+    id_promotion   INT           NULL,
+    order_date     DATETIME2(3)      NOT NULL,
+    status         VARCHAR(9)    NOT NULL,
+    channel        VARCHAR(8)    NOT NULL,
+    subtotal       DECIMAL(10,2) NOT NULL,
+    discount       DECIMAL(10,2) NOT NULL,
+    total          DECIMAL(10,2) NOT NULL,
+    notes          NVARCHAR(255)  NULL,
+    source_node    VARCHAR(20)   NOT NULL,
+    updated_at     DATETIME2(3)      NOT NULL,
+    deleted        BIT           NOT NULL,
+    CONSTRAINT pk_customer_order PRIMARY KEY (id_order),
+    CONSTRAINT ck_customer_order_fragment CHECK (id_store = {id})
+);
+
+IF OBJECT_ID(N''{db}.dbo.order_item'', N''U'') IS NULL
+CREATE TABLE {db}.dbo.order_item (
+    id_item        INT          NOT NULL,
+    id_order       INT          NOT NULL,
+    id_variant     INT          NOT NULL,
+    quantity       SMALLINT     NOT NULL,
+    unit_price     DECIMAL(8,2) NOT NULL,
+    source_node    VARCHAR(20)  NOT NULL,
+    updated_at     DATETIME2(3)     NOT NULL,
+    deleted        BIT          NOT NULL,
+    CONSTRAINT pk_order_item PRIMARY KEY (id_item),
+    CONSTRAINT fk_order_item_order FOREIGN KEY (id_order) REFERENCES dbo.customer_order (id_order)
+);
+
+IF OBJECT_ID(N''{db}.dbo.payment'', N''U'') IS NULL
+CREATE TABLE {db}.dbo.payment (
+    id_payment          INT           NOT NULL,
+    id_order            INT           NOT NULL,
+    amount              DECIMAL(10,2) NOT NULL,
+    currency            CHAR(3)       NOT NULL,
+    payment_date        DATETIME2(3)      NOT NULL,
+    method              VARCHAR(8)    NOT NULL,
+    external_reference  VARCHAR(50)   NULL,
+    status              VARCHAR(9)    NOT NULL,
+    source_node         VARCHAR(20)   NOT NULL,
+    updated_at          DATETIME2(3)      NOT NULL,
+    deleted             BIT           NOT NULL,
+    CONSTRAINT pk_payment PRIMARY KEY (id_payment),
+    CONSTRAINT fk_payment_order FOREIGN KEY (id_order) REFERENCES dbo.customer_order (id_order)
+);';
+
+    SET @sql = REPLACE(REPLACE(@sql, N'{db}', QUOTENAME(@db)), N'{id}', CAST(@id AS NVARCHAR(10)));
+
+    /* Las FK de order_item y payment apuntan a la tabla del mismo nodo:
+       se ejecuta dentro del contexto de la base del nodo. */
+    SET @sql = N'USE ' + QUOTENAME(@db) + N'; ' + @sql;
+    EXEC sys.sp_executesql @sql;
+
+    FETCH NEXT FROM nodos INTO @db, @id;
+END
+
+CLOSE nodos;
+DEALLOCATE nodos;
+GO
+
+/* ---------------------------------------------------------------------
+   Control de sincronización por nodo.
+   pending = 1 indica que el nodo estuvo fuera de línea y le faltan cambios
+   del nodo central; se pone al día en cuanto vuelve a responder.
+   --------------------------------------------------------------------- */
+IF OBJECT_ID(N'dist.node_sync', N'U') IS NULL
+CREATE TABLE dist.node_sync (
+    node_name     VARCHAR(20)   NOT NULL,
+    last_attempt  DATETIME2(3)  NULL,
+    last_success  DATETIME2(3)  NULL,
+    pending       BIT           NOT NULL CONSTRAINT df_node_sync_pending DEFAULT 0,
+    last_error    NVARCHAR(400) NULL,
+    CONSTRAINT pk_node_sync PRIMARY KEY (node_name),
+    CONSTRAINT fk_node_sync_node FOREIGN KEY (node_name) REFERENCES dist.node (node_name)
+);
+GO
+
+INSERT INTO dist.node_sync (node_name)
+SELECT n.node_name
+FROM dist.node AS n
+WHERE n.id_store IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM dist.node_sync AS s WHERE s.node_name = n.node_name);
+GO
+
+/* 1 si la base del nodo está en línea (no OFFLINE, RESTORING, SUSPECT ni borrada). */
+CREATE OR ALTER FUNCTION dist.fn_nodo_en_linea (@db SYSNAME)
+RETURNS BIT
+AS
+BEGIN
+    RETURN CASE WHEN CAST(DATABASEPROPERTYEX(@db, 'Status') AS VARCHAR(20)) = 'ONLINE' THEN 1 ELSE 0 END;
+END;
+GO
+
+/* ---------------------------------------------------------------------
+   Distribución de los datos: copia de JAM_db a cada fragmento.
+   Cada nodo se refresca en su propia transacción (todo o nada).
+   Si un nodo está fuera de línea no se detiene el proceso: los demás se
+   refrescan y el nodo caído queda marcado como pendiente en dist.node_sync.
+   Las sentencias que tocan los nodos van en SQL dinámico porque una
+   referencia directa a una base fuera de línea falla al compilar el
+   procedimiento completo.
+   --------------------------------------------------------------------- */
+CREATE OR ALTER PROCEDURE dist.sp_refrescar_fragmentos_horizontales
+    @solo_nodo VARCHAR(20) = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    DECLARE @nodo VARCHAR(20), @db SYSNAME, @id INT, @sql NVARCHAR(MAX), @mensaje NVARCHAR(400);
+
+    DECLARE @plantilla NVARCHAR(MAX) = N'
+BEGIN TRANSACTION;
+
+DELETE FROM {db}.dbo.payment;
+DELETE FROM {db}.dbo.order_item;
+DELETE FROM {db}.dbo.customer_order;
+DELETE FROM {db}.dbo.inventory;
+DELETE FROM {db}.dbo.employee;
+
+INSERT INTO {db}.dbo.employee
+    (id_employee, id_store, id_role, first_name, last_name_paternal, last_name_maternal, phone, phone_verified,
+     email, password_hash, must_change_password, hire_date, source_node, updated_at, deleted)
+SELECT id_employee, id_store, id_role, first_name, last_name_paternal, last_name_maternal, phone, phone_verified,
+       email, password_hash, must_change_password, hire_date, source_node, updated_at, deleted
+FROM JAM_db.dbo.employee
+WHERE id_store = @id;
+
+INSERT INTO {db}.dbo.inventory
+    (id_inventory, id_store, id_variant, stock, min_stock, source_node, updated_at, deleted)
+SELECT id_inventory, id_store, id_variant, stock, min_stock, source_node, updated_at, deleted
+FROM JAM_db.dbo.inventory
+WHERE id_store = @id;
+
+INSERT INTO {db}.dbo.customer_order
+    (id_order, id_store, id_customer, id_employee, id_promotion, order_date, status, channel,
+     subtotal, discount, total, notes, source_node, updated_at, deleted)
+SELECT id_order, id_store, id_customer, id_employee, id_promotion, order_date, status, channel,
+       subtotal, discount, total, notes, source_node, updated_at, deleted
+FROM JAM_db.dbo.customer_order
+WHERE id_store = @id;
+
+INSERT INTO {db}.dbo.order_item
+    (id_item, id_order, id_variant, quantity, unit_price, source_node, updated_at, deleted)
+SELECT oi.id_item, oi.id_order, oi.id_variant, oi.quantity, oi.unit_price, oi.source_node, oi.updated_at, oi.deleted
+FROM JAM_db.dbo.order_item AS oi
+JOIN JAM_db.dbo.customer_order AS co ON co.id_order = oi.id_order
+WHERE co.id_store = @id;
+
+INSERT INTO {db}.dbo.payment
+    (id_payment, id_order, amount, currency, payment_date, method, external_reference, status,
+     source_node, updated_at, deleted)
+SELECT p.id_payment, p.id_order, p.amount, p.currency, p.payment_date, p.method, p.external_reference, p.status,
+       p.source_node, p.updated_at, p.deleted
+FROM JAM_db.dbo.payment AS p
+JOIN JAM_db.dbo.customer_order AS co ON co.id_order = p.id_order
+WHERE co.id_store = @id;
+
+COMMIT TRANSACTION;';
+
+    DECLARE nodos CURSOR LOCAL FAST_FORWARD FOR
+        SELECT node_name, db_name, id_store
+        FROM dist.node
+        WHERE id_store IS NOT NULL
+          AND (@solo_nodo IS NULL OR node_name = @solo_nodo);
+
+    OPEN nodos;
+    FETCH NEXT FROM nodos INTO @nodo, @db, @id;
+
+    WHILE @@FETCH_STATUS = 0
+    BEGIN
+        UPDATE dist.node_sync SET last_attempt = SYSUTCDATETIME() WHERE node_name = @nodo;
+
+        BEGIN TRY
+            IF dist.fn_nodo_en_linea(@db) = 0
+            BEGIN
+                SET @mensaje = N'La base ' + @db + N' no está en línea (estado: '
+                    + ISNULL(CAST(DATABASEPROPERTYEX(@db, 'Status') AS NVARCHAR(30)), N'no existe') + N').';
+                THROW 50100, @mensaje, 1;
+            END;
+
+            SET @sql = REPLACE(@plantilla, N'{db}', QUOTENAME(@db));
+            EXEC sys.sp_executesql @sql, N'@id INT', @id = @id;
+
+            UPDATE dist.node_sync
+            SET last_success = SYSUTCDATETIME(), pending = 0, last_error = NULL
+            WHERE node_name = @nodo;
+        END TRY
+        BEGIN CATCH
+            IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+
+            UPDATE dist.node_sync
+            SET pending = 1, last_error = LEFT(ERROR_MESSAGE(), 400)
+            WHERE node_name = @nodo;
+        END CATCH;
+
+        FETCH NEXT FROM nodos INTO @nodo, @db, @id;
+    END
+
+    CLOSE nodos;
+    DEALLOCATE nodos;
+END;
+GO
+
+EXEC dist.sp_refrescar_fragmentos_horizontales;
+GO
+
+/* ---------------------------------------------------------------------
+   Reconstrucción: la relación global se obtiene con UNION ALL de los
+   fragmentos (vistas particionadas distribuidas).
+   --------------------------------------------------------------------- */
+CREATE OR ALTER VIEW dist.vw_inventory_global AS
+    SELECT 'tijuana' AS node_name, * FROM JAM_tijuana.dbo.inventory
+    UNION ALL
+    SELECT 'cdmx'    AS node_name, * FROM JAM_cdmx.dbo.inventory
+    UNION ALL
+    SELECT 'online'  AS node_name, * FROM JAM_online.dbo.inventory;
+GO
+
+CREATE OR ALTER VIEW dist.vw_customer_order_global AS
+    SELECT 'tijuana' AS node_name, * FROM JAM_tijuana.dbo.customer_order
+    UNION ALL
+    SELECT 'cdmx'    AS node_name, * FROM JAM_cdmx.dbo.customer_order
+    UNION ALL
+    SELECT 'online'  AS node_name, * FROM JAM_online.dbo.customer_order;
+GO
+
+CREATE OR ALTER VIEW dist.vw_employee_global AS
+    SELECT 'tijuana' AS node_name, * FROM JAM_tijuana.dbo.employee
+    UNION ALL
+    SELECT 'cdmx'    AS node_name, * FROM JAM_cdmx.dbo.employee
+    UNION ALL
+    SELECT 'online'  AS node_name, * FROM JAM_online.dbo.employee;
+GO
+
+/* Resultado esperado: un renglón por nodo con sus conteos */
+SELECT node_name, COUNT(*) AS inventory_rows FROM dist.vw_inventory_global GROUP BY node_name;
+SELECT node_name, COUNT(*) AS order_rows FROM dist.vw_customer_order_global GROUP BY node_name;
+GO
+
+/* =====================================================================
+   JAM - Base de datos distribuida
+   02. Fragmentación vertical de customer
+   ---------------------------------------------------------------------
+   Requisitos: 01_fragmentacion_horizontal.sql ejecutado.
+
+   La relación customer se divide por columnas en dos fragmentos.
+   Ambos conservan la llave id_customer para poder reconstruirla con JOIN.
+
+   Fragmento V1  customer_profile  -> JAM_online (nodo de la tienda en línea)
+       Datos de perfil que necesita la tienda: nombre, nivel de lealtad,
+       tipo de cuenta, antigüedad, sucursal de registro y si acepta publicidad.
+
+   Fragmento V2  customer_private  -> JAM_db, esquema dist (nodo central)
+       Datos personales sensibles: fecha de nacimiento, sexo, teléfono,
+       correo y domicilio. Se quedan en el nodo central, que es el de
+       acceso restringido.
+   ===================================================================== */
+
+USE JAM_online;
+GO
+
+IF OBJECT_ID(N'dbo.customer_profile', N'U') IS NULL
+CREATE TABLE dbo.customer_profile (
+    id_customer         INT          NOT NULL,
+    id_loyalty_level    TINYINT      NOT NULL,
+    id_account_tier     TINYINT      NOT NULL,
+    id_store            INT          NOT NULL,
+    first_name          NVARCHAR(50)  NOT NULL,
+    last_name_paternal  NVARCHAR(50)  NOT NULL,
+    last_name_maternal  NVARCHAR(50)  NULL,
+    accepts_marketing   BIT          NOT NULL,
+    customer_since      DATE         NOT NULL,
+    source_node         VARCHAR(20)  NOT NULL,
+    updated_at          DATETIME2(3)     NOT NULL,
+    deleted             BIT          NOT NULL,
+    CONSTRAINT pk_customer_profile PRIMARY KEY (id_customer)
+);
+GO
+
+/* Si el fragmento ya existía de una versión anterior, se agregan las columnas
+   nuevas; el contenido se vuelve a copiar completo en cada sincronización. */
+IF COL_LENGTH(N'dbo.customer_profile', N'id_account_tier') IS NULL
+    ALTER TABLE dbo.customer_profile ADD
+        id_account_tier TINYINT NOT NULL CONSTRAINT df_customer_profile_account_tier DEFAULT 1,
+        customer_since  DATE    NOT NULL CONSTRAINT df_customer_profile_since DEFAULT '2000-01-01';
+GO
+
+USE JAM_db;
+GO
+
+IF OBJECT_ID(N'dist.customer_private', N'U') IS NULL
+CREATE TABLE dist.customer_private (
+    id_customer   INT           NOT NULL,
+    id_address    INT           NULL,
+    birth_date    DATE          NOT NULL,
+    sex           CHAR(1)       NOT NULL,
+    phone         VARCHAR(15)   NOT NULL,
+    email         VARCHAR(100)  NOT NULL,
+    updated_at    DATETIME2(3)      NOT NULL,
+    CONSTRAINT pk_customer_private PRIMARY KEY (id_customer),
+    CONSTRAINT ck_customer_private_sex CHECK (sex IN ('M','F','X'))
+);
+GO
+
+CREATE OR ALTER PROCEDURE dist.sp_refrescar_fragmentos_verticales
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    /* V2 vive en el nodo central: siempre se puede refrescar. */
+    BEGIN TRANSACTION;
+
+    DELETE FROM dist.customer_private;
+
+    INSERT INTO dist.customer_private
+        (id_customer, id_address, birth_date, sex, phone, email, updated_at)
+    SELECT id_customer, id_address, birth_date, sex, phone, email, updated_at
+    FROM dbo.customer;
+
+    COMMIT TRANSACTION;
+
+    /* V1 vive en el nodo de la tienda en línea. Si está fuera de línea el
+       nodo queda pendiente y se pone al día en la siguiente sincronización. */
+    DECLARE @db SYSNAME = (SELECT db_name FROM dist.node WHERE node_name = 'online');
+    DECLARE @mensaje NVARCHAR(400);
+    DECLARE @sql NVARCHAR(MAX) = REPLACE(N'
+BEGIN TRANSACTION;
+
+DELETE FROM {db}.dbo.customer_profile;
+
+INSERT INTO {db}.dbo.customer_profile
+    (id_customer, id_loyalty_level, id_account_tier, id_store, first_name, last_name_paternal, last_name_maternal,
+     accepts_marketing, customer_since, source_node, updated_at, deleted)
+SELECT id_customer, id_loyalty_level, id_account_tier, id_store, first_name, last_name_paternal, last_name_maternal,
+       accepts_marketing, customer_since, source_node, updated_at, deleted
+FROM JAM_db.dbo.customer;
+
+COMMIT TRANSACTION;', N'{db}', QUOTENAME(@db));
+
+    BEGIN TRY
+        IF dist.fn_nodo_en_linea(@db) = 0
+        BEGIN
+            SET @mensaje = N'La base ' + @db + N' no está en línea (estado: '
+                + ISNULL(CAST(DATABASEPROPERTYEX(@db, 'Status') AS NVARCHAR(30)), N'no existe') + N').';
+            THROW 50100, @mensaje, 1;
+        END;
+
+        EXEC sys.sp_executesql @sql;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+
+        UPDATE dist.node_sync
+        SET pending = 1, last_error = LEFT(ERROR_MESSAGE(), 400)
+        WHERE node_name = 'online';
+    END CATCH;
+END;
+GO
+
+/* ---------------------------------------------------------------------
+   Reconstrucción: customer = customer_profile JOIN customer_private
+   --------------------------------------------------------------------- */
+CREATE OR ALTER VIEW dist.vw_customer_reconstruido AS
+    SELECT
+        p.id_customer,
+        p.id_loyalty_level,
+        p.id_account_tier,
+        p.id_store,
+        v.id_address,
+        p.first_name,
+        p.last_name_paternal,
+        p.last_name_maternal,
+        v.birth_date,
+        v.sex,
+        v.phone,
+        v.email,
+        p.accepts_marketing,
+        p.customer_since,
+        p.source_node,
+        p.updated_at,
+        p.deleted
+    FROM JAM_online.dbo.customer_profile AS p
+    JOIN dist.customer_private AS v ON v.id_customer = p.id_customer;
+GO
+
+/* ---------------------------------------------------------------------
+   Sincronización completa de los nodos (horizontal + vertical)
+   --------------------------------------------------------------------- */
+CREATE OR ALTER PROCEDURE dist.sp_sincronizar_nodos
+AS
+BEGIN
+    SET NOCOUNT ON;
+    EXEC dist.sp_refrescar_fragmentos_horizontales;
+    EXEC dist.sp_refrescar_fragmentos_verticales;
+
+    SELECT GETDATE() AS synchronized_at,
+           (SELECT COUNT(*) FROM dist.node_sync WHERE pending = 1) AS pending_nodes;
+END;
+GO
+
+EXEC dist.sp_sincronizar_nodos;
+GO
+
+/* ---------------------------------------------------------------------
+   Opcional: job de SQL Server Agent que sincroniza cada 5 minutos.
+   SQL Server Express no tiene Agent (EngineEdition = 4), por eso se omite ahí.
+   --------------------------------------------------------------------- */
+IF CAST(SERVERPROPERTY('EngineEdition') AS INT) <> 4
+   AND NOT EXISTS (SELECT 1 FROM msdb.dbo.sysjobs WHERE name = N'JAM - Sincronizar nodos')
+BEGIN
+    EXEC msdb.dbo.sp_add_job
+        @job_name = N'JAM - Sincronizar nodos',
+        @description = N'Refresca los fragmentos horizontales y verticales de JAM_db.';
+
+    EXEC msdb.dbo.sp_add_jobstep
+        @job_name = N'JAM - Sincronizar nodos',
+        @step_name = N'sp_sincronizar_nodos',
+        @subsystem = N'TSQL',
+        @database_name = N'JAM_db',
+        @command = N'EXEC dist.sp_sincronizar_nodos;';
+
+    EXEC msdb.dbo.sp_add_jobschedule
+        @job_name = N'JAM - Sincronizar nodos',
+        @name = N'Cada 5 minutos',
+        @freq_type = 4,
+        @freq_interval = 1,
+        @freq_subday_type = 4,
+        @freq_subday_interval = 5;
+
+    EXEC msdb.dbo.sp_add_jobserver @job_name = N'JAM - Sincronizar nodos';
+END;
+GO
+
+/* Resultado esperado: los mismos clientes que dbo.customer */
+SELECT * FROM dist.vw_customer_reconstruido;
+GO
+
+/* =====================================================================
+   JAM - Base de datos distribuida
+   06. Pedidos, tipos de cuenta y usuario de la API
+   ---------------------------------------------------------------------
+   Requisitos: db_jam.sql y 01_fragmentacion_horizontal.sql ejecutados.
+
+   dbo.sp_crear_pedido
+     Registra un pedido completo como una sola transacción:
+       - valida sucursal, cliente, empleado, cupón y artículos;
+       - toma los precios del catálogo (nunca del cliente);
+       - descuenta el inventario de la sucursal solo si alcanza el stock;
+       - inserta customer_order, order_item y payment;
+       - registra el domicilio (envío) y el pago simulado;
+       - aplica los beneficios del tipo de cuenta (account_tier): descuento,
+         envío gratis y prioritario, y piezas permitidas por artículo;
+       - cobra los productos de outlet con su descuento fijo
+         (product.outlet_percent); a esos no se les suma cupón ni descuento
+         de la cuenta;
+       - registra el empaque de regalo ($30): ocasión, color del papel y, si
+         se quiere, para quién es y una dedicatoria (tabla order_gift).
+     Si cualquier paso falla no queda nada a medias (XACT_ABORT + TRY/CATCH).
+     Errores de negocio: THROW 50001-50019, la API los devuelve como HTTP 409.
+
+   dbo.sp_evaluar_clientes_prioritarios
+     Sube a Prioritario a los clientes Estándar con al menos un año de
+     antigüedad y compras de mayoreo en los últimos 12 meses.
+
+   Usuario jam_api
+     Login con los permisos mínimos que necesita la API. Requiere que la
+     instancia acepte autenticación de SQL Server (modo mixto).
+   ===================================================================== */
+
+USE JAM_db;
+GO
+
+CREATE OR ALTER PROCEDURE dbo.sp_crear_pedido
+    @id_store        INT,
+    @id_customer     INT,
+    @id_employee     INT           = NULL,
+    @promotion_code  VARCHAR(20)   = NULL,
+    @channel         VARCHAR(8),
+    @items           NVARCHAR(MAX),          -- [{"id_variant": 1, "quantity": 2}, ...]
+    @notes           NVARCHAR(255) = NULL,
+    @source_node     VARCHAR(20)   = 'web_node',
+    @delivery_type   VARCHAR(8)    = 'pickup',  -- pickup: recoger en sucursal | shipping: envío a domicilio
+    @payment_method  VARCHAR(8)    = 'card',    -- card | transfer | cash | oxxo
+    @street          NVARCHAR(100) = NULL,
+    @ext_number      VARCHAR(10)   = NULL,
+    @int_number      VARCHAR(10)   = NULL,
+    @neighborhood    NVARCHAR(80)  = NULL,
+    @city            NVARCHAR(60)  = NULL,
+    @id_state        TINYINT       = NULL,
+    @zip_code        CHAR(5)       = NULL,
+    @reference       NVARCHAR(150) = NULL,
+    @gift_wrap       BIT           = 0,         -- 1: empaque especial JAM para regalo
+    @gift_occasion   VARCHAR(10)   = NULL,      -- birthday | friendship | christmas
+    @gift_color      VARCHAR(8)    = NULL,      -- red | green | blue | pink | gold | silver | purple | black
+    @gift_recipient  NVARCHAR(60)  = NULL,      -- para quién es (opcional)
+    @gift_message    NVARCHAR(200) = NULL       -- dedicatoria (opcional)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    /* El envío cuesta $99; el monto para envío gratis depende del tipo de cuenta.
+       Recoger en sucursal no cuesta. */
+    DECLARE @costo_envio DECIMAL(8,2) = 99.00;
+    DECLARE @costo_regalo DECIMAL(6,2) = 30.00;
+
+    DECLARE @tier_code          VARCHAR(10),
+            @tier_discount      DECIMAL(4,2),
+            @envio_gratis_desde DECIMAL(10,2),
+            @max_piezas         SMALLINT;
+
+    DECLARE @lineas TABLE (
+        id_variant  INT          NOT NULL PRIMARY KEY,
+        quantity    SMALLINT     NOT NULL,
+        unit_price  DECIMAL(8,2) NULL,
+        is_outlet   BIT          NOT NULL DEFAULT 0
+    );
+    DECLARE @descontados TABLE (id_variant INT NOT NULL);
+
+    /* ---------- Validaciones ---------- */
+    IF @items IS NULL OR ISJSON(@items) = 0
+        THROW 50001, N'La lista de artículos no es un JSON válido.', 1;
+
+    IF @channel IS NULL OR @channel NOT IN ('in_store', 'online', 'whatsapp')
+        THROW 50002, N'El canal debe ser in_store, online o whatsapp.', 1;
+
+    IF EXISTS (
+        SELECT 1
+        FROM OPENJSON(@items) WITH (id_variant INT '$.id_variant', quantity INT '$.quantity')
+        WHERE id_variant IS NULL OR quantity IS NULL OR quantity <= 0 OR quantity > 999)
+        THROW 50003, N'Cada artículo necesita id_variant y una cantidad entre 1 y 999.', 1;
+
+    INSERT INTO @lineas (id_variant, quantity)
+    SELECT id_variant, SUM(quantity)
+    FROM OPENJSON(@items) WITH (id_variant INT '$.id_variant', quantity INT '$.quantity')
+    GROUP BY id_variant;
+
+    IF NOT EXISTS (SELECT 1 FROM @lineas)
+        THROW 50004, N'El pedido no tiene artículos.', 1;
+
+    IF NOT EXISTS (SELECT 1 FROM dbo.store WHERE id_store = @id_store AND active = 1 AND deleted = 0)
+        THROW 50005, N'La sucursal no existe o no está activa.', 1;
+
+    SELECT @tier_code = t.code,
+           @tier_discount = t.discount_percent,
+           @envio_gratis_desde = t.free_shipping_from,
+           @max_piezas = t.max_units_per_item
+    FROM dbo.customer AS c
+    JOIN dbo.account_tier AS t ON t.id_account_tier = c.id_account_tier
+    WHERE c.id_customer = @id_customer AND c.deleted = 0;
+
+    IF @tier_code IS NULL
+        THROW 50006, N'El cliente no existe.', 1;
+
+    IF EXISTS (SELECT 1 FROM @lineas WHERE quantity > @max_piezas)
+    BEGIN
+        DECLARE @msg_piezas NVARCHAR(200) = CONCAT(N'Tu cuenta permite hasta ', @max_piezas,
+            N' piezas por artículo. Para compras de mayoreo solicita la cuenta Prioritaria.');
+        THROW 50016, @msg_piezas, 1;
+    END;
+
+    IF @id_employee IS NOT NULL
+       AND NOT EXISTS (SELECT 1 FROM dbo.employee WHERE id_employee = @id_employee AND id_store = @id_store AND deleted = 0)
+        THROW 50007, N'El empleado no pertenece a la sucursal del pedido.', 1;
+
+    IF @delivery_type IS NULL OR @delivery_type NOT IN ('pickup', 'shipping')
+        THROW 50011, N'La entrega debe ser pickup (recoger en sucursal) o shipping (envío a domicilio).', 1;
+
+    IF @delivery_type = 'pickup'
+       AND EXISTS (SELECT 1 FROM dbo.store WHERE id_store = @id_store AND id_address IS NULL)
+        THROW 50012, N'La tienda en línea no tiene mostrador: elija una sucursal para recoger o envío a domicilio.', 1;
+
+    IF @delivery_type = 'shipping'
+       AND (NULLIF(LTRIM(RTRIM(@street)), '') IS NULL OR NULLIF(LTRIM(RTRIM(@ext_number)), '') IS NULL
+            OR NULLIF(LTRIM(RTRIM(@neighborhood)), '') IS NULL OR NULLIF(LTRIM(RTRIM(@city)), '') IS NULL
+            OR @zip_code IS NULL OR @zip_code NOT LIKE '[0-9][0-9][0-9][0-9][0-9]'
+            OR NOT EXISTS (SELECT 1 FROM dbo.state WHERE id_state = @id_state))
+        THROW 50013, N'El domicilio de envío está incompleto: calle, número, colonia, ciudad, estado y código postal de 5 dígitos.', 1;
+
+    IF @payment_method IS NULL OR @payment_method NOT IN ('card', 'transfer', 'cash', 'oxxo')
+        THROW 50014, N'El método de pago debe ser card, transfer, cash u oxxo.', 1;
+
+    IF @payment_method = 'cash' AND @delivery_type <> 'pickup'
+        THROW 50015, N'El pago en efectivo solo aplica al recoger en sucursal.', 1;
+
+    SET @gift_wrap = ISNULL(@gift_wrap, 0);
+    SET @gift_recipient = NULLIF(LTRIM(RTRIM(@gift_recipient)), '');
+    SET @gift_message = NULLIF(LTRIM(RTRIM(@gift_message)), '');
+
+    IF @gift_wrap = 1 AND (@gift_occasion IS NULL OR @gift_occasion NOT IN ('birthday', 'friendship', 'christmas'))
+        THROW 50017, N'Elige la ocasión del regalo: cumpleaños, amistad o Navidad.', 1;
+
+    IF @gift_wrap = 1 AND (@gift_color IS NULL OR @gift_color NOT IN ('red', 'green', 'blue', 'pink', 'gold', 'silver', 'purple', 'black'))
+        THROW 50018, N'Elige un color de papel para el regalo.', 1;
+
+    IF @gift_wrap = 1 AND @gift_message IS NOT NULL AND @gift_recipient IS NULL
+        THROW 50019, N'Para agregar una dedicatoria escribe para quién es el regalo.', 1;
+
+    /* Precios desde el catálogo; el outlet ya trae su descuento en el precio. */
+    UPDATE l
+    SET l.unit_price = CASE WHEN p.outlet_percent IS NULL THEN p.base_price
+                            ELSE ROUND(p.base_price * (100 - p.outlet_percent) / 100, 2) END,
+        l.is_outlet = CASE WHEN p.outlet_percent IS NULL THEN 0 ELSE 1 END
+    FROM @lineas AS l
+    JOIN dbo.product_variant AS pv ON pv.id_variant = l.id_variant AND pv.deleted = 0
+    JOIN dbo.product AS p ON p.id_product = pv.id_product AND p.deleted = 0;
+
+    IF EXISTS (SELECT 1 FROM @lineas WHERE unit_price IS NULL)
+        THROW 50008, N'Uno de los productos no existe o ya no está a la venta.', 1;
+
+    /* Cupón vigente (fechas en UTC, igual que el resto de la base) */
+    DECLARE @id_promotion INT = NULL,
+            @discount_percent DECIMAL(5,2) = 0,
+            @hoy DATE = CAST(SYSUTCDATETIME() AS DATE);
+
+    IF NULLIF(LTRIM(RTRIM(@promotion_code)), '') IS NOT NULL
+    BEGIN
+        SELECT @id_promotion = id_promotion,
+               @discount_percent = discount_percent
+        FROM dbo.promotion
+        WHERE code = LTRIM(RTRIM(@promotion_code))
+          AND deleted = 0
+          AND @hoy BETWEEN start_date AND end_date;
+
+        IF @id_promotion IS NULL
+            THROW 50009, N'El cupón no existe o no está vigente.', 1;
+    END;
+
+    /* Cupón + descuento del tipo de cuenta, con tope de 90 %. */
+    DECLARE @porcentaje DECIMAL(5,2) =
+        CASE WHEN @discount_percent + @tier_discount > 90 THEN 90 ELSE @discount_percent + @tier_discount END;
+
+    DECLARE @subtotal DECIMAL(10,2) = (SELECT SUM(unit_price * quantity) FROM @lineas);
+    DECLARE @con_descuento DECIMAL(10,2) = (SELECT ISNULL(SUM(unit_price * quantity), 0) FROM @lineas WHERE is_outlet = 0);
+    DECLARE @discount DECIMAL(10,2) = ROUND(@con_descuento * @porcentaje / 100, 2);
+    DECLARE @tier_amount DECIMAL(10,2) = ROUND(@con_descuento * @tier_discount / 100, 2);
+    DECLARE @shipping DECIMAL(8,2) =
+        CASE WHEN @delivery_type = 'shipping' AND @subtotal - @discount < @envio_gratis_desde THEN @costo_envio ELSE 0 END;
+    DECLARE @gift_cost DECIMAL(6,2) = CASE WHEN @gift_wrap = 1 THEN @costo_regalo ELSE 0 END;
+    DECLARE @total DECIMAL(10,2) = @subtotal - @discount + @shipping + @gift_cost;
+    DECLARE @priority_shipping BIT =
+        CASE WHEN @delivery_type = 'shipping' AND @tier_code IN ('priority', 'admin') THEN 1 ELSE 0 END;
+
+    /* Pago simulado: la tarjeta se aprueba al momento; OXXO, transferencia
+       y efectivo quedan pendientes. Nunca se guardan datos de la tarjeta. */
+    DECLARE @payment_status VARCHAR(9) = CASE WHEN @payment_method = 'card' THEN 'completed' ELSE 'pending' END;
+    DECLARE @order_status   VARCHAR(9) = CASE WHEN @payment_method = 'card' THEN 'paid' ELSE 'pending' END;
+
+    DECLARE @id_order INT, @id_address INT = NULL;
+
+    /* ---------- Transacción ---------- */
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        /* El UPDATE condicional bloquea las filas y solo descuenta si hay stock:
+           dos compras simultáneas de la última pieza no pueden pasar ambas. */
+        UPDATE i
+        SET i.stock = i.stock - l.quantity
+        OUTPUT inserted.id_variant INTO @descontados (id_variant)
+        FROM dbo.inventory AS i
+        JOIN @lineas AS l ON l.id_variant = i.id_variant
+        WHERE i.id_store = @id_store
+          AND i.deleted = 0
+          AND i.stock >= l.quantity;
+
+        IF (SELECT COUNT(*) FROM @descontados) <> (SELECT COUNT(*) FROM @lineas)
+            THROW 50010, N'No hay existencias suficientes en la sucursal para uno o más artículos.', 1;
+
+        IF @delivery_type = 'shipping'
+        BEGIN
+            INSERT INTO dbo.address (street, ext_number, int_number, neighborhood, city, id_state, zip_code, reference, source_node)
+            VALUES (LTRIM(RTRIM(@street)), LTRIM(RTRIM(@ext_number)), NULLIF(LTRIM(RTRIM(@int_number)), ''),
+                    LTRIM(RTRIM(@neighborhood)), LTRIM(RTRIM(@city)), @id_state, @zip_code, @reference, @source_node);
+            SET @id_address = CAST(SCOPE_IDENTITY() AS INT);
+        END;
+
+        INSERT INTO dbo.customer_order
+            (id_store, id_customer, id_employee, id_promotion, status, channel,
+             subtotal, discount, total, delivery_type, id_address, shipping_cost, gift_cost, priority_shipping, notes, source_node)
+        VALUES
+            (@id_store, @id_customer, @id_employee, @id_promotion, @order_status, @channel,
+             @subtotal, @discount, @total, @delivery_type, @id_address, @shipping, @gift_cost, @priority_shipping, @notes, @source_node);
+
+        SET @id_order = CAST(SCOPE_IDENTITY() AS INT);
+
+        IF @gift_wrap = 1
+            INSERT INTO dbo.order_gift (id_order, occasion, wrap_color, recipient_name, message, source_node)
+            VALUES (@id_order, @gift_occasion, @gift_color, @gift_recipient, @gift_message, @source_node);
+
+        INSERT INTO dbo.order_item (id_order, id_variant, quantity, unit_price, source_node)
+        SELECT @id_order, id_variant, quantity, unit_price, @source_node
+        FROM @lineas;
+
+        INSERT INTO dbo.payment (id_order, amount, currency, method, external_reference, status, source_node)
+        VALUES (@id_order, @total, 'MXN', @payment_method,
+                CASE WHEN @payment_method = 'card' THEN CONCAT('SIM-', FORMAT(@id_order, '000000')) END,
+                @payment_status, @source_node);
+
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+
+    SELECT @id_order       AS id_order,
+           @order_status   AS status,
+           @payment_status AS payment_status,
+           @subtotal       AS subtotal,
+           @discount       AS discount,
+           @tier_amount    AS tier_discount,
+           @shipping       AS shipping_cost,
+           @gift_cost      AS gift_cost,
+           @total          AS total,
+           @priority_shipping AS priority_shipping;
+END;
+GO
+
+/* ---------------------------------------------------------------------
+   Regla para ser cliente Prioritario
+   --------------------------------------------------------------------- */
+CREATE OR ALTER PROCEDURE dbo.sp_evaluar_clientes_prioritarios
+    @dias_minimos   INT = 365,   -- antigüedad mínima como cliente
+    @piezas_minimas INT = 50     -- piezas compradas en los últimos 12 meses
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @prioritario TINYINT = (SELECT id_account_tier FROM dbo.account_tier WHERE code = 'priority'),
+            @estandar    TINYINT = (SELECT id_account_tier FROM dbo.account_tier WHERE code = 'standard');
+
+    DECLARE @promovidos TABLE (id_customer INT NOT NULL PRIMARY KEY);
+
+    UPDATE c
+    SET c.id_account_tier = @prioritario
+    OUTPUT inserted.id_customer INTO @promovidos (id_customer)
+    FROM dbo.customer AS c
+    WHERE c.deleted = 0
+      AND c.id_account_tier = @estandar
+      AND DATEDIFF(DAY, c.customer_since, CAST(SYSUTCDATETIME() AS DATE)) >= @dias_minimos
+      AND (SELECT ISNULL(SUM(oi.quantity), 0)
+           FROM dbo.customer_order AS co
+           JOIN dbo.order_item AS oi ON oi.id_order = co.id_order AND oi.deleted = 0
+           WHERE co.id_customer = c.id_customer
+             AND co.deleted = 0
+             AND co.status NOT IN ('cancelled', 'returned')
+             AND co.order_date >= DATEADD(MONTH, -12, SYSUTCDATETIME())) >= @piezas_minimas;
+
+    SELECT c.id_customer, c.first_name, c.last_name_paternal, c.email
+    FROM @promovidos AS p
+    JOIN dbo.customer AS c ON c.id_customer = p.id_customer
+    ORDER BY c.id_customer;
+END;
+GO
+
+/* Prueba: devuelve los clientes que cambiaron a Prioritario */
+-- EXEC dbo.sp_evaluar_clientes_prioritarios;
+
+/* Prueba: debe devolver el número de pedido y descontar 1 pieza del inventario 1 */
+-- EXEC dbo.sp_crear_pedido @id_store = 1, @id_customer = 1, @channel = 'in_store',
+--      @items = N'[{"id_variant": 1, "quantity": 1}]', @promotion_code = 'BIENVENIDA10';
+
+/* ---------------------------------------------------------------------
+   Usuario de la API con privilegios mínimos
+   --------------------------------------------------------------------- */
+USE master;
+GO
+
+/* La contraseña se escribe solo al ejecutar el script; no se guarda en el
+   repositorio. Si el usuario ya existe, esta sección no hace nada. */
+DECLARE @clave_api NVARCHAR(128) = N'';   -- >>> contraseña de jam_api (borrarla antes de subir a GitHub)
+
+IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE name = N'jam_api')
+BEGIN
+    IF LEN(@clave_api) = 0
+        THROW 50020, N'Escriba la contraseña de jam_api en @clave_api y vuelva a ejecutar el script.', 1;
+
+    DECLARE @crear NVARCHAR(MAX) = N'CREATE LOGIN jam_api WITH PASSWORD = ' + QUOTENAME(@clave_api, N'''')
+        + N', DEFAULT_DATABASE = JAM_db, CHECK_POLICY = ON;';
+    EXEC sys.sp_executesql @crear;
+END;
+GO
+
+USE JAM_db;
+GO
+
+IF USER_ID(N'jam_api') IS NULL
+    CREATE USER jam_api FOR LOGIN jam_api;
+GO
+
+/* Lectura y escritura de datos y ejecución de procedimientos; sin permisos
+   para crear, modificar o borrar objetos (DDL). */
+GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE ON SCHEMA::dbo  TO jam_api;
+GRANT SELECT, INSERT, DELETE, EXECUTE         ON SCHEMA::dist TO jam_api;
+GO
+
+/* En los nodos: lectura y escritura (la sincronización reescribe los fragmentos). */
+DECLARE @db SYSNAME, @sql NVARCHAR(MAX);
+
+DECLARE nodos CURSOR LOCAL FAST_FORWARD FOR
+    SELECT db_name FROM dist.node WHERE id_store IS NOT NULL;
+
+OPEN nodos;
+FETCH NEXT FROM nodos INTO @db;
+
+WHILE @@FETCH_STATUS = 0
+BEGIN
+    SET @sql = N'USE ' + QUOTENAME(@db) + N';
+        IF USER_ID(N''jam_api'') IS NULL CREATE USER jam_api FOR LOGIN jam_api;
+        ALTER ROLE db_datareader ADD MEMBER jam_api;
+        ALTER ROLE db_datawriter ADD MEMBER jam_api;';
+    EXEC sys.sp_executesql @sql;
+
+    FETCH NEXT FROM nodos INTO @db;
+END;
+
+CLOSE nodos;
+DEALLOCATE nodos;
+GO
+
+/* Después de ejecutar este script, en api/v1/php/config/settings.php:
+     'JAM_LOCAL_USER'     => 'jam_api',
+     'JAM_LOCAL_PASSWORD' => '<la contraseña de arriba>',
+*/
+
+/* =====================================================================
+   JAM - Base de datos distribuida
+   07. Transparencia ante fallos de un nodo
+   ---------------------------------------------------------------------
+   Requisitos: 01, 02 y 06 ejecutados (y 04 si se usa el espejo en Azure).
+
+   Qué pasa cuando una sucursal se cae:
+     1. La tienda no se detiene: los pedidos, el inventario y los clientes
+        se escriben en el nodo central JAM_db.
+     2. Las consultas del fragmento caído se responden desde otra copia:
+          a) el espejo en Azure SQL (JAM_cloud, grupo de conmutación jam-fog)
+          b) el nodo central JAM_db, filtrando por el predicado id_store
+     3. La sincronización refresca los nodos que sí responden y marca el
+        nodo caído como pendiente en dist.node_sync.
+     4. Al volver a línea, la siguiente sincronización lo pone al día
+        (la API la ejecuta sola en cuanto detecta que el nodo respondió).
+   ===================================================================== */
+
+USE JAM_db;
+GO
+
+/* ---------------------------------------------------------------------
+   Estado de cada nodo fragmento
+   --------------------------------------------------------------------- */
+CREATE OR ALTER VIEW dist.vw_estado_nodos AS
+    SELECT
+        n.node_name,
+        n.db_name,
+        n.id_store,
+        CAST(ISNULL(DATABASEPROPERTYEX(n.db_name, 'Status'), 'NO EXISTE') AS VARCHAR(20)) AS estado,
+        dist.fn_nodo_en_linea(n.db_name) AS en_linea,
+        s.pending      AS pendiente,
+        s.last_success AS ultima_sincronizacion,
+        s.last_error   AS ultimo_error
+    FROM dist.node AS n
+    LEFT JOIN dist.node_sync AS s ON s.node_name = n.node_name
+    WHERE n.id_store IS NOT NULL;
+GO
+
+/* ---------------------------------------------------------------------
+   Consulta global tolerante a fallos.
+   Reconstruye la relación con UNION ALL de los fragmentos igual que las
+   vistas dist.vw_*_global, pero cada nodo fuera de línea se sustituye por
+   su copia en el nodo central (mismo predicado id_store = N).
+   La columna "origen" indica de dónde salió cada renglón.
+   --------------------------------------------------------------------- */
+CREATE OR ALTER PROCEDURE dist.sp_consulta_global
+    @tabla SYSNAME
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @columnas NVARCHAR(400) = CASE @tabla
+        WHEN N'inventory'      THEN N'id_inventory, id_store, id_variant, stock, min_stock, updated_at'
+        WHEN N'customer_order' THEN N'id_order, id_store, id_customer, order_date, status, channel, total'
+        WHEN N'employee'       THEN N'id_employee, id_store, id_role, first_name, last_name_paternal, email, hire_date'
+    END;
+
+    IF @columnas IS NULL
+        THROW 50101, N'Tabla no fragmentada. Use inventory, customer_order o employee.', 1;
+
+    DECLARE @sql NVARCHAR(MAX);
+
+    SELECT @sql = STRING_AGG(CAST(
+        CASE WHEN dist.fn_nodo_en_linea(db_name) = 1
+             THEN N'SELECT ''' + node_name + N''' AS nodo, ''fragmento ' + db_name + N''' AS origen, '
+                  + @columnas + N' FROM ' + QUOTENAME(db_name) + N'.dbo.' + QUOTENAME(@tabla)
+             ELSE N'SELECT ''' + node_name + N''' AS nodo, ''respaldo JAM_db'' AS origen, '
+                  + @columnas + N' FROM JAM_db.dbo.' + QUOTENAME(@tabla)
+                  + N' WHERE id_store = ' + CAST(id_store AS NVARCHAR(10))
+        END AS NVARCHAR(MAX)), N' UNION ALL ') WITHIN GROUP (ORDER BY id_store)
+    FROM dist.node
+    WHERE id_store IS NOT NULL;
+
+    EXEC sys.sp_executesql @sql;
+END;
+GO
+
+/* Resumen por nodo: cuántos renglones aporta cada uno y de dónde salen. */
+CREATE OR ALTER PROCEDURE dist.sp_resumen_global
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @r TABLE (nodo VARCHAR(20), origen VARCHAR(40), id_inventory INT, id_store INT, id_variant INT,
+                      stock INT, min_stock INT, updated_at DATETIME2(3));
+
+    INSERT INTO @r EXEC dist.sp_consulta_global @tabla = N'inventory';
+
+    SELECT nodo, origen, COUNT(*) AS renglones, SUM(stock) AS piezas
+    FROM @r
+    GROUP BY nodo, origen
+    ORDER BY nodo;
+END;
+GO
+
+/* =====================================================================
+   Demostración en clase (ejecutar una por una, no todo el archivo).
+
+   -- 1) Estado inicial: los tres nodos ONLINE y sin pendientes
+   SELECT * FROM dist.vw_estado_nodos;
+   EXEC dist.sp_resumen_global;
+
+   -- 2) Tumbar la sucursal Tijuana
+   ALTER DATABASE JAM_tijuana SET OFFLINE WITH ROLLBACK IMMEDIATE;
+
+   -- 3) La vista particionada normal ya no funciona...
+   SELECT COUNT(*) FROM dist.vw_inventory_global;      -- error 942
+
+   -- 4) ...pero la consulta tolerante sigue respondiendo con los tres nodos:
+   --    Tijuana sale de "respaldo JAM_db"
+   EXEC dist.sp_resumen_global;
+   EXEC dist.sp_consulta_global @tabla = N'customer_order';
+
+   -- 5) Seguir trabajando: hacer una compra en la tienda con recoger en
+   --    Tijuana, o cambiar existencias desde el panel. Después:
+   EXEC dist.sp_sincronizar_nodos;                      -- pending_nodes = 1
+   SELECT * FROM dist.vw_estado_nodos;                  -- tijuana pendiente
+
+   -- 6) Levantar la sucursal y ponerla al día
+   ALTER DATABASE JAM_tijuana SET ONLINE;
+   EXEC dist.sp_sincronizar_nodos;                      -- pending_nodes = 0
+   SELECT * FROM dist.vw_estado_nodos;
+   EXEC dist.sp_resumen_global;                         -- Tijuana vuelve a "fragmento"
+   ===================================================================== */
+
+/* =====================================================================
+   JAM - Base de datos distribuida
+   08. Catálogo por temporada
+   ---------------------------------------------------------------------
+   Requisitos: db_jam.sql ejecutado (01 a 07 opcionales).
+
+   Solo AGREGA datos; no borra ni modifica lo que ya existe:
+     1. Tabla dbo.product_season: qué productos pertenecen a cada
+        temporada o campaña de dbo.season_theme (relación N a N).
+     2. Productos nuevos de primavera, verano, otoño, invierno,
+        regreso a clases y Navidad, con sus tallas, colores e inventario
+        en Tijuana (1), CDMX (2) y la tienda en línea (4).
+     3. Temporadas de los productos que ya estaban en el catálogo.
+
+   Se puede ejecutar varias veces: cada INSERT revisa si el registro ya
+   existe. Al final se sincronizan los fragmentos si los scripts 01 y 02
+   ya se ejecutaron; la replicación (03) envía los productos nuevos a los
+   nodos sola porque product y product_variant ya están publicados.
+   ===================================================================== */
+
+USE JAM_db;
+GO
+/* Los índices filtrados (sku, barcode) necesitan QUOTED_IDENTIFIER ON */
+SET QUOTED_IDENTIFIER ON;
+SET ANSI_NULLS ON;
+SET NOCOUNT ON;
+GO
+
+/* ---------------------------------------------------------------------
+   1. Relación producto - temporada
+   --------------------------------------------------------------------- */
+IF OBJECT_ID(N'dbo.product_season', N'U') IS NULL
+CREATE TABLE dbo.product_season (
+    id_product   INT          NOT NULL,
+    id_theme     TINYINT      NOT NULL,
+    -- columnas de consolidación
+    source_node  VARCHAR(20)  NOT NULL DEFAULT 'catalog_node',
+    updated_at   DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
+    deleted      BIT          NOT NULL DEFAULT 0,
+    CONSTRAINT pk_product_season PRIMARY KEY (id_product, id_theme),
+    CONSTRAINT fk_product_season_product FOREIGN KEY (id_product) REFERENCES dbo.product (id_product),
+    CONSTRAINT fk_product_season_theme FOREIGN KEY (id_theme) REFERENCES dbo.season_theme (id_theme)
+);
+GO
+
+/* ---------------------------------------------------------------------
+   2. Productos nuevos
+   --------------------------------------------------------------------- */
+INSERT INTO dbo.product (id_category, name, description, target_gender, base_price, age_segment, source_node)
+SELECT n.id_category, n.name, n.description, n.target_gender, n.base_price, n.age_segment, 'catalog_node'
+FROM (VALUES
+(5, N'Tenis JAM Breeze Knit', N'Tenis de tejido transpirable para correr en primavera', 'U', 1490.00, 'adult'),
+(3, N'Leggings JAM Bloom', N'Leggings ligeros de cintura alta para yoga y pilates', 'F', 560.00, 'all'),
+(6, N'Raqueta de pádel JAM Smash', N'Raqueta de pádel de fibra de vidrio con núcleo EVA suave', 'U', 1290.00, 'adult'),
+(6, N'Mochila JAM Urban Day', N'Mochila de 20 L para la escuela, el gym y la ciudad', 'U', 790.00, 'youth'),
+(5, N'Tenis JAM Night Run', N'Tenis con detalles reflejantes para correr de noche', 'U', 1590.00, 'adult'),
+(1, N'Top JAM Sprint', N'Top de soporte alto con espalda cruzada', 'F', 420.00, 'all'),
+(1, N'Tank top JAM Breeze', N'Playera sin mangas de malla fresca para el calor', 'M', 350.00, 'all'),
+(5, N'Sandalias de playa JAM Beach', N'Sandalias ligeras que secan rápido para playa y alberca', 'U', 290.00, 'all'),
+(7, N'Lentes de sol JAM Solar', N'Lentes de sol con protección UV400 para días de playa', 'U', 590.00, 'youth'),
+(7, N'Lentes JAM Shade Polarizados', N'Lentes polarizados para correr y andar en bici', 'U', 790.00, 'adult'),
+(9, N'Balón de voleibol de playa JAM Sand', N'Balón suave de costura a mano para voleibol de playa', 'U', 480.00, 'all'),
+(9, N'Balón de fútbol rápido JAM Futsal', N'Balón de bote bajo para canchas de fútbol rápido', 'U', 520.00, 'youth'),
+(1, N'Tank JAM Lift', N'Tank top de algodón y poliéster para pesas', 'M', 380.00, 'adult'),
+(5, N'Tenis JAM Court Air', N'Tenis de básquetbol de caña baja con buena ventilación', 'U', 1690.00, 'youth'),
+(5, N'Tenis JAM Rain Run', N'Tenis para correr con capa repelente al agua', 'U', 1790.00, 'adult'),
+(4, N'Sudadera JAM Trail', N'Sudadera con capucha para caminatas y días frescos', 'U', 790.00, 'all'),
+(6, N'Mochila de hidratación JAM Trail', N'Mochila ligera con bolsa para agua de 1.5 L', 'U', 990.00, 'adult'),
+(5, N'Tenis JAM Street Low', N'Tenis urbanos de piel sintética para diario', 'U', 1390.00, 'youth'),
+(1, N'Jersey JAM Club Visita', N'Jersey de visitante transpirable para fútbol', 'U', 650.00, 'youth'),
+(5, N'Tenis JAM Retro Run', N'Tenis de estilo retro con suela de goma', 'U', 1450.00, 'youth'),
+(8, N'Guantes de box JAM Fight Pro', N'Guantes de 14 oz con relleno de doble densidad', 'U', 990.00, 'adult'),
+(9, N'Balón de fútbol americano JAM Junior', N'Balón tamaño juvenil fácil de lanzar', 'U', 390.00, 'youth'),
+(4, N'Chamarra acolchada JAM Puffer', N'Chamarra acolchada ligera que guarda el calor', 'U', 1690.00, 'all'),
+(4, N'Chamarra JAM Alpine', N'Chamarra impermeable para nieve y frío intenso', 'U', 1890.00, 'adult'),
+(6, N'Gorro térmico JAM Beanie', N'Gorro tejido con forro térmico', 'U', 260.00, 'all'),
+(6, N'Gorro JAM Knit', N'Gorro de punto grueso para el frío', 'U', 290.00, 'youth'),
+(3, N'Leggings térmicos JAM Heat', N'Leggings con interior afelpado para correr con frío', 'F', 690.00, 'adult'),
+(4, N'Sudadera polar JAM Fleece', N'Sudadera de tela polar suave y abrigadora', 'U', 850.00, 'all'),
+(5, N'Botas JAM Snow Trek', N'Botas impermeables con suela antiderrapante', 'U', 1990.00, 'adult'),
+(6, N'Mochila escolar JAM Campus', N'Mochila escolar de 28 L con espacio para laptop', 'U', 690.00, 'youth'),
+(5, N'Tenis escolares JAM Class', N'Tenis cómodos para la escuela y educación física', 'U', 990.00, 'youth'),
+(6, N'Botella deportiva JAM Squeeze 600 ml', N'Botella flexible libre de BPA con tapa de chupón', 'U', 190.00, 'all'),
+(4, N'Sudadera JAM Holiday Stripe', N'Sudadera de rayas edición navideña', 'U', 820.00, 'all'),
+(6, N'Calcetas JAM Holiday (3 pares)', N'Set de regalo de calcetas de colores', 'U', 260.00, 'all'),
+(6, N'Mancuernas JAM Power 5 kg (par)', N'Par de mancuernas de 5 kg recubiertas de hule', 'U', 790.00, 'adult'),
+(6, N'Mancuernas JAM Color 3 kg (par)', N'Par de mancuernas de 3 kg con agarre cómodo', 'U', 490.00, 'all'),
+(5, N'Tenis JAM Gift Edition', N'Tenis edición especial en caja de regalo', 'U', 1690.00, 'youth')
+) AS n (id_category, name, description, target_gender, base_price, age_segment)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.product AS p WHERE p.name = n.name);
+GO
+
+/* Tallas y colores (se buscan por nombre de producto, talla y color) */
+INSERT INTO dbo.product_variant (id_product, id_size, id_color, sku, source_node)
+SELECT p.id_product, sz.id_size, cl.id_color, v.sku, 'catalog_node'
+FROM (VALUES
+(N'Tenis JAM Breeze Knit', '25', 'white', 'JAM-BRZ-25-WHT'),
+(N'Tenis JAM Breeze Knit', '26', 'white', 'JAM-BRZ-26-WHT'),
+(N'Tenis JAM Breeze Knit', '27', 'white', 'JAM-BRZ-27-WHT'),
+(N'Tenis JAM Breeze Knit', '28', 'white', 'JAM-BRZ-28-WHT'),
+(N'Tenis JAM Breeze Knit', '25', 'red', 'JAM-BRZ-25-RED'),
+(N'Tenis JAM Breeze Knit', '26', 'red', 'JAM-BRZ-26-RED'),
+(N'Tenis JAM Breeze Knit', '27', 'red', 'JAM-BRZ-27-RED'),
+(N'Tenis JAM Breeze Knit', '28', 'red', 'JAM-BRZ-28-RED'),
+(N'Leggings JAM Bloom', 'XS', 'blue', 'JAM-BLM-XS-BLU'),
+(N'Leggings JAM Bloom', 'S', 'blue', 'JAM-BLM-S-BLU'),
+(N'Leggings JAM Bloom', 'M', 'blue', 'JAM-BLM-M-BLU'),
+(N'Leggings JAM Bloom', 'L', 'blue', 'JAM-BLM-L-BLU'),
+(N'Leggings JAM Bloom', 'XS', 'black', 'JAM-BLM-XS-BLK'),
+(N'Leggings JAM Bloom', 'S', 'black', 'JAM-BLM-S-BLK'),
+(N'Leggings JAM Bloom', 'M', 'black', 'JAM-BLM-M-BLK'),
+(N'Leggings JAM Bloom', 'L', 'black', 'JAM-BLM-L-BLK'),
+(N'Raqueta de pádel JAM Smash', 'UNI', 'black', 'JAM-SMH-UNI-BLK'),
+(N'Raqueta de pádel JAM Smash', 'UNI', 'blue', 'JAM-SMH-UNI-BLU'),
+(N'Mochila JAM Urban Day', 'UNI', 'red', 'JAM-URB-UNI-RED'),
+(N'Mochila JAM Urban Day', 'UNI', 'black', 'JAM-URB-UNI-BLK'),
+(N'Tenis JAM Night Run', '25', 'black', 'JAM-NGT-25-BLK'),
+(N'Tenis JAM Night Run', '26', 'black', 'JAM-NGT-26-BLK'),
+(N'Tenis JAM Night Run', '27', 'black', 'JAM-NGT-27-BLK'),
+(N'Tenis JAM Night Run', '28', 'black', 'JAM-NGT-28-BLK'),
+(N'Top JAM Sprint', 'XS', 'black', 'JAM-SPT-XS-BLK'),
+(N'Top JAM Sprint', 'S', 'black', 'JAM-SPT-S-BLK'),
+(N'Top JAM Sprint', 'M', 'black', 'JAM-SPT-M-BLK'),
+(N'Top JAM Sprint', 'L', 'black', 'JAM-SPT-L-BLK'),
+(N'Top JAM Sprint', 'XS', 'red', 'JAM-SPT-XS-RED'),
+(N'Top JAM Sprint', 'S', 'red', 'JAM-SPT-S-RED'),
+(N'Top JAM Sprint', 'M', 'red', 'JAM-SPT-M-RED'),
+(N'Top JAM Sprint', 'L', 'red', 'JAM-SPT-L-RED'),
+(N'Tank top JAM Breeze', 'S', 'gray', 'JAM-TNK-S-GRY'),
+(N'Tank top JAM Breeze', 'M', 'gray', 'JAM-TNK-M-GRY'),
+(N'Tank top JAM Breeze', 'L', 'gray', 'JAM-TNK-L-GRY'),
+(N'Tank top JAM Breeze', 'XL', 'gray', 'JAM-TNK-XL-GRY'),
+(N'Tank top JAM Breeze', 'S', 'black', 'JAM-TNK-S-BLK'),
+(N'Tank top JAM Breeze', 'M', 'black', 'JAM-TNK-M-BLK'),
+(N'Tank top JAM Breeze', 'L', 'black', 'JAM-TNK-L-BLK'),
+(N'Tank top JAM Breeze', 'XL', 'black', 'JAM-TNK-XL-BLK'),
+(N'Tank top JAM Breeze', 'S', 'white', 'JAM-TNK-S-WHT'),
+(N'Tank top JAM Breeze', 'M', 'white', 'JAM-TNK-M-WHT'),
+(N'Tank top JAM Breeze', 'L', 'white', 'JAM-TNK-L-WHT'),
+(N'Tank top JAM Breeze', 'XL', 'white', 'JAM-TNK-XL-WHT'),
+(N'Sandalias de playa JAM Beach', '25', 'black', 'JAM-BCH-25-BLK'),
+(N'Sandalias de playa JAM Beach', '26', 'black', 'JAM-BCH-26-BLK'),
+(N'Sandalias de playa JAM Beach', '27', 'black', 'JAM-BCH-27-BLK'),
+(N'Sandalias de playa JAM Beach', '28', 'black', 'JAM-BCH-28-BLK'),
+(N'Sandalias de playa JAM Beach', '25', 'white', 'JAM-BCH-25-WHT'),
+(N'Sandalias de playa JAM Beach', '26', 'white', 'JAM-BCH-26-WHT'),
+(N'Sandalias de playa JAM Beach', '27', 'white', 'JAM-BCH-27-WHT'),
+(N'Sandalias de playa JAM Beach', '28', 'white', 'JAM-BCH-28-WHT'),
+(N'Lentes de sol JAM Solar', 'UNI', 'black', 'JAM-SOL-UNI-BLK'),
+(N'Lentes de sol JAM Solar', 'UNI', 'amber', 'JAM-SOL-UNI-AMB'),
+(N'Lentes de sol JAM Solar', 'UNI', 'blue', 'JAM-SOL-UNI-BLU'),
+(N'Lentes JAM Shade Polarizados', 'UNI', 'black', 'JAM-SHD-UNI-BLK'),
+(N'Balón de voleibol de playa JAM Sand', 'UNI', 'blue', 'JAM-SND-UNI-BLU'),
+(N'Balón de voleibol de playa JAM Sand', 'UNI', 'lime', 'JAM-SND-UNI-LIM'),
+(N'Balón de fútbol rápido JAM Futsal', 'UNI', 'white', 'JAM-FSL-UNI-WHT'),
+(N'Balón de fútbol rápido JAM Futsal', 'UNI', 'amber', 'JAM-FSL-UNI-AMB'),
+(N'Tank JAM Lift', 'S', 'gray', 'JAM-LFT-S-GRY'),
+(N'Tank JAM Lift', 'M', 'gray', 'JAM-LFT-M-GRY'),
+(N'Tank JAM Lift', 'L', 'gray', 'JAM-LFT-L-GRY'),
+(N'Tank JAM Lift', 'XL', 'gray', 'JAM-LFT-XL-GRY'),
+(N'Tank JAM Lift', 'S', 'black', 'JAM-LFT-S-BLK'),
+(N'Tank JAM Lift', 'M', 'black', 'JAM-LFT-M-BLK'),
+(N'Tank JAM Lift', 'L', 'black', 'JAM-LFT-L-BLK'),
+(N'Tank JAM Lift', 'XL', 'black', 'JAM-LFT-XL-BLK'),
+(N'Tenis JAM Court Air', '25', 'white', 'JAM-CAI-25-WHT'),
+(N'Tenis JAM Court Air', '26', 'white', 'JAM-CAI-26-WHT'),
+(N'Tenis JAM Court Air', '27', 'white', 'JAM-CAI-27-WHT'),
+(N'Tenis JAM Court Air', '28', 'white', 'JAM-CAI-28-WHT'),
+(N'Tenis JAM Court Air', '25', 'black', 'JAM-CAI-25-BLK'),
+(N'Tenis JAM Court Air', '26', 'black', 'JAM-CAI-26-BLK'),
+(N'Tenis JAM Court Air', '27', 'black', 'JAM-CAI-27-BLK'),
+(N'Tenis JAM Court Air', '28', 'black', 'JAM-CAI-28-BLK'),
+(N'Tenis JAM Rain Run', '25', 'gray', 'JAM-RAN-25-GRY'),
+(N'Tenis JAM Rain Run', '26', 'gray', 'JAM-RAN-26-GRY'),
+(N'Tenis JAM Rain Run', '27', 'gray', 'JAM-RAN-27-GRY'),
+(N'Tenis JAM Rain Run', '28', 'gray', 'JAM-RAN-28-GRY'),
+(N'Tenis JAM Rain Run', '25', 'white', 'JAM-RAN-25-WHT'),
+(N'Tenis JAM Rain Run', '26', 'white', 'JAM-RAN-26-WHT'),
+(N'Tenis JAM Rain Run', '27', 'white', 'JAM-RAN-27-WHT'),
+(N'Tenis JAM Rain Run', '28', 'white', 'JAM-RAN-28-WHT'),
+(N'Sudadera JAM Trail', 'S', 'gray', 'JAM-TRL-S-GRY'),
+(N'Sudadera JAM Trail', 'M', 'gray', 'JAM-TRL-M-GRY'),
+(N'Sudadera JAM Trail', 'L', 'gray', 'JAM-TRL-L-GRY'),
+(N'Sudadera JAM Trail', 'XL', 'gray', 'JAM-TRL-XL-GRY'),
+(N'Sudadera JAM Trail', 'S', 'green', 'JAM-TRL-S-GRN'),
+(N'Sudadera JAM Trail', 'M', 'green', 'JAM-TRL-M-GRN'),
+(N'Sudadera JAM Trail', 'L', 'green', 'JAM-TRL-L-GRN'),
+(N'Sudadera JAM Trail', 'XL', 'green', 'JAM-TRL-XL-GRN'),
+(N'Mochila de hidratación JAM Trail', 'UNI', 'gray', 'JAM-HYD-UNI-GRY'),
+(N'Mochila de hidratación JAM Trail', 'UNI', 'amber', 'JAM-HYD-UNI-AMB'),
+(N'Tenis JAM Street Low', '25', 'white', 'JAM-SLW-25-WHT'),
+(N'Tenis JAM Street Low', '26', 'white', 'JAM-SLW-26-WHT'),
+(N'Tenis JAM Street Low', '27', 'white', 'JAM-SLW-27-WHT'),
+(N'Tenis JAM Street Low', '28', 'white', 'JAM-SLW-28-WHT'),
+(N'Tenis JAM Street Low', '25', 'black', 'JAM-SLW-25-BLK'),
+(N'Tenis JAM Street Low', '26', 'black', 'JAM-SLW-26-BLK'),
+(N'Tenis JAM Street Low', '27', 'black', 'JAM-SLW-27-BLK'),
+(N'Tenis JAM Street Low', '28', 'black', 'JAM-SLW-28-BLK'),
+(N'Jersey JAM Club Visita', 'S', 'white', 'JAM-CLV-S-WHT'),
+(N'Jersey JAM Club Visita', 'M', 'white', 'JAM-CLV-M-WHT'),
+(N'Jersey JAM Club Visita', 'L', 'white', 'JAM-CLV-L-WHT'),
+(N'Jersey JAM Club Visita', 'XL', 'white', 'JAM-CLV-XL-WHT'),
+(N'Jersey JAM Club Visita', 'S', 'red', 'JAM-CLV-S-RED'),
+(N'Jersey JAM Club Visita', 'M', 'red', 'JAM-CLV-M-RED'),
+(N'Jersey JAM Club Visita', 'L', 'red', 'JAM-CLV-L-RED'),
+(N'Jersey JAM Club Visita', 'XL', 'red', 'JAM-CLV-XL-RED'),
+(N'Tenis JAM Retro Run', '25', 'white', 'JAM-RTR-25-WHT'),
+(N'Tenis JAM Retro Run', '26', 'white', 'JAM-RTR-26-WHT'),
+(N'Tenis JAM Retro Run', '27', 'white', 'JAM-RTR-27-WHT'),
+(N'Tenis JAM Retro Run', '28', 'white', 'JAM-RTR-28-WHT'),
+(N'Tenis JAM Retro Run', '25', 'red', 'JAM-RTR-25-RED'),
+(N'Tenis JAM Retro Run', '26', 'red', 'JAM-RTR-26-RED'),
+(N'Tenis JAM Retro Run', '27', 'red', 'JAM-RTR-27-RED'),
+(N'Tenis JAM Retro Run', '28', 'red', 'JAM-RTR-28-RED'),
+(N'Guantes de box JAM Fight Pro', 'UNI', 'red', 'JAM-FPR-UNI-RED'),
+(N'Balón de fútbol americano JAM Junior', 'UNI', 'brown', 'JAM-AMJ-UNI-BRN'),
+(N'Chamarra acolchada JAM Puffer', 'S', 'black', 'JAM-PUF-S-BLK'),
+(N'Chamarra acolchada JAM Puffer', 'M', 'black', 'JAM-PUF-M-BLK'),
+(N'Chamarra acolchada JAM Puffer', 'L', 'black', 'JAM-PUF-L-BLK'),
+(N'Chamarra acolchada JAM Puffer', 'XL', 'black', 'JAM-PUF-XL-BLK'),
+(N'Chamarra acolchada JAM Puffer', 'S', 'navy', 'JAM-PUF-S-NVY'),
+(N'Chamarra acolchada JAM Puffer', 'M', 'navy', 'JAM-PUF-M-NVY'),
+(N'Chamarra acolchada JAM Puffer', 'L', 'navy', 'JAM-PUF-L-NVY'),
+(N'Chamarra acolchada JAM Puffer', 'XL', 'navy', 'JAM-PUF-XL-NVY'),
+(N'Chamarra JAM Alpine', 'S', 'white', 'JAM-ALP-S-WHT'),
+(N'Chamarra JAM Alpine', 'M', 'white', 'JAM-ALP-M-WHT'),
+(N'Chamarra JAM Alpine', 'L', 'white', 'JAM-ALP-L-WHT'),
+(N'Chamarra JAM Alpine', 'XL', 'white', 'JAM-ALP-XL-WHT'),
+(N'Chamarra JAM Alpine', 'S', 'black', 'JAM-ALP-S-BLK'),
+(N'Chamarra JAM Alpine', 'M', 'black', 'JAM-ALP-M-BLK'),
+(N'Chamarra JAM Alpine', 'L', 'black', 'JAM-ALP-L-BLK'),
+(N'Chamarra JAM Alpine', 'XL', 'black', 'JAM-ALP-XL-BLK'),
+(N'Gorro térmico JAM Beanie', 'UNI', 'black', 'JAM-BNI-UNI-BLK'),
+(N'Gorro térmico JAM Beanie', 'UNI', 'gray', 'JAM-BNI-UNI-GRY'),
+(N'Gorro JAM Knit', 'UNI', 'white', 'JAM-KNT-UNI-WHT'),
+(N'Gorro JAM Knit', 'UNI', 'navy', 'JAM-KNT-UNI-NVY'),
+(N'Leggings térmicos JAM Heat', 'XS', 'black', 'JAM-HEA-XS-BLK'),
+(N'Leggings térmicos JAM Heat', 'S', 'black', 'JAM-HEA-S-BLK'),
+(N'Leggings térmicos JAM Heat', 'M', 'black', 'JAM-HEA-M-BLK'),
+(N'Leggings térmicos JAM Heat', 'L', 'black', 'JAM-HEA-L-BLK'),
+(N'Sudadera polar JAM Fleece', 'S', 'gray', 'JAM-FLC-S-GRY'),
+(N'Sudadera polar JAM Fleece', 'M', 'gray', 'JAM-FLC-M-GRY'),
+(N'Sudadera polar JAM Fleece', 'L', 'gray', 'JAM-FLC-L-GRY'),
+(N'Sudadera polar JAM Fleece', 'XL', 'gray', 'JAM-FLC-XL-GRY'),
+(N'Sudadera polar JAM Fleece', 'S', 'black', 'JAM-FLC-S-BLK'),
+(N'Sudadera polar JAM Fleece', 'M', 'black', 'JAM-FLC-M-BLK'),
+(N'Sudadera polar JAM Fleece', 'L', 'black', 'JAM-FLC-L-BLK'),
+(N'Sudadera polar JAM Fleece', 'XL', 'black', 'JAM-FLC-XL-BLK'),
+(N'Botas JAM Snow Trek', '25', 'brown', 'JAM-SNW-25-BRN'),
+(N'Botas JAM Snow Trek', '26', 'brown', 'JAM-SNW-26-BRN'),
+(N'Botas JAM Snow Trek', '27', 'brown', 'JAM-SNW-27-BRN'),
+(N'Botas JAM Snow Trek', '28', 'brown', 'JAM-SNW-28-BRN'),
+(N'Botas JAM Snow Trek', '25', 'black', 'JAM-SNW-25-BLK'),
+(N'Botas JAM Snow Trek', '26', 'black', 'JAM-SNW-26-BLK'),
+(N'Botas JAM Snow Trek', '27', 'black', 'JAM-SNW-27-BLK'),
+(N'Botas JAM Snow Trek', '28', 'black', 'JAM-SNW-28-BLK'),
+(N'Mochila escolar JAM Campus', 'UNI', 'black', 'JAM-CMP-UNI-BLK'),
+(N'Mochila escolar JAM Campus', 'UNI', 'navy', 'JAM-CMP-UNI-NVY'),
+(N'Tenis escolares JAM Class', '25', 'white', 'JAM-CLS-25-WHT'),
+(N'Tenis escolares JAM Class', '26', 'white', 'JAM-CLS-26-WHT'),
+(N'Tenis escolares JAM Class', '27', 'white', 'JAM-CLS-27-WHT'),
+(N'Tenis escolares JAM Class', '28', 'white', 'JAM-CLS-28-WHT'),
+(N'Tenis escolares JAM Class', '25', 'black', 'JAM-CLS-25-BLK'),
+(N'Tenis escolares JAM Class', '26', 'black', 'JAM-CLS-26-BLK'),
+(N'Tenis escolares JAM Class', '27', 'black', 'JAM-CLS-27-BLK'),
+(N'Tenis escolares JAM Class', '28', 'black', 'JAM-CLS-28-BLK'),
+(N'Botella deportiva JAM Squeeze 600 ml', 'UNI', 'pink', 'JAM-SQZ-UNI-PNK'),
+(N'Botella deportiva JAM Squeeze 600 ml', 'UNI', 'white', 'JAM-SQZ-UNI-WHT'),
+(N'Sudadera JAM Holiday Stripe', 'S', 'gray', 'JAM-HOL-S-GRY'),
+(N'Sudadera JAM Holiday Stripe', 'M', 'gray', 'JAM-HOL-M-GRY'),
+(N'Sudadera JAM Holiday Stripe', 'L', 'gray', 'JAM-HOL-L-GRY'),
+(N'Sudadera JAM Holiday Stripe', 'XL', 'gray', 'JAM-HOL-XL-GRY'),
+(N'Sudadera JAM Holiday Stripe', 'S', 'red', 'JAM-HOL-S-RED'),
+(N'Sudadera JAM Holiday Stripe', 'M', 'red', 'JAM-HOL-M-RED'),
+(N'Sudadera JAM Holiday Stripe', 'L', 'red', 'JAM-HOL-L-RED'),
+(N'Sudadera JAM Holiday Stripe', 'XL', 'red', 'JAM-HOL-XL-RED'),
+(N'Calcetas JAM Holiday (3 pares)', 'UNI', 'red', 'JAM-HSK-UNI-RED'),
+(N'Calcetas JAM Holiday (3 pares)', 'UNI', 'green', 'JAM-HSK-UNI-GRN'),
+(N'Mancuernas JAM Power 5 kg (par)', 'UNI', 'black', 'JAM-PWR-UNI-BLK'),
+(N'Mancuernas JAM Color 3 kg (par)', 'UNI', 'red', 'JAM-CLR-UNI-RED'),
+(N'Tenis JAM Gift Edition', '25', 'white', 'JAM-GFT-25-WHT'),
+(N'Tenis JAM Gift Edition', '26', 'white', 'JAM-GFT-26-WHT'),
+(N'Tenis JAM Gift Edition', '27', 'white', 'JAM-GFT-27-WHT'),
+(N'Tenis JAM Gift Edition', '28', 'white', 'JAM-GFT-28-WHT'),
+(N'Tenis JAM Gift Edition', '25', 'black', 'JAM-GFT-25-BLK'),
+(N'Tenis JAM Gift Edition', '26', 'black', 'JAM-GFT-26-BLK'),
+(N'Tenis JAM Gift Edition', '27', 'black', 'JAM-GFT-27-BLK'),
+(N'Tenis JAM Gift Edition', '28', 'black', 'JAM-GFT-28-BLK')
+) AS v (product_name, size_code, color_code, sku)
+JOIN dbo.product AS p ON p.name = v.product_name AND p.deleted = 0
+JOIN dbo.size AS sz ON sz.code = v.size_code
+JOIN dbo.color AS cl ON cl.code = v.color_code
+WHERE NOT EXISTS (SELECT 1 FROM dbo.product_variant AS x WHERE x.sku = v.sku AND x.deleted = 0);
+GO
+
+/* Código de barras EAN-13 de las variantes nuevas (mismo cálculo que db_jam.sql) */
+UPDATE pv
+SET pv.barcode = b.base + CAST((10 - s.total % 10) % 10 AS CHAR(1))
+FROM dbo.product_variant AS pv
+CROSS APPLY (SELECT CAST('7501234' + RIGHT('00000' + CAST(pv.id_variant AS VARCHAR(5)), 5) AS CHAR(12)) AS base) AS b
+CROSS APPLY (
+    SELECT SUM(x.digito * x.peso) AS total
+    FROM (
+        SELECT CAST(SUBSTRING(b.base, d.n, 1) AS INT) AS digito,
+               CASE WHEN d.n % 2 = 0 THEN 3 ELSE 1 END AS peso
+        FROM (VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9), (10), (11), (12)) AS d (n)
+    ) AS x
+) AS s
+WHERE pv.barcode IS NULL;
+GO
+
+/* Existencias en Tijuana (1), CDMX (2) y la tienda en línea (4).
+   La cantidad sale del id de la variante para que siempre sea la misma. */
+INSERT INTO dbo.inventory (id_store, id_variant, stock, min_stock, source_node)
+SELECT st.id_store, pv.id_variant,
+       CASE WHEN (pv.id_variant + st.id_store) % 11 = 0 THEN 2
+            ELSE 6 + (pv.id_variant * 7 + st.id_store * 5) % 30 END,
+       5, 'catalog_node'
+FROM dbo.product_variant AS pv
+JOIN dbo.product AS p ON p.id_product = pv.id_product
+CROSS JOIN (VALUES (1), (2), (4)) AS st (id_store)
+WHERE pv.deleted = 0
+  AND p.name IN (
+N'Tenis JAM Breeze Knit',
+               N'Leggings JAM Bloom',
+               N'Raqueta de pádel JAM Smash',
+               N'Mochila JAM Urban Day',
+               N'Tenis JAM Night Run',
+               N'Top JAM Sprint',
+               N'Tank top JAM Breeze',
+               N'Sandalias de playa JAM Beach',
+               N'Lentes de sol JAM Solar',
+               N'Lentes JAM Shade Polarizados',
+               N'Balón de voleibol de playa JAM Sand',
+               N'Balón de fútbol rápido JAM Futsal',
+               N'Tank JAM Lift',
+               N'Tenis JAM Court Air',
+               N'Tenis JAM Rain Run',
+               N'Sudadera JAM Trail',
+               N'Mochila de hidratación JAM Trail',
+               N'Tenis JAM Street Low',
+               N'Jersey JAM Club Visita',
+               N'Tenis JAM Retro Run',
+               N'Guantes de box JAM Fight Pro',
+               N'Balón de fútbol americano JAM Junior',
+               N'Chamarra acolchada JAM Puffer',
+               N'Chamarra JAM Alpine',
+               N'Gorro térmico JAM Beanie',
+               N'Gorro JAM Knit',
+               N'Leggings térmicos JAM Heat',
+               N'Sudadera polar JAM Fleece',
+               N'Botas JAM Snow Trek',
+               N'Mochila escolar JAM Campus',
+               N'Tenis escolares JAM Class',
+               N'Botella deportiva JAM Squeeze 600 ml',
+               N'Sudadera JAM Holiday Stripe',
+               N'Calcetas JAM Holiday (3 pares)',
+               N'Mancuernas JAM Power 5 kg (par)',
+               N'Mancuernas JAM Color 3 kg (par)',
+               N'Tenis JAM Gift Edition'
+               )
+  AND NOT EXISTS (SELECT 1 FROM dbo.inventory AS i WHERE i.id_store = st.id_store AND i.id_variant = pv.id_variant);
+GO
+
+/* ---------------------------------------------------------------------
+   3. Temporada de cada producto
+   --------------------------------------------------------------------- */
+INSERT INTO dbo.product_season (id_product, id_theme)
+SELECT p.id_product, t.id_theme
+FROM (VALUES
+(N'Tenis JAM Breeze Knit', 'spring'),
+(N'Leggings JAM Bloom', 'spring'),
+(N'Raqueta de pádel JAM Smash', 'spring'),
+(N'Mochila JAM Urban Day', 'spring'),
+(N'Tenis JAM Night Run', 'spring'),
+(N'Top JAM Sprint', 'spring'),
+(N'Tank top JAM Breeze', 'summer'),
+(N'Sandalias de playa JAM Beach', 'summer'),
+(N'Lentes de sol JAM Solar', 'summer'),
+(N'Lentes JAM Shade Polarizados', 'summer'),
+(N'Balón de voleibol de playa JAM Sand', 'summer'),
+(N'Balón de fútbol rápido JAM Futsal', 'summer'),
+(N'Tank JAM Lift', 'summer'),
+(N'Tenis JAM Court Air', 'summer'),
+(N'Tenis JAM Rain Run', 'autumn'),
+(N'Sudadera JAM Trail', 'autumn'),
+(N'Mochila de hidratación JAM Trail', 'autumn'),
+(N'Tenis JAM Street Low', 'autumn'),
+(N'Jersey JAM Club Visita', 'autumn'),
+(N'Tenis JAM Retro Run', 'autumn'),
+(N'Guantes de box JAM Fight Pro', 'autumn'),
+(N'Balón de fútbol americano JAM Junior', 'autumn'),
+(N'Chamarra acolchada JAM Puffer', 'winter'),
+(N'Chamarra JAM Alpine', 'winter'),
+(N'Gorro térmico JAM Beanie', 'winter'),
+(N'Gorro JAM Knit', 'winter'),
+(N'Leggings térmicos JAM Heat', 'winter'),
+(N'Sudadera polar JAM Fleece', 'winter'),
+(N'Botas JAM Snow Trek', 'winter'),
+(N'Mochila escolar JAM Campus', 'back_to_school'),
+(N'Tenis escolares JAM Class', 'back_to_school'),
+(N'Botella deportiva JAM Squeeze 600 ml', 'back_to_school'),
+(N'Sudadera JAM Holiday Stripe', 'christmas'),
+(N'Calcetas JAM Holiday (3 pares)', 'christmas'),
+(N'Mancuernas JAM Power 5 kg (par)', 'christmas'),
+(N'Mancuernas JAM Color 3 kg (par)', 'christmas'),
+(N'Tenis JAM Gift Edition', 'christmas'),
+(N'Playera Dry-Fit JAM Pro', 'summer'),
+(N'Short Running JAM Air', 'spring'),
+(N'Short Running JAM Air', 'summer'),
+(N'Legging Compresión JAM Flex', 'autumn'),
+(N'Legging Compresión JAM Flex', 'winter'),
+(N'Sudadera Hoodie JAM Core', 'autumn'),
+(N'Sudadera Hoodie JAM Core', 'winter'),
+(N'Sudadera Hoodie JAM Core', 'christmas'),
+(N'Tenis Trainer JAM Stride', 'autumn'),
+(N'Tenis Running JAM Pulse', 'spring'),
+(N'Tenis Running JAM Pulse', 'christmas'),
+(N'Tenis Urbanos JAM Street', 'back_to_school'),
+(N'Tenis Basketball JAM Jump', 'autumn'),
+(N'Sandalias JAM Recovery Slide', 'summer'),
+(N'Top Deportivo JAM Core', 'spring'),
+(N'Jersey Futbol JAM Club', 'autumn'),
+(N'Pants Jogger JAM Move', 'autumn'),
+(N'Pants Jogger JAM Move', 'winter'),
+(N'Chamarra Rompevientos JAM Storm', 'autumn'),
+(N'Chamarra Rompevientos JAM Storm', 'winter'),
+(N'Leggings JAM Seamless', 'spring'),
+(N'Gorra JAM Sport Cap', 'summer'),
+(N'Mochila JAM Gym Pack', 'back_to_school'),
+(N'Botella Térmica JAM 750 ml', 'summer'),
+(N'Botella Térmica JAM 750 ml', 'christmas'),
+(N'Calcetas JAM Pro (3 pares)', 'winter'),
+(N'Lentes para correr JAM Vision', 'spring'),
+(N'Goggles de natación JAM Splash', 'summer'),
+(N'Gorra Trucker JAM Urban', 'summer'),
+(N'Gorra para correr JAM Run Light', 'spring'),
+(N'Guantes de gimnasio JAM Grip', 'winter'),
+(N'Guantes de portero JAM Keeper', 'back_to_school'),
+(N'Guantes de box JAM Fight 12 oz', 'christmas'),
+(N'Balón de fútbol JAM Strike No. 5', 'back_to_school'),
+(N'Balón de básquetbol JAM Court No. 7', 'autumn'),
+(N'Balón de básquetbol JAM Court No. 7', 'christmas'),
+(N'Balón de voleibol JAM Spike', 'summer'),
+(N'Pelotas de pádel JAM Pro (3 piezas)', 'spring'),
+(N'Balón de fútbol americano JAM Blitz', 'autumn'),
+(N'Tenis de fútbol JAM Strike FG', 'back_to_school'),
+(N'Tenis de entrenamiento JAM Flow', 'spring'),
+(N'Tenis JAM Sprint Jr', 'back_to_school'),
+(N'Short de básquetbol JAM Court', 'summer'),
+(N'Falda short de tenis JAM Ace', 'spring'),
+(N'Playera térmica manga larga JAM Thermo', 'winter')
+) AS ps (product_name, theme_code)
+JOIN dbo.product AS p ON p.name = ps.product_name AND p.deleted = 0
+JOIN dbo.season_theme AS t ON t.code = ps.theme_code
+WHERE NOT EXISTS (SELECT 1 FROM dbo.product_season AS x WHERE x.id_product = p.id_product AND x.id_theme = t.id_theme);
+GO
+
+/* ---------------------------------------------------------------------
+   4. Sincronizar los fragmentos (solo si 01 y 02 ya se ejecutaron)
+   --------------------------------------------------------------------- */
+IF OBJECT_ID(N'dist.sp_sincronizar_nodos', N'P') IS NOT NULL
+    EXEC dist.sp_sincronizar_nodos;
+GO
+
+/* Resultado esperado: productos por temporada */
+SELECT t.name AS temporada, COUNT(*) AS productos
+FROM dbo.product_season AS ps
+JOIN dbo.season_theme AS t ON t.id_theme = ps.id_theme
+WHERE ps.deleted = 0
+GROUP BY t.id_theme, t.name
+ORDER BY t.id_theme;
+GO
+
+SELECT COUNT(*) AS productos_totales FROM dbo.product WHERE deleted = 0;
+GO
+
+/* =====================================================================
+   JAM - Base de datos distribuida
+   09. Tokens de sesión e intentos de inicio de sesión
+   ---------------------------------------------------------------------
+   Requisitos: db_jam.sql ejecutado.
+
+   Solo AGREGA dos tablas; no borra ni modifica lo que ya existe:
+     1. dbo.users_tokens: sesiones abiertas. El token nunca se guarda
+        tal cual: en TokenHash va su SHA-256. Al cerrar sesión o cambiar
+        la contraseña, la API borra el renglón y el token deja de servir.
+     2. dbo.login_attempts: intentos fallidos de inicio de sesión. La
+        clave es el SHA-256 de "correo + IP" (o solo de la IP), así no se
+        guardan correos ni direcciones IP en claro.
+
+   Las dos tablas viven solo en el nodo central (JAM_db): no se fragmentan,
+   no se replican y no se copian al espejo de Azure. Si la API se conecta
+   a un nodo donde no existen, sigue funcionando con customer_session y
+   con el límite de intentos en archivos del servidor.
+
+   El usuario jam_api (script 06) ya tiene permiso sobre todo el esquema
+   dbo, así que no hace falta darle permisos nuevos.
+
+   Se puede ejecutar varias veces.
+   ===================================================================== */
+
+USE JAM_db;
+GO
+SET NOCOUNT ON;
+GO
+
+/* ---------------------------------------------------------------------
+   1. Tokens de sesión
+   --------------------------------------------------------------------- */
+IF OBJECT_ID(N'dbo.users_tokens', N'U') IS NULL
+CREATE TABLE dbo.users_tokens (
+    TokenId          INT IDENTITY(1,1) NOT NULL,
+    UserType         VARCHAR(8)    NOT NULL,
+    UserId           INT           NOT NULL,
+    TokenHash        VARCHAR(255)  NOT NULL,
+    TokenExpiration  DATETIME2(0)  NOT NULL,
+    TokenCreatedAt   DATETIME2(0)  NOT NULL CONSTRAINT df_users_tokens_created DEFAULT SYSUTCDATETIME(),
+    CONSTRAINT pk_users_tokens PRIMARY KEY (TokenId),
+    CONSTRAINT uq_users_tokens_hash UNIQUE (TokenHash),
+    CONSTRAINT ck_users_tokens_type CHECK (UserType IN ('owner', 'employee', 'customer'))
+);
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'ix_users_tokens_user' AND object_id = OBJECT_ID(N'dbo.users_tokens'))
+    CREATE INDEX ix_users_tokens_user ON dbo.users_tokens (UserType, UserId);
+GO
+
+/* ---------------------------------------------------------------------
+   2. Intentos fallidos de inicio de sesión
+   --------------------------------------------------------------------- */
+IF OBJECT_ID(N'dbo.login_attempts', N'U') IS NULL
+CREATE TABLE dbo.login_attempts (
+    id_attempt        INT IDENTITY(1,1) NOT NULL,
+    attempt_key       VARCHAR(190)  NOT NULL,
+    failures          INT           NOT NULL CONSTRAINT df_login_attempts_failures DEFAULT 0,
+    first_failure_at  DATETIME2(0)  NOT NULL,
+    locked_until      DATETIME2(0)  NULL,
+    updated_at        DATETIME2(0)  NOT NULL CONSTRAINT df_login_attempts_updated DEFAULT SYSUTCDATETIME(),
+    CONSTRAINT pk_login_attempts PRIMARY KEY (id_attempt),
+    CONSTRAINT uq_login_attempts_key UNIQUE (attempt_key),
+    CONSTRAINT ck_login_attempts_failures CHECK (failures >= 0)
+);
+GO
+
+/* Resultado esperado: las dos tablas, vacías la primera vez */
+SELECT N'users_tokens' AS tabla, COUNT(*) AS renglones FROM dbo.users_tokens
+UNION ALL
+SELECT N'login_attempts', COUNT(*) FROM dbo.login_attempts;
+GO
+
+/* =====================================================================
+   JAM - Base de datos distribuida
+   05. Validación de la fragmentación
+   ---------------------------------------------------------------------
+   Comprueba las tres reglas de una fragmentación correcta:
+     1. Completitud:     todo renglón de la relación está en algún fragmento.
+     2. Reconstrucción:  la unión (horizontal) o el JOIN (vertical) de los
+                         fragmentos devuelve exactamente la relación original.
+     3. Disyunción:      ningún renglón aparece en dos fragmentos horizontales.
+   En cada consulta el resultado esperado es 0 diferencias / 'OK'.
+   ===================================================================== */
+
+USE JAM_db;
+GO
+
+EXEC dist.sp_sincronizar_nodos;
+GO
+
+/* ---------- Horizontal: inventory ---------- */
+SELECT
+    'inventory' AS relacion,
+    (SELECT COUNT(*) FROM dbo.inventory WHERE id_store IN (SELECT id_store FROM dist.node WHERE id_store IS NOT NULL)) AS renglones_original,
+    (SELECT COUNT(*) FROM dist.vw_inventory_global) AS renglones_fragmentos,
+    (SELECT COUNT(*) FROM (
+        SELECT id_inventory, id_store, id_variant, stock, min_stock
+        FROM dbo.inventory
+        WHERE id_store IN (SELECT id_store FROM dist.node WHERE id_store IS NOT NULL)
+        EXCEPT
+        SELECT id_inventory, id_store, id_variant, stock, min_stock
+        FROM dist.vw_inventory_global
+    ) AS faltantes) AS diferencias,
+    (SELECT COUNT(*) FROM (
+        SELECT id_inventory FROM dist.vw_inventory_global GROUP BY id_inventory HAVING COUNT(*) > 1
+    ) AS repetidos) AS repetidos_entre_fragmentos;
+GO
+
+/* ---------- Horizontal: customer_order ---------- */
+SELECT
+    'customer_order' AS relacion,
+    (SELECT COUNT(*) FROM dbo.customer_order WHERE id_store IN (SELECT id_store FROM dist.node WHERE id_store IS NOT NULL)) AS renglones_original,
+    (SELECT COUNT(*) FROM dist.vw_customer_order_global) AS renglones_fragmentos,
+    (SELECT COUNT(*) FROM (
+        SELECT id_order, id_store, id_customer, status, channel, total
+        FROM dbo.customer_order
+        WHERE id_store IN (SELECT id_store FROM dist.node WHERE id_store IS NOT NULL)
+        EXCEPT
+        SELECT id_order, id_store, id_customer, status, channel, total
+        FROM dist.vw_customer_order_global
+    ) AS faltantes) AS diferencias,
+    (SELECT COUNT(*) FROM (
+        SELECT id_order FROM dist.vw_customer_order_global GROUP BY id_order HAVING COUNT(*) > 1
+    ) AS repetidos) AS repetidos_entre_fragmentos;
+GO
+
+/* ---------- Horizontal: el predicado se cumple en cada nodo ---------- */
+SELECT g.node_name, n.id_store AS predicado_id_store,
+       SUM(CASE WHEN g.id_store = n.id_store THEN 1 ELSE 0 END) AS cumplen,
+       SUM(CASE WHEN g.id_store <> n.id_store THEN 1 ELSE 0 END) AS no_cumplen
+FROM dist.vw_inventory_global AS g
+JOIN dist.node AS n ON n.node_name = g.node_name
+GROUP BY g.node_name, n.id_store;
+GO
+
+/* ---------- Vertical: customer ---------- */
+SELECT
+    'customer (vertical)' AS relacion,
+    (SELECT COUNT(*) FROM dbo.customer) AS renglones_original,
+    (SELECT COUNT(*) FROM dist.vw_customer_reconstruido) AS renglones_reconstruidos,
+    (SELECT COUNT(*) FROM (
+        SELECT id_customer, id_loyalty_level, id_account_tier, id_store, id_address, first_name, last_name_paternal,
+               last_name_maternal, birth_date, sex, phone, email, accepts_marketing, customer_since
+        FROM dbo.customer
+        EXCEPT
+        SELECT id_customer, id_loyalty_level, id_account_tier, id_store, id_address, first_name, last_name_paternal,
+               last_name_maternal, birth_date, sex, phone, email, accepts_marketing, customer_since
+        FROM dist.vw_customer_reconstruido
+    ) AS faltantes) AS diferencias;
+GO
+
+/* ---------- Vertical: cada fragmento solo tiene sus columnas + la llave ---------- */
+SELECT 'JAM_online.dbo.customer_profile' AS fragmento, name AS columna
+FROM JAM_online.sys.columns WHERE object_id = OBJECT_ID(N'JAM_online.dbo.customer_profile')
+UNION ALL
+SELECT 'JAM_db.dist.customer_private', name
+FROM sys.columns WHERE object_id = OBJECT_ID(N'dist.customer_private');
+GO
