@@ -2,7 +2,8 @@
 import { $, $$, clone, field, fill, slot, buildQuery, emptyState, setTitle, sizeLabel, DEPARTMENTS, GENDERS, SEGMENTS } from '../ui.js';
 import { productCard } from '../components.js';
 import { colorClass } from '../illustrations.js';
-import { outletProducts, salePrice, shopProducts } from '../store.js';
+import { hasSeasons, outletProducts, salePrice, seasonsOf, shopProducts } from '../store.js';
+import { themeName } from '../theme.js';
 import { matchScore, productText } from '../search.js';
 import { trackSearch } from '../analytics.js';
 
@@ -13,10 +14,11 @@ const PRICE_RANGES = {
     gt1500: ['Más de $1,500', 1500.01, Infinity]
 };
 
-const RADIO_FILTERS = ['dep', 'genero', 'edad', 'precio', 'talla', 'color'];
+const RADIO_FILTERS = ['temporada', 'dep', 'genero', 'edad', 'precio', 'talla', 'color'];
 const CHECK_FILTERS = ['disp', 'calif'];
 
 function matches(p, f) {
+    if (f.temporada && seasonsOf(p).indexOf(f.temporada) < 0) return false;
     if (f.dep && p.department !== f.dep) return false;
     if (f.genero && p.target_gender !== f.genero && p.target_gender !== 'U') return false;
     if (f.edad && p.age_segment !== f.edad && p.age_segment !== 'all') return false;
@@ -49,6 +51,10 @@ function sortProducts(list, order) {
 
 function pageTitle(f, outlet) {
     if (f.q) return 'Resultados para “' + f.q + '”' + (outlet ? ' en el outlet' : '');
+    if (f.temporada && !outlet) {
+        const rest = pageTitle(Object.assign({}, f, { temporada: '' }), false);
+        return 'Colección ' + themeName(f.temporada) + (rest === 'Toda la tienda' ? '' : ': ' + rest);
+    }
     const parts = [];
     if (f.dep) parts.push(DEPARTMENTS[f.dep]);
     if (f.genero) parts.push(f.genero === 'F' ? 'para mujer' : 'para hombre');
@@ -89,6 +95,7 @@ function colorChip(code, name) {
 
 function activeChips(f, base) {
     const labels = {
+        temporada: f.temporada ? themeName(f.temporada) : null,
         dep: DEPARTMENTS[f.dep], genero: GENDERS[f.genero], edad: SEGMENTS[f.edad],
         precio: PRICE_RANGES[f.precio] ? PRICE_RANGES[f.precio][0] : null,
         talla: f.talla ? 'Talla ' + f.talla : null, color: f.color ? 'Color: ' + f.color : null,
@@ -137,6 +144,7 @@ export function renderCatalog(view, params, mode) {
         ? list.map(productCard)
         : [emptyState('Sin resultados', 'No encontramos productos con esos filtros.', { href: base, label: outlet ? 'Ver todo el outlet' : 'Ver toda la tienda' })]));
 
+    form.querySelector('input[name="temporada"]').closest('fieldset').hidden = outlet || !hasSeasons();
     $('select[name="orden"]', page).value = f.orden || 'destacados';
     RADIO_FILTERS.forEach(function (name) {
         const input = form.querySelector('input[name="' + name + '"][value="' + CSS.escape(f[name] || '') + '"]');

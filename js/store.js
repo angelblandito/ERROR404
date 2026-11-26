@@ -127,6 +127,19 @@ export function unitPrice(p) {
     return isOutlet(p) ? salePrice(p) : memberPrice(p.base_price);
 }
 
+/* ---------- Temporadas (tabla product_season) ---------- */
+export function seasonsOf(p) {
+    return Array.isArray(p.seasons) ? p.seasons : [];
+}
+
+export function hasSeasons() {
+    return state.products.some(function (p) { return seasonsOf(p).length > 0; });
+}
+
+export function seasonProducts(code) {
+    return shopProducts().filter(function (p) { return seasonsOf(p).indexOf(code) >= 0; });
+}
+
 export function newestIds(count) {
     return shopProducts().sort(function (a, b) { return b.id_product - a.id_product; })
         .slice(0, count).map(function (p) { return p.id_product; });
@@ -361,8 +374,28 @@ export async function login(email, password) {
     return startSession(await api('/auth/login', { method: 'POST', body: { email: email, password: password } }));
 }
 
+/* Paso 1 del registro: la API manda un correo con el enlace; la cuenta aún no existe. */
 export async function register(fields) {
-    return startSession(await api('/auth/register', { method: 'POST', body: fields }));
+    const body = Object.assign({}, fields, { return_url: window.location.origin + window.location.pathname });
+    return api('/auth/register', { method: 'POST', body: body });
+}
+
+/* Paso 2: el enlace del correo crea la cuenta e inicia la sesión. */
+export async function confirmSignup(token) {
+    return startSession(await api('/auth/confirm', { method: 'POST', body: { token: token } }));
+}
+
+/* Avance hacia la cuenta Prioritario y ascenso. */
+export function priorityStatus() {
+    return api('/me/priority');
+}
+
+export async function upgradeToPriority() {
+    const data = await api('/me/priority/upgrade', { method: 'POST', body: {} });
+    state.customer = data.customer;
+    customerPromise = Promise.resolve(data.customer);
+    emit();
+    return data;
 }
 
 export async function logout() {

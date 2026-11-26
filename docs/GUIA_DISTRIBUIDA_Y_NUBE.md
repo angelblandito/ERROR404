@@ -115,7 +115,8 @@ En SSMS, conectado a la instancia Developer, ejecutar en orden:
 3. `API_JAM/distribuida/02_fragmentacion_vertical.sql`
 4. `API_JAM/distribuida/06_pedidos_y_seguridad.sql` (procedimiento de pedidos y usuario `jam_api`; antes escribir la contraseña de `jam_api` en la línea marcada con `>>>` y borrarla después de ejecutar)
 5. `API_JAM/distribuida/07_tolerancia_fallos.sql` (estado de los nodos y consulta tolerante a fallos)
-6. `API_JAM/distribuida/05_validacion.sql` → todas las columnas `diferencias` y `repetidos_entre_fragmentos` deben valer **0**.
+6. `API_JAM/distribuida/08_catalogo_temporadas.sql` (37 productos nuevos por temporada y la tabla `product_season`; solo agrega datos y se puede repetir)
+7. `API_JAM/distribuida/05_validacion.sql` → todas las columnas `diferencias` y `repetidos_entre_fragmentos` deben valer **0**.
 
 `04_espejo_azure.sql` no se ejecuta aquí: se ejecuta conectado a Azure (sección 5.2).
 
@@ -142,9 +143,11 @@ En SSMS, conectado a la instancia Developer, ejecutar en orden:
 
 La API y la página se sirven juntas desde **Apache de XAMPP**: ya no hace falta `php -S`.
 
+La página usa **`api/v2`**, la API con la arquitectura de la clase, en una sola carpeta (`core`, `routers`, `controllers`, `services`, `models`, `schemas`, `utils` y `tests`). Su estructura, rutas, ajustes y pruebas están en `api/v2/README.md`. La API anterior (`api/v1/php`) se conserva para comparar: se elige abriendo la tienda con `?api=v1` (y `?api=v2` para regresar). Las dos leen el mismo `config/settings.php`.
+
 1. Copiar `api/v1/php/config/settings.example.php` como `settings.php` y ajustar `JAM_LOCAL_SERVER` (p. ej. `localhost`), `JAM_LOCAL_USER` = `jam_api` y `JAM_LOCAL_PASSWORD`.
 2. Encender **Apache** en el panel de XAMPP.
-3. Probar `http://localhost/ERROR404/api/v1/php/health-check` → `"database": "en_linea"` y `"pdo_sqlsrv": true`.
+3. Probar `http://localhost/ERROR404/api/v2/health-check` (y `…/api/v1/php/health-check`) → `"database": "en_linea"` y `"pdo_sqlsrv": true`.
 
 > Si Apache corre como servicio de Windows, la autenticación de Windows usa la cuenta del servicio y no la tuya: usa el usuario `jam_api` del script 06.
 > Los archivos `.htaccess` mandan todas las rutas a `index.php` y bloquean el acceso directo a `config/`, `core/`, `models/`, `.git`, `API_JAM/` y `docs/`.
@@ -199,7 +202,7 @@ La tabla `account_tier` define tres tipos de cuenta. Los beneficios son datos de
 Cómo funciona en la base:
 
 - `dbo.sp_crear_pedido` lee el tipo de cuenta del cliente: suma el descuento de la cuenta al del cupón (tope de 90 %), da envío gratis según `free_shipping_from`, rechaza más piezas de las permitidas (error 50016) y marca `customer_order.priority_shipping`.
-- `dbo.sp_evaluar_clientes_prioritarios` sube a Prioritario a los clientes Estándar con al menos 365 días (`customer.customer_since`) y 50 piezas compradas en los últimos 12 meses. El botón **Aplicar regla** de Administración → Clientes lo ejecuta.
+- `dbo.sp_evaluar_clientes_prioritarios` sube a Prioritario a los clientes Estándar con más de 365 días (`customer.customer_since`) y más de $50,000 en pedidos pagados, enviados o entregados. El botón **Aplicar regla** de Administración → Clientes lo ejecuta, y cada cliente puede subir su cuenta desde **Cómo ser Prioritario** (`POST /me/priority/upgrade`).
 - `support_ticket.priority` y `respond_by` se calculan con el tipo de cuenta al abrir el ticket; la cola del administrador ordena primero los prioritarios y los que están por vencer.
 - `announcement.audience = 'priority'` solo se entrega a cuentas Prioritario y Administrador.
 - `customer.id_account_tier` y `customer_since` viajan en el fragmento vertical `customer_profile`; `account_tier` se replica con el catálogo.
@@ -273,6 +276,9 @@ Los precios viven en `competitor` y `market_price` (sección 12 de `db_jam.sql`)
 | Búsqueda tolerante | Buscador y catálogo: “tenix”, “sudadra” | Distancia de edición en `js/search.js` |
 | Instalable (PWA) | “Instalar aplicación” en Chrome/Edge | `manifest.webmanifest` y `sw.js`; requiere `https` o `localhost` |
 | Vista previa al compartir | WhatsApp, Facebook, X | Etiquetas Open Graph e imagen `img/og-jam.png`. Al publicar en Azure cambia `og:image` a la dirección completa |
+| Colección por temporada | Inicio: pestañas Primavera, Verano, Otoño, Invierno, Regreso a clases y Navidad; catálogo: filtro *Temporada* | `product_season` (relación N a N entre `product` y `season_theme`), creada por `08_catalogo_temporadas.sql` |
+| Ofertas del outlet | Inicio, carrusel con los productos de mayor descuento | `product.outlet_percent` |
+| Fotos reales | Tarjetas, página de producto y mosaicos de departamentos | Archivos en `img/productos`; `descargar_fotos.ps1` baja 73 fotos de Unsplash (créditos en `img/productos/CREDITOS.md`) |
 
 El script también carga un **historial de 32 ventas** de las últimas cuatro semanas en Tijuana, CDMX y en línea (fechas relativas al día en que se ejecuta), para que las gráficas y las recomendaciones tengan datos.
 
@@ -497,8 +503,8 @@ foreach ($s in "jam-sql-principal-$SUF","jam-sql-espejo-$SUF") {
    ```powershell
    sqlcmd -S localhost -E -C -I -f 65001 -b -i db_jam.sql
    ```
-   Orden: `db_jam.sql`, `01`, `02`, login `jam_api`, `06`, `07` y `05` (validación).
-6. `settings.php` con `JAM_LOCAL_SERVER = localhost`, el usuario `jam_api` y los datos `JAM_CLOUD_*`. Apache como servicio: `httpd.exe -k install` y `Start-Service Apache2.4`. Comprobar `http://localhost:8080/ERROR404/api/v1/php/health-check`.
+   Orden: `db_jam.sql`, `01`, `02`, login `jam_api`, `06`, `07`, `05` (validación), `08`, `09`, `10`, `11` y `12` (usuarios de prueba).
+6. `settings.php` con `JAM_LOCAL_SERVER = localhost`, el usuario `jam_api` y los datos `JAM_CLOUD_*`. En `api\v3\.env` (copia de `.env.example`): una `JWT_SECRET` propia, `REQUIRE_HTTPS=1`, `TRUST_PROXY=1` (Caddy va delante; sin esto todos los clientes parecen la misma IP) y `JAM_STORE_URL=https://jam-sport-jp31.trafficmanager.net/ERROR404/` (los enlaces de los correos). Apache como servicio: `httpd.exe -k install` y `Start-Service Apache2.4`. Comprobar `http://localhost:8080/ERROR404/api/v3/health`.
 
 Solo una instalación debe copiar a `JAM_cloud` (la máquina virtual): en la laptop se deja vacío `JAM_CLOUD_PASSWORD` para no mezclar pedidos de dos bases distintas en el espejo.
 
@@ -522,6 +528,51 @@ Caddy recibe el tráfico en los puertos 80 y 443, obtiene un certificado gratuit
 Dirección pública: `https://jam-sport-jp31.chilecentral.cloudapp.azure.com` (Apache, SQL Server y Caddy arrancan solos al encender la VM).
 
 Costos aproximados: la VM con Windows unos US$0.05 por hora encendida más unos US$10 al mes de disco, y dos bases Basic de Azure SQL de unos US$5 al mes cada una. Al terminar el semestre: `az group delete -n rg-jam`.
+
+### 5.6 Servidor de respaldo
+
+Si la VM principal se cae, una segunda VM sigue atendiendo la tienda en la misma dirección:
+
+```
+  clientes ─► https://jam-sport-jp31.trafficmanager.net ─► Traffic Manager
+                                                            │ revisa /api/v3/health cada 10 s
+                          ┌─────────── prioridad 1 ─────────┴───── prioridad 2 ───────────┐
+                          ▼                                                                 ▼
+                VM principal (jam-vm-cl)        respaldos cada 10 min        VM de respaldo (jam-vm-cl2)
+                Caddy ► Apache ► API ► JAM_db  ─────────────────────────►    copia completa de la principal
+```
+
+- **Traffic Manager** manda a todos a la principal. Si `/api/v3/health` falla 2 veces seguidas (unos 20 s; responde 503 también cuando se cae SQL Server), manda a todos al respaldo. Cuando la principal vuelve, los regresa.
+- **Datos**: la principal respalda `JAM_db` y los tres nodos cada 10 minutos (`COPY_ONLY`, no afecta otros respaldos) y la VM de respaldo los restaura. Si la principal está caída, el respaldo no restaura nada, para no borrar los pedidos que reciba mientras atiende. Pérdida máxima al caer la principal: los últimos 10 a 20 minutos. Los pedidos que reciba el respaldo durante la caída no regresan solos a la principal.
+- **Sesiones**: las dos VM tienen la misma `JWT_SECRET` y la misma tabla `users_tokens`, así que quien ya inició sesión sigue dentro después del cambio.
+- **Ataques**: desde internet solo están abiertos los puertos 80 y 443; Escritorio remoto solo desde tu IP; SQL Server y Apache (8080) nunca. Caddy corta conexiones lentas y cuerpos de más de 10 MB, y la API limita cada IP a 300 peticiones por minuto, además de los límites de registro, inicio de sesión y compras.
+- **Costo**: la VM de respaldo cuesta lo mismo que la principal mientras está encendida; Traffic Manager, centavos al mes. La cuota de Azure for Students (4 núcleos) alcanza justo para las dos VM `Standard_B2als_v2`.
+- **Límite**: las dos VM están en la misma región (Chile Central). Protege contra la caída de una VM, de su SQL Server o de su Apache, no contra la caída de toda la región.
+
+Pasos (los scripts están en `infra\azure`):
+
+1. **Laptop** (Azure CLI, `az login`). Copia la principal, crea el respaldo y Traffic Manager, y cierra puertos. La principal se apaga unos minutos mientras se copian sus discos:
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File infra\azure\01_crear_respaldo.ps1 -MiIp <tu IP pública>
+   ```
+   Anota la IP privada de la principal que muestra al final.
+2. **Las dos VM** (Escritorio remoto, PowerShell como administrador). Caddy con las dos direcciones. Correr primero en la principal, que obtiene el certificado de `trafficmanager.net`:
+   ```powershell
+   cd C:\xampp\htdocs\ERROR404
+   powershell -ExecutionPolicy Bypass -File infra\azure\04_configurar_caddy.ps1 -Propio jam-sport-jp31.chilecentral.cloudapp.azure.com     # principal
+   powershell -ExecutionPolicy Bypass -File infra\azure\04_configurar_caddy.ps1 -Propio jam-sport-jp31-b.chilecentral.cloudapp.azure.com   # respaldo
+   ```
+3. **VM principal**. Respaldos cada 10 minutos (pide la contraseña de `jamadmin`, que debe ser administrador de SQL Server):
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File infra\azure\02_principal_respaldar_bases.ps1 -Instalar
+   ```
+4. **VM de respaldo**. Restauración cada 10 minutos:
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File infra\azure\03_respaldo_restaurar_bases.ps1 -Instalar -IpPrincipal <IP privada de la principal>
+   ```
+5. **Comprobar**: `C:\jam_respaldo\registro.txt` en las dos VM dice *Respaldo completo* y *Restaurado el respaldo de ...*; en el portal, **jam-tm → Puntos de conexión** muestra los dos en **En línea**.
+
+Cada cambio de código se instala en las dos VM (`git pull` en ambas). Para ahorrar crédito, la VM de respaldo se puede apagar fuera de la presentación: Traffic Manager la marca como degradada y todo sigue en la principal.
 
 ---
 
@@ -578,7 +629,15 @@ Preparación: panel **Base distribuida** abierto en el navegador y, en la máqui
    ```
 9. **Si el maestro tumba Azure principal**: `az sql failover-group set-primary --name jam-fog-jp3 --resource-group rg-jam --server jam-sql-espejo-jp31`. La tarjeta *Azure SQL* muestra el otro servidor como principal y las lecturas de la sucursal caída siguen saliendo del espejo.
 
-> Si el maestro detiene el servicio completo de SQL Server local, se caen a la vez el central y las tres sucursales. En ese caso solo queda Azure: el panel lee los fragmentos de `JAM_cloud`, pero la tienda local no puede vender hasta que el servicio vuelva, porque los pedidos se escriben en el central.
+> Si el maestro detiene el servicio completo de SQL Server de la VM principal, se caen a la vez el central y las tres sucursales de esa VM: `/api/v3/health` responde 503 y Traffic Manager pasa a todos a la VM de respaldo (sección 6.2).
+
+### 6.2 Demostración: el maestro tumba la máquina virtual principal
+
+1. En el navegador, `https://jam-sport-jp31.trafficmanager.net`. En la laptop: `nslookup jam-sport-jp31.trafficmanager.net`. Responde con `jam-sport-jp31.chilecentral.cloudapp.azure.com` (la principal).
+2. Apagar la principal: `az vm deallocate -g rg-jam -n jam-vm-cl` (o detener Apache o SQL Server en ella).
+3. Esperar alrededor de un minuto (20 s de revisiones más los 30 s que los navegadores guardan la dirección) y recargar la página: sigue funcionando y la sesión sigue abierta. `nslookup` ahora responde con `jam-sport-jp31-b...` (el respaldo). En el portal, **jam-tm** muestra la principal como **Degradado**.
+4. Comprar algo: el pedido lo guarda la VM de respaldo.
+5. Encender la principal: `az vm start -g rg-jam -n jam-vm-cl`. Traffic Manager regresa a todos con ella cuando su `/api/v3/health` responde 200.
 
 ---
 

@@ -4,7 +4,8 @@ import { $, $$, clone, field, fill, show, slot, money, badge, message, toast, em
 import { productArt } from '../illustrations.js';
 import { announcementsSection, benefitItems } from '../components.js';
 import { giftSummary } from '../gift.js';
-import { account, isPriority, loadAnnouncements, login, logout, register, state, tierInfo } from '../store.js';
+import { account, confirmSignup, isPriority, loadAnnouncements, login, logout, priorityStatus, register, state } from '../store.js';
+import { priorityMeters } from './priority.js';
 
 export function authPanel(title, intro, onSuccess) {
     const panel = fill(clone('tpl-auth'), { title: title, intro: intro });
@@ -70,10 +71,33 @@ export function authPanel(title, intro, onSuccess) {
     };
 
     submit(loginForm, function (d) { return login(d.email, d.password); });
-    submit(registerForm, function (d) {
+
+    /* Crear cuenta: la API manda un correo de confirmación; la cuenta se crea al abrir el enlace. */
+    registerForm.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        if (!registerForm.checkValidity()) {
+            registerForm.reportValidity();
+            return;
+        }
+        const button = registerForm.querySelector('button');
+        button.disabled = true;
+        const d = Object.fromEntries(new FormData(registerForm));
         d.accepts_marketing = d.accepts_marketing === '1';
         d.accepts_terms = d.accepts_terms === '1';
-        return register(d);
+        try {
+            const result = await register(d);
+            const sent = fill(clone('tpl-signup-sent'), { email: result.email, hours: result.hours });
+            $('[data-action="again"]', sent).addEventListener('click', function () {
+                sent.remove();
+                registerForm.hidden = false;
+                button.disabled = false;
+            });
+            registerForm.hidden = true;
+            registerForm.after(sent);
+        } catch (err) {
+            toast(err.message, { error: true });
+            button.disabled = false;
+        }
     });
     return panel;
 }
@@ -186,10 +210,13 @@ export async function renderAccount(page, params) {
     show(field(view, 'adminLink'), acc.can_manage_store);
     show(field(view, 'marketLink'), isPriority());
 
-    const priority = tierInfo('priority');
-    if (acc.tier === 'standard' && priority) {
+    if (acc.tier === 'standard') {
         show(field(view, 'upgrade'), true);
-        slot(view, 'priorityBenefits').append(...benefitItems(priority));
+        priorityStatus().then(function (status) {
+            slot(view, 'progress').replaceWith(priorityMeters(status, true));
+        }).catch(function () {
+            slot(view, 'progress').remove();
+        });
     }
 
     const orders = slot(view, 'orders');
@@ -248,4 +275,34 @@ export function renderReset(page, params) {
             button.disabled = false;
         }
     });
+}
+
+/* Página del enlace que llega por correo para terminar el registro. */
+export async function renderConfirmSignup(page, params) {
+    setTitle('Confirmar correo');
+    const view = clone('tpl-confirm-signup');
+    page.replaceChildren(view);
+    const set = function (icon, title, text, ok) {
+        field(page, 'icon').textContent = icon;
+        field(page, 'icon').classList.toggle('bad', !ok);
+        field(page, 'title').textContent = title;
+        field(page, 'text').textContent = text;
+        show(field(page, 'actions'), ok);
+    };
+
+    if (!/^[a-f0-9]{64}$/i.test(params.token || '')) {
+        set('!', 'Enlace no válido', 'Abre el enlace completo del correo o vuelve a registrarte.', false);
+        return;
+    }
+    try {
+        const customer = await confirmSignup(params.token);
+        set('✓', '¡Listo, ' + customer.first_name + '!', 'Confirmamos tu correo y tu cuenta Estándar ya está creada. Ya iniciaste sesión.', true);
+        toast('Cuenta creada');
+    } catch (err) {
+        set('!', 'No pudimos confirmar tu correo', err.message, false);
+        const actions = show(field(page, 'actions'), true);
+        const link = actions.querySelector('a');
+        link.textContent = 'Iniciar sesión o registrarme';
+        actions.replaceChildren(link);
+    }
 }

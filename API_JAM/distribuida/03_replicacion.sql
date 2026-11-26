@@ -36,7 +36,7 @@ USE master;
 GO
 
 DECLARE @servidor SYSNAME = @@SERVERNAME;
-DECLARE @password_distribuidor SYSNAME = N'';   -- >>> contraseña del distribuidor (borrarla antes de subir a GitHub)
+DECLARE @password_distribuidor SYSNAME = N'';   -- Llenar: contraseña del distribuidor (borrarla antes de subir a GitHub)
 
 IF NOT EXISTS (SELECT 1 FROM sys.databases WHERE is_distributor = 1)
 BEGIN
@@ -202,10 +202,10 @@ GO
    Se recomienda usar el listener del grupo de conmutación por error
    (ver 04_espejo_azure.sql) para que la réplica siga funcionando
    después de un failover. */
-DECLARE @azure_servidor SYSNAME = N'';                    -- >>> p. ej. N'jam-fog.database.windows.net'
+DECLARE @azure_servidor SYSNAME = N'';                    -- Llenar: p. ej. N'jam-fog.database.windows.net'
 DECLARE @azure_base     SYSNAME = N'JAM_cloud';
-DECLARE @azure_usuario  SYSNAME = N'jamadmin';            -- >>> usuario administrador de Azure SQL
-DECLARE @azure_password SYSNAME = N'';                    -- >>> contraseña (no subir a GitHub)
+DECLARE @azure_usuario  SYSNAME = N'jamadmin';            -- Llenar: usuario administrador de Azure SQL
+DECLARE @azure_password SYSNAME = N'';                    -- Llenar: contraseña (no subir a GitHub)
 
 IF @azure_servidor <> N''
     EXEC dist.sp_crear_suscripcion

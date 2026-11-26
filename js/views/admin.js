@@ -26,7 +26,10 @@ const EMAIL_KINDS = {
     welcome: ['Bienvenida', 'info'],
     order_created: ['Pedido', 'ok'],
     order_status: ['Estado del pedido', 'info'],
-    password_reset: ['Contraseña', 'warn']
+    password_reset: ['Contraseña', 'warn'],
+    signup_confirm: ['Confirmar registro', 'info'],
+    tier_upgrade: ['Prioritario', 'gold'],
+    ticket_urgent: ['Soporte urgente', 'bad']
 };
 
 const STATUS_ACTIONS = {
@@ -640,7 +643,8 @@ function emailItem(m) {
     if (m.link) {
         const link = show(field(card, 'link'), true);
         link.href = m.link;
-        link.textContent = m.kind === 'password_reset' ? 'Abrir enlace para restablecer' : 'Abrir enlace del correo';
+        link.textContent = m.kind === 'password_reset' ? 'Abrir enlace para restablecer'
+            : m.kind === 'signup_confirm' ? 'Abrir enlace para confirmar el registro' : 'Abrir enlace del correo';
     }
     return card;
 }

@@ -1,4 +1,4 @@
-/* Vistas sencillas: favoritos, ofertas, sucursales y ayuda. */
+/* Vistas sencillas: favoritos, ofertas, sucursales, ayuda y páginas legales. */
 import { $, clone, field, fill, show, slot, money, message, emptyState, setTitle, toast } from '../ui.js';
 import { productCard } from '../components.js';
 import { activePromotions, product, state } from '../store.js';
@@ -67,6 +67,7 @@ function storeCard(s) {
         hours: s.opening_hours ? 'Horario: ' + s.opening_hours : '',
         phone: s.contact_phone
     });
+    field(card, 'phone').href = 'tel:+52' + String(s.contact_phone || '').replace(/\D/g, '');
     show(field(card, 'hours'), !s.is_online && Boolean(s.opening_hours));
     return card;
 }

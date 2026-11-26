@@ -1,13 +1,16 @@
 /*
  * Imágenes de producto.
- * 1. Foto propia: img/productos/<id_producto>-<color>.jpg  (ejemplo: 6-black.jpg)
+ * 1. Foto propia por color: img/productos/<id_producto>-<color>.jpg  (ejemplo: 6-black.jpg)
+ * 2. Foto del producto: img/productos/<nombre-del-producto>.jpg  (ejemplo: tenis-running-jam-pulse.jpg)
  *    También se aceptan .png y .webp. La API informa qué fotos existen.
- * 2. Foto de la base de datos: columna product.image_url
- * 3. Si no hay foto, se usa el dibujo de img/ilustraciones.svg pintado con el color de la variante.
+ * 3. Foto de la base de datos: columna product.image_url
+ * 4. Foto real del tipo de producto (js/product-photos.js)
+ * 5. Si no hay foto, se usa el dibujo de img/ilustraciones.svg pintado con el color de la variante.
  */
 
 import { clone } from './ui.js';
 import { state } from './store.js';
+import { stockPhoto } from './product-photos.js';
 
 const PHOTO_FOLDER = 'img/productos/';
 const PHOTO_TYPES = ['jpg', 'jpeg', 'png', 'webp'];
@@ -42,6 +45,12 @@ export function productKind(product) {
     return BY_CATEGORY[product.category_code] || 'tee';
 }
 
+/* "Balón de fútbol JAM Strike No. 5" -> "balon-de-futbol-jam-strike-no-5" */
+export function photoName(name) {
+    return String(name || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+}
+
 function photoSources(product, colorCode) {
     const sources = [];
     if (product.id_product) {
@@ -50,10 +59,25 @@ function photoSources(product, colorCode) {
             if (state.photos.has(file)) sources.push(PHOTO_FOLDER + file);
         });
     }
+    if (product.name) {
+        const base = photoName(product.name);
+        PHOTO_TYPES.forEach(function (type) {
+            if (state.photos.has(base + '.' + type)) sources.push(PHOTO_FOLDER + base + '.' + type);
+        });
+    }
     if (product.image_url) {
         sources.push(product.image_url);
     }
+    const stock = stockPhoto(product);
+    if (stock) {
+        sources.push(stock);
+    }
     return sources.filter(function (src) { return !missingPhotos.has(src); });
+}
+
+export function hasPhoto(product) {
+    const first = (product.variants || [])[0];
+    return photoSources(product, first ? first.color_code : 'black').length > 0;
 }
 
 export function productArt(product, colorCode, extraClass) {

@@ -13,7 +13,9 @@ import { renderCatalog, renderOutlet } from './views/catalog.js';
 import { renderProduct } from './views/product.js';
 import { renderCart } from './views/cart.js';
 import { renderCheckout, renderConfirmation } from './views/checkout.js';
-import { authPanel, renderAccount, renderReset } from './views/account.js';
+import { authPanel, renderAccount, renderReset, renderConfirmSignup } from './views/account.js';
+import { renderPriority } from './views/priority.js';
+import { renderContact } from './views/contact.js';
 import { renderMarket } from './views/market.js';
 import { renderScanner } from './views/scanner.js';
 import { renderSupport } from './views/support.js';
@@ -38,7 +40,10 @@ const ROUTES = [
     [/^\/ofertas$/, 'shop', function (page) { return renderOffers(page); }],
     [/^\/sucursales$/, '', function (page) { return renderStores(page); }],
     [/^\/ayuda$/, '', function (page) { return renderHelp(page); }],
-    [/^\/soporte$/, 'account', function (page) { return renderSupport(page); }],
+    [/^\/soporte$/, 'account', function (page, m, q) { return renderSupport(page, q); }],
+    [/^\/contacto$/, '', function (page) { return renderContact(page); }],
+    [/^\/prioritario$/, 'account', function (page) { return renderPriority(page); }],
+    [/^\/confirmar$/, 'account', function (page, m, q) { return renderConfirmSignup(page, q); }],
     [/^\/mercado$/, 'account', function (page) { return renderMarket(page); }],
     [/^\/escanear$/, 'scan', function (page) { return renderScanner(page); }],
     [/^\/restablecer$/, 'account', function (page, m, q) { return renderReset(page, q); }],
@@ -168,7 +173,9 @@ function rotateAnnouncements() {
     let i = 0;
     const messages = function () {
         return [
-            currentTheme.name + ': ' + currentTheme.hero_title,
+            currentTheme.hero_title.toLowerCase().indexOf(currentTheme.name.toLowerCase()) >= 0
+                ? currentTheme.hero_title
+                : currentTheme.name + ': ' + currentTheme.hero_title,
             account().free_shipping_from === 0
                 ? 'Cliente ' + account().name + ': envío gratis y prioritario en todos tus pedidos'
                 : 'Envío gratis en compras desde ' + money.format(account().free_shipping_from),

@@ -1,62 +1,83 @@
 <?php
-declare(strict_types=1);
-
-namespace Apicore\Core;
-
-/**
- * What an endpoint or middleware returns: status code, payload and headers.
+/*
+ * Manejo uniforme de errores de la API.
  *
- * Layer: core. It never writes to the socket; Core\Application serializes the
- * payload and sends it.
+ * Los modelos (models/*.php) no imprimen errores: dejan el error en $DB_Error
+ * y index.php llama a api_fail_if_error() justo después de incluirlos.
+ * El detalle técnico de SQL Server se escribe en el log del servidor; al
+ * cliente solo le llega un mensaje claro y el código HTTP adecuado.
  */
-final class Response
+
+function api_error(int $status, string $message): array
 {
-    /**
-     * @param mixed                $payload dict/list serialized as JSON, or null for no body
-     * @param array<string, string> $headers
-     */
-    public function __construct(
-        public int $status = 200,
-        public mixed $payload = null,
-        public array $headers = [],
-    ) {
+    return ['status' => $status, 'message' => $message];
+}
+
+function api_sql_message(PDOException $ex): string
+{
+    $text = $ex->getMessage();
+    $pos = strrpos($text, ']');
+    return trim($pos !== false ? substr($text, $pos + 1) : $text);
+}
+
+/* Traduce el número de error nativo de SQL Server a una respuesta HTTP. */
+function api_db_error(PDOException $ex): array
+{
+    error_log('Error SQL: ' . $ex->getMessage());
+
+    $code = isset($ex->errorInfo[1]) ? (int)$ex->errorInfo[1] : 0;
+
+    if ($code >= 50000) {
+        /* Errores de negocio lanzados con THROW en los procedimientos. */
+        return api_error(409, api_sql_message($ex));
     }
 
-    /**
-     * Uniform success body of the store routes: {"status": "ok", "data": ...}.
-     *
-     * @param array<string, string> $headers
-     */
-    public static function ok(mixed $data, int $status = 200, array $headers = []): self
-    {
-        return new self($status, ['status' => 'ok', 'data' => $data], $headers);
+    switch ($code) {
+        case 2601:
+        case 2627:
+            return api_error(409, 'Ya existe un registro con esos datos (valor duplicado).');
+        case 547:
+            return api_error(409, 'La operación viola una regla de integridad: una referencia no existe, el registro está en uso o un valor no es válido.');
+        case 515:
+            return api_error(400, 'Falta un campo obligatorio.');
+        case 241:
+        case 242:
+        case 245:
+        case 8114:
+        case 8115:
+        case 8152:
+        case 2628:
+            return api_error(400, 'Un campo tiene un formato, tipo o longitud no válidos.');
+        case 1205:
+            return api_error(503, 'La operación se canceló por un conflicto de concurrencia. Intente de nuevo.');
+        default:
+            return api_error(500, 'Error interno de la base de datos.');
     }
+}
 
-    /**
-     * Like ok(), with an ETag: when the client already has this exact body
-     * (If-None-Match), the answer is a 304 without body and the page reuses
-     * its copy (the catalog is the largest response of the store).
-     *
-     * @param array<string, string> $requestHeaders lowercase names
-     */
-    public static function cached(mixed $data, array $requestHeaders): self
-    {
-        $payload = ['status' => 'ok', 'data' => $data];
-        $etag = 'W/"' . substr(hash('sha256', (string) json_encode($payload, JSON_INVALID_UTF8_SUBSTITUTE)), 0, 32) . '"';
-        $headers = ['ETag' => $etag, 'Cache-Control' => 'no-cache'];
-        $sent = (string) ($requestHeaders['if-none-match'] ?? '');
-        foreach (array_map('trim', explode(',', $sent)) as $candidate) {
-            $bare = preg_replace('#^W/#', '', $candidate);
-            if ($candidate === '*' || ($candidate !== '' && $bare === preg_replace('#^W/#', '', $etag))) {
-                return new self(304, null, $headers);
-            }
-        }
-        return new self(200, $payload, $headers);
-    }
+function api_send_error(array $error): void
+{
+    http_response_code($error['status']);
+    echo json_encode([
+        'success' => false,
+        'data' => null,
+        'message' => $error['message'],
+    ], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+}
 
-    /** Uniform error body: {"error": message}. */
-    public static function error(int $status, string $message): self
-    {
-        return new self($status, ['error' => $message]);
+function api_fail_if_error(): void
+{
+    global $DB_Error;
+    if ($DB_Error !== null) {
+        api_send_error($DB_Error);
+        exit;
     }
+}
+
+/* Lee los parámetros de paginación: ?page=1&page_size=100 (máximo 500). */
+function api_page(): array
+{
+    $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
+    $size = isset($_GET['page_size']) ? min(500, max(1, (int)$_GET['page_size'])) : 100;
+    return [($page - 1) * $size, $size];
 }

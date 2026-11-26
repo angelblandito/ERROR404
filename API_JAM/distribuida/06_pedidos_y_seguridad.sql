@@ -22,8 +22,8 @@
      Errores de negocio: THROW 50001-50019, la API los devuelve como HTTP 409.
 
    dbo.sp_evaluar_clientes_prioritarios
-     Sube a Prioritario a los clientes Estándar con al menos un año de
-     antigüedad y compras de mayoreo en los últimos 12 meses.
+     Sube a Prioritario a los clientes Estándar con más de un año de
+     antigüedad y más de $50,000 en compras.
 
    Usuario jam_api
      Login con los permisos mínimos que necesita la API. Requiere que la
@@ -284,8 +284,8 @@ GO
    Regla para ser cliente Prioritario
    --------------------------------------------------------------------- */
 CREATE OR ALTER PROCEDURE dbo.sp_evaluar_clientes_prioritarios
-    @dias_minimos   INT = 365,   -- antigüedad mínima como cliente
-    @piezas_minimas INT = 50     -- piezas compradas en los últimos 12 meses
+    @dias_minimos  INT           = 365,       -- más de un año con la cuenta
+    @monto_minimo  DECIMAL(12,2) = 50000.00   -- más de $50,000 comprados
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -296,19 +296,18 @@ BEGIN
     DECLARE @promovidos TABLE (id_customer INT NOT NULL PRIMARY KEY);
 
     UPDATE c
-    SET c.id_account_tier = @prioritario
+    SET c.id_account_tier = @prioritario,
+        c.updated_at = SYSUTCDATETIME()
     OUTPUT inserted.id_customer INTO @promovidos (id_customer)
     FROM dbo.customer AS c
     WHERE c.deleted = 0
       AND c.id_account_tier = @estandar
-      AND DATEDIFF(DAY, c.customer_since, CAST(SYSUTCDATETIME() AS DATE)) >= @dias_minimos
-      AND (SELECT ISNULL(SUM(oi.quantity), 0)
+      AND DATEDIFF(DAY, c.customer_since, CAST(SYSUTCDATETIME() AS DATE)) > @dias_minimos
+      AND (SELECT ISNULL(SUM(co.total), 0)
            FROM dbo.customer_order AS co
-           JOIN dbo.order_item AS oi ON oi.id_order = co.id_order AND oi.deleted = 0
            WHERE co.id_customer = c.id_customer
              AND co.deleted = 0
-             AND co.status NOT IN ('cancelled', 'returned')
-             AND co.order_date >= DATEADD(MONTH, -12, SYSUTCDATETIME())) >= @piezas_minimas;
+             AND co.status IN ('paid', 'shipped', 'delivered')) > @monto_minimo;
 
     SELECT c.id_customer, c.first_name, c.last_name_paternal, c.email
     FROM @promovidos AS p

@@ -1,0 +1,10 @@
+# API v3: every request goes through index.php.
+# No other file of this folder is served directly (code, tests, build.php, .env).
+RewriteEngine On
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+RewriteCond %{REQUEST_URI} !/api/v3/index\.php$
+RewriteRule ^ index.php [QSA,L]
+
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>

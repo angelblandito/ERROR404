@@ -1,4 +1,4 @@
-/* Soporte técnico: el plazo de respuesta depende del tipo de cuenta. */
+/* Soporte técnico: el plazo de respuesta depende del tipo de cuenta; un reporte urgente se atiende en máximo una hora. */
 import { api } from '../api.js';
 import { $, clone, field, fill, show, slot, badge, message, toast, formatDate, loading, setTitle } from '../ui.js';
 import { account, isPriority, state } from '../store.js';
@@ -57,12 +57,12 @@ async function loadOrderOptions(select) {
     }
 }
 
-export function renderSupport(page) {
+export function renderSupport(page, params) {
     setTitle('Soporte');
 
     if (!state.customer) {
         page.replaceChildren(authPanel('Soporte técnico', 'Inicia sesión para abrir un ticket y ver las respuestas.', function () {
-            renderSupport(page);
+            renderSupport(page, params);
         }));
         return;
     }
@@ -74,6 +74,10 @@ export function renderSupport(page) {
     field(view, 'sla').classList.toggle('priority', isPriority());
     page.replaceChildren(view);
 
+    if (params && params.urgente) {
+        form.urgent.checked = true;
+        form.subject.focus();
+    }
     loadOrderOptions(form.id_order);
     loadTickets(list);
 
@@ -84,10 +88,13 @@ export function renderSupport(page) {
         try {
             await api('/support/tickets', {
                 method: 'POST',
-                body: { subject: form.subject.value, message: form.message.value, id_order: form.id_order.value || null }
+                body: { subject: form.subject.value, message: form.message.value, id_order: form.id_order.value || null, urgent: form.urgent.checked }
             });
+            const urgent = form.urgent.checked;
             form.reset();
-            toast(isPriority() ? 'Ticket prioritario enviado. Te respondemos en minutos.' : 'Ticket enviado.');
+            toast(urgent
+                ? 'Reporte urgente enviado. Te respondemos en menos de una hora; si alguien está en peligro llama al 911.'
+                : (isPriority() ? 'Ticket prioritario enviado. Te respondemos en minutos.' : 'Ticket enviado.'));
             loadTickets(list);
         } catch (err) {
             toast(err.message, { error: true });

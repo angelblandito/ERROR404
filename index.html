@@ -102,6 +102,8 @@
                 <a href="#/escanear">Escanear un producto</a>
                 <a href="#/mercado" data-role="priority" hidden>Comparador de mercado</a>
                 <a href="#/soporte">Soporte</a>
+                <a href="#/contacto">Contacto y emergencias</a>
+                <a href="#/prioritario">Clientes Prioritarios</a>
                 <a href="#/sucursales">Sucursales</a>
                 <a href="#/ayuda">Ayuda</a>
                 <a href="#/admin" data-role="admin" hidden>Administración</a>
@@ -119,6 +121,7 @@
                 <h3>Ayuda</h3>
                 <a href="#/cuenta">Estado de mi pedido</a>
                 <a href="#/soporte">Soporte técnico</a>
+                <a href="#/contacto">Contacto y emergencias</a>
                 <a href="#/ayuda">Envíos y entregas</a>
                 <a href="#/legal/devoluciones">Cambios y devoluciones</a>
                 <a href="#/ayuda">Métodos de pago</a>
@@ -135,7 +138,7 @@
                 <h3>JAM Sport</h3>
                 <a href="#/sucursales">Sucursales</a>
                 <a href="#/escanear">Escanear un producto</a>
-                <a href="#/cuenta">Clientes Prioritarios</a>
+                <a href="#/prioritario">Clientes Prioritarios</a>
                 <a href="#/mercado" data-role="priority" hidden>Comparador de mercado</a>
                 <a href="#/admin" data-role="admin" hidden>Administración</a>
                 <a href="#/panel/distribuida" data-role="admin" hidden>Base de datos distribuida</a>
@@ -336,6 +339,7 @@
             </a>
             <div data-slot="recent"></div>
             <div data-slot="bestSellers"></div>
+            <div data-slot="seasons"></div>
 
             <section class="segments">
                 <a class="segment segment-youth" href="#/tienda?edad=youth"><span>15–24</span><h2>Juvenil</h2><p>Estilo urbano, escuela y deporte.</p></a>
@@ -345,8 +349,25 @@
             <div data-slot="announcements"></div>
             <section class="coupon-strip" data-slot="coupons" hidden></section>
             <div data-slot="newest"></div>
+            <div data-slot="deals"></div>
             <div data-slot="topRated"></div>
         </div>
+    </template>
+
+    <template id="tpl-season-collection">
+        <section class="rail season-collection">
+            <div class="section-head">
+                <h2>Colección por temporada</h2>
+                <a class="link-more" data-field="link">Ver colección</a>
+            </div>
+            <div class="chip-row season-tabs" data-slot="tabs"></div>
+            <p class="season-note" data-field="note"></p>
+            <div class="rail-track" data-slot="items"></div>
+        </section>
+    </template>
+
+    <template id="tpl-season-tab">
+        <button class="chip" type="button" aria-pressed="false"></button>
     </template>
 
     <template id="tpl-coupon">
@@ -394,6 +415,16 @@
                             <label class="opt"><input type="radio" name="dep" value="footwear"> Calzado</label>
                             <label class="opt"><input type="radio" name="dep" value="apparel"> Ropa</label>
                             <label class="opt"><input type="radio" name="dep" value="accessories"> Accesorios</label>
+                        </fieldset>
+                        <fieldset class="filter">
+                            <legend>Temporada</legend>
+                            <label class="opt"><input type="radio" name="temporada" value=""> Todas</label>
+                            <label class="opt"><input type="radio" name="temporada" value="spring"> Primavera</label>
+                            <label class="opt"><input type="radio" name="temporada" value="summer"> Verano</label>
+                            <label class="opt"><input type="radio" name="temporada" value="autumn"> Otoño</label>
+                            <label class="opt"><input type="radio" name="temporada" value="winter"> Invierno</label>
+                            <label class="opt"><input type="radio" name="temporada" value="back_to_school"> Regreso a clases</label>
+                            <label class="opt"><input type="radio" name="temporada" value="christmas"> Navidad</label>
                         </fieldset>
                         <fieldset class="filter">
                             <legend>Género</legend>
@@ -839,6 +870,28 @@
         </div>
     </template>
 
+    <template id="tpl-signup-sent">
+        <div class="signup-sent" role="status">
+            <div class="confirm-icon mail" aria-hidden="true">✉</div>
+            <h2>Revisa tu correo</h2>
+            <p>Te enviamos un enlace a <strong data-field="email"></strong> para terminar de crear tu cuenta. Vence en <span data-field="hours"></span> horas.</p>
+            <p class="muted small">Tu cuenta todavía no existe: se crea cuando abres el enlace. Si no ves el correo, revisa la carpeta de spam o promociones.</p>
+            <button class="btn btn-ghost btn-sm" type="button" data-action="again">Usar otro correo</button>
+        </div>
+    </template>
+
+    <template id="tpl-confirm-signup">
+        <div class="confirm">
+            <div class="confirm-icon" data-field="icon" aria-hidden="true">…</div>
+            <h1 data-field="title">Confirmando tu correo…</h1>
+            <p class="muted" data-field="text">Un momento, estamos creando tu cuenta.</p>
+            <div class="confirm-actions" data-field="actions" hidden>
+                <a class="btn btn-dark" href="#/cuenta">Ir a mi cuenta</a>
+                <a class="btn btn-ghost" href="#/prioritario">Cómo ser Prioritario</a>
+            </div>
+        </div>
+    </template>
+
     <template id="tpl-account">
         <div class="account">
             <header class="account-head">
@@ -862,8 +915,9 @@
                     <a class="btn btn-ghost" href="#/admin" data-field="adminLink" hidden>Ir a Administración</a>
                 </div>
                 <div class="tier-upgrade" data-field="upgrade" hidden>
-                    <p><strong>¿Compras por mayoreo?</strong> Con un año como cliente y 50 piezas compradas al año, tu cuenta sube a <strong>Prioritario</strong>:</p>
-                    <ul class="benefits" data-slot="priorityBenefits"></ul>
+                    <p><strong>Sube a Prioritario.</strong> Con más de $50,000 en compras y más de un año con tu cuenta obtienes 12 % de descuento, envío gratis y prioritario, compras de mayoreo y soporte en minutos.</p>
+                    <div data-slot="progress"></div>
+                    <a class="btn btn-dark btn-sm" href="#/prioritario">Ver qué me falta</a>
                 </div>
             </section>
 
@@ -912,7 +966,9 @@
                     </label>
                     <label class="field"><span>Asunto</span><input class="input" name="subject" maxlength="100" required></label>
                     <label class="field"><span>Mensaje</span><textarea class="input" name="message" rows="5" maxlength="1000" required></textarea></label>
+                    <label class="check urgent-check"><input type="checkbox" name="urgent" value="1"> Es urgente (cargo que no reconozco, pedido perdido o robado, lesión con un producto)</label>
                     <button class="btn btn-dark btn-block">Enviar</button>
+                    <p class="muted small">¿Prefieres hablar con alguien? <a href="#/contacto">Teléfonos, WhatsApp y emergencias</a>.</p>
                 </form>
                 <section>
                     <h2>Mis tickets</h2>
@@ -1024,8 +1080,8 @@
             <p class="eyebrow-dark">Beneficio Prioritario</p>
             <h1>Comparador de mercado</h1>
             <p>Compara nuestros precios con productos equivalentes de Nike, Adidas y Puma, por tipo de producto y artículo por artículo.</p>
-            <p class="muted">Está disponible para cuentas Prioritario y Administrador. Con un año como cliente y 50 piezas compradas al año, tu cuenta sube a Prioritario.</p>
-            <a class="btn btn-dark" href="#/cuenta">Ver mis beneficios</a>
+            <p class="muted">Está disponible para cuentas Prioritario y Administrador. Con más de $50,000 en compras y más de un año con tu cuenta, subes a Prioritario.</p>
+            <a class="btn btn-dark" href="#/prioritario">Cómo ser Prioritario</a>
         </div>
     </template>
 
@@ -1339,7 +1395,7 @@
             <h2>Cambios y devoluciones</h2>
             <p>Consulta la <a href="#/legal/devoluciones">política de devoluciones</a>.</p>
             <h2>Contacto y quejas</h2>
-            <p>Escríbenos desde <a href="#/soporte">Soporte</a>. También puedes acudir a la Procuraduría Federal del Consumidor (PROFECO).</p>
+            <p>Escríbenos desde <a href="#/soporte">Soporte</a> o usa los teléfonos de <a href="#/contacto">Contacto</a>. También puedes acudir a la Procuraduría Federal del Consumidor (PROFECO).</p>
         </article>
     </template>
 
@@ -1396,6 +1452,139 @@
         </article>
     </template>
 
+    <!-- ===================== Plantillas: cuenta Prioritario ===================== -->
+    <template id="tpl-priority">
+        <div class="priority-page">
+            <header class="priority-hero">
+                <p class="eyebrow-dark">Programa de clientes</p>
+                <h1>Cómo ser cliente Prioritario</h1>
+                <p>La cuenta para quienes compran seguido o por mayoreo. Sube de Estándar a Prioritario cuando cumplas los dos requisitos.</p>
+            </header>
+
+            <section class="priority-rules">
+                <article class="rule-card">
+                    <span class="rule-num">1</span>
+                    <h2>Más de $50,000 en compras</h2>
+                    <p class="muted">Cuentan los pedidos pagados, enviados o entregados. Los cancelados y devueltos no cuentan.</p>
+                </article>
+                <article class="rule-card">
+                    <span class="rule-num">2</span>
+                    <h2>Más de un año con tu cuenta</h2>
+                    <p class="muted">Se cuenta desde el día en que creaste tu cuenta Estándar.</p>
+                </article>
+            </section>
+
+            <section class="priority-status" data-slot="status"></section>
+
+            <section class="priority-compare">
+                <h2>Lo que ganas</h2>
+                <div class="compare-grid">
+                    <article class="compare-card">
+                        <h3>Estándar</h3>
+                        <ul class="benefits" data-slot="standard"></ul>
+                    </article>
+                    <article class="compare-card gold-card">
+                        <h3>Prioritario</h3>
+                        <ul class="benefits" data-slot="priority"></ul>
+                    </article>
+                </div>
+            </section>
+
+            <section class="priority-faq">
+                <h2>Preguntas frecuentes</h2>
+                <details class="acc">
+                    <summary>¿Cómo subo mi cuenta?</summary>
+                    <p>Cuando cumples los dos requisitos aparece aquí el botón <strong>Subir a Prioritario</strong> y el cambio es inmediato. Además, el equipo de JAM Sport revisa las cuentas periódicamente y sube a quienes ya cumplen.</p>
+                </details>
+                <details class="acc">
+                    <summary>¿Puedo perder la cuenta Prioritario?</summary>
+                    <p>No por dejar de comprar. Solo se revisa en casos de mal uso de los beneficios de mayoreo.</p>
+                </details>
+                <details class="acc">
+                    <summary>¿Las compras en sucursal cuentan?</summary>
+                    <p>Sí, si al pagar das el correo o teléfono de tu cuenta.</p>
+                </details>
+            </section>
+        </div>
+    </template>
+
+    <template id="tpl-priority-meter">
+        <div class="meter">
+            <div class="meter-head"><strong data-field="label"></strong><span data-field="value"></span></div>
+            <div class="meter-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100"><span data-field="fill"></span></div>
+            <p class="small" data-field="note"></p>
+        </div>
+    </template>
+
+    <template id="tpl-priority-guest">
+        <div class="priority-box">
+            <h2>¿Cuánto te falta?</h2>
+            <p class="muted">Inicia sesión con tu cuenta Estándar para ver tu avance.</p>
+            <a class="btn btn-dark" href="#/cuenta?volver=%23%2Fprioritario">Iniciar sesión</a>
+        </div>
+    </template>
+
+    <template id="tpl-priority-progress">
+        <div class="priority-box">
+            <h2 data-field="title">Tu avance</h2>
+            <p class="muted" data-field="intro"></p>
+            <div class="meters" data-slot="meters"></div>
+            <button class="btn btn-lg gold-btn" type="button" data-action="upgrade" hidden>Subir a Prioritario</button>
+            <p class="small muted" data-field="hint"></p>
+        </div>
+    </template>
+
+    <!-- ===================== Plantillas: contacto y emergencias ===================== -->
+    <template id="tpl-contact">
+        <div class="contact-page">
+            <header>
+                <p class="eyebrow-dark">Estamos para ayudarte</p>
+                <h1>Contacto</h1>
+                <p class="muted">Llámanos, escríbenos por WhatsApp o abre un ticket. Las cuentas Prioritario reciben respuesta en menos de 15 minutos.</p>
+            </header>
+
+            <section class="emergency" aria-labelledby="emergencyTitle">
+                <div>
+                    <h2 id="emergencyTitle">Emergencias</h2>
+                    <p>Si alguien está herido o en peligro, llama primero al <strong>911</strong>. Para reportar un cargo que no reconoces, un pedido robado o una lesión con un producto, usa la línea de atención urgente, disponible las 24 horas.</p>
+                </div>
+                <div class="emergency-actions">
+                    <a class="btn btn-emergency btn-lg" href="tel:911">Llamar al 911</a>
+                    <a class="btn btn-light btn-lg" data-field="urgentLine" href="tel:8001110004">Línea urgente JAM</a>
+                    <a class="btn btn-outline-light" href="#/soporte?urgente=1">Reporte urgente en línea</a>
+                </div>
+            </section>
+
+            <section>
+                <h2 class="contact-title">Atención a clientes</h2>
+                <div class="contact-channels">
+                    <a class="channel" data-field="mainPhone" href="tel:8001110004"><strong>Teléfono</strong><span data-field="mainPhoneText"></span><em>Lun a dom, 8:00 a 22:00</em></a>
+                    <a class="channel" data-field="mainWhatsapp" href="https://wa.me/528001110004" target="_blank" rel="noopener"><strong>WhatsApp</strong><span data-field="mainWhatsappText"></span><em>Respuesta en minutos</em></a>
+                    <a class="channel" data-field="mainEmail" href="mailto:online@jam.mx"><strong>Correo</strong><span data-field="mainEmailText"></span><em>Respuesta en 24 horas</em></a>
+                    <a class="channel" href="#/soporte"><strong>Ticket de soporte</strong><span>Sigue tu caso en línea</span><em>Con tu cuenta</em></a>
+                </div>
+            </section>
+
+            <section>
+                <h2 class="contact-title">Sucursales</h2>
+                <div class="store-grid" data-slot="stores"></div>
+            </section>
+        </div>
+    </template>
+
+    <template id="tpl-contact-store">
+        <article class="store-card">
+            <h3 data-field="name"></h3>
+            <p class="muted" data-field="location"></p>
+            <p class="muted small" data-field="hours" hidden></p>
+            <div class="store-links">
+                <a class="btn btn-ghost btn-sm" data-field="call">Llamar</a>
+                <a class="btn btn-ghost btn-sm" data-field="whatsapp" target="_blank" rel="noopener">WhatsApp</a>
+                <a class="btn btn-ghost btn-sm" data-field="email">Correo</a>
+            </div>
+        </article>
+    </template>
+
     <template id="tpl-stores">
         <div class="plain-page">
             <h1>Sucursales</h1>
@@ -1409,7 +1598,7 @@
             <h2 data-field="name"></h2>
             <p data-field="location"></p>
             <p class="muted" data-field="hours" hidden></p>
-            <p class="muted">Tel. <span data-field="phone"></span></p>
+            <p class="muted">Tel. <a data-field="phone"></a></p>
             <a class="btn btn-ghost btn-sm" href="#/tienda?disp=1">Ver productos disponibles</a>
         </article>
     </template>
@@ -1691,7 +1880,7 @@
     <template id="tpl-admin-customers">
         <div>
             <div class="toolbar between">
-                <p class="muted small">Regla automática: un año como cliente y 50 piezas compradas en los últimos 12 meses (<code>dbo.sp_evaluar_clientes_prioritarios</code>).</p>
+                <p class="muted small">Regla automática: más de $50,000 en compras y más de un año con la cuenta (<code>dbo.sp_evaluar_clientes_prioritarios</code>).</p>
                 <button class="btn btn-dark" type="button" data-action="evaluate">Aplicar regla</button>
             </div>
             <div class="table-wrap">

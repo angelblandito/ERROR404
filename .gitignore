@@ -1,1 +1,8 @@
 api/v1/php/config/settings.php
+
+# Configuracion local de la API v2 (contrasenas)
+api/v2/.env
+api/v2/config/settings.php
+
+# Configuracion local de la API v3 (clave de los tokens)
+api/v3/.env

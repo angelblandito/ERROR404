@@ -60,7 +60,8 @@ export async function api(path, options = {}) {
         setToken(null);
     }
     if (!response.ok || payload.success === false) {
-        throw new ApiError(payload.message || 'Error HTTP ' + response.status, response.status);
+        /* v1 y v2 mandan el error en message; la v3, en error */
+        throw new ApiError(payload.message || payload.error || 'Error HTTP ' + response.status, response.status);
     }
     return payload.data;
 }

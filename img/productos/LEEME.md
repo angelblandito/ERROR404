@@ -3,7 +3,25 @@
 Coloca aquí las fotos de la ropa. La tienda las muestra automáticamente; si una
 foto no existe, aparece la ilustración del producto en ese color.
 
-## Nombre del archivo
+## Descargar las fotos reales
+
+`descargar_fotos.ps1` baja 73 fotos de [Unsplash](https://unsplash.com/license)
+(uso gratuito) y las guarda aquí con el nombre de cada producto:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File C:\xampp\htdocs\ERROR404\img\productos\descargar_fotos.ps1
+```
+
+Los créditos de cada foto están en `CREDITOS.md`. Las fotos por nombre se ven con
+la API v2.
+
+## Foto por nombre del producto
+
+`<nombre-del-producto>.jpg`: el nombre en minúsculas, sin acentos y con guiones.
+Ejemplo: *Balón de fútbol JAM Strike No. 5* → `balon-de-futbol-jam-strike-no-5.jpg`.
+Se usa para todos los colores del producto.
+
+## Foto por color
 
 `<id_producto>-<color>.jpg` (o `.png` / `.webp`), en minúsculas. Ejemplo: `6-black.jpg` es el
 Tenis Running JAM Pulse en color negro.

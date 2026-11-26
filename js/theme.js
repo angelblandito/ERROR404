@@ -22,11 +22,28 @@ function localDate() {
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
 
+function inRange(t, md) {
+    return t.range[0] <= t.range[1] ? (md >= t.range[0] && md <= t.range[1]) : (md >= t.range[0] || md <= t.range[1]);
+}
+
 function fallbackFor(date) {
     const md = Number(date.slice(5, 7)) * 100 + Number(date.slice(8, 10));
-    return FALLBACK_THEMES.filter(function (t) {
-        return t.range[0] <= t.range[1] ? (md >= t.range[0] && md <= t.range[1]) : (md >= t.range[0] || md <= t.range[1]);
-    }).sort(function (a, b) { return b.priority - a.priority; })[0];
+    return FALLBACK_THEMES.filter(function (t) { return inRange(t, md); })
+        .sort(function (a, b) { return b.priority - a.priority; })[0];
+}
+
+/* Nombre de una temporada o campaña (Primavera, Navidad…). */
+export function themeName(code) {
+    const t = (themes.length ? themes : FALLBACK_THEMES).find(function (x) { return x.code === code; });
+    return t ? t.name : code;
+}
+
+/* Primavera, verano, otoño o invierno según la fecha de hoy, aunque haya una campaña activa. */
+export function seasonByDate() {
+    const d = new Date();
+    const md = (d.getMonth() + 1) * 100 + d.getDate();
+    const season = FALLBACK_THEMES.find(function (t) { return t.theme_type === 'season' && inRange(t, md); });
+    return season ? season.code : 'autumn';
 }
 
 function apply(theme) {
