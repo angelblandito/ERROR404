@@ -2,7 +2,7 @@
 import { $, $$, clone, fill, slot, money, toast, emptyState, loading, parseQuery } from './ui.js';
 import { productArt, handleMissingPhoto } from './illustrations.js';
 import { setFavState } from './components.js';
-import { account, cartCount, colorsOf, isAdmin, isPriority, loadCatalog, loadCustomer, salePrice, state, toggleFavorite } from './store.js';
+import { account, cartCount, colorsOf, isAdmin, isPriority, loadCatalog, loadCustomer, logout, salePrice, state, toggleFavorite } from './store.js';
 import { initTheme, currentTheme } from './theme.js';
 import { initEffects } from './effects.js';
 import { closeMiniCart } from './minicart.js';
@@ -15,6 +15,7 @@ import { renderCart } from './views/cart.js';
 import { renderCheckout, renderConfirmation } from './views/checkout.js';
 import { authPanel, renderAccount, renderReset, renderConfirmSignup } from './views/account.js';
 import { renderPriority } from './views/priority.js';
+import { renderSettings } from './views/settings.js';
 import { renderContact } from './views/contact.js';
 import { renderMarket } from './views/market.js';
 import { renderScanner } from './views/scanner.js';
@@ -43,6 +44,7 @@ const ROUTES = [
     [/^\/soporte$/, 'account', function (page, m, q) { return renderSupport(page, q); }],
     [/^\/contacto$/, '', function (page) { return renderContact(page); }],
     [/^\/prioritario$/, 'account', function (page) { return renderPriority(page); }],
+    [/^\/configuracion$/, 'account', function (page) { return renderSettings(page); }],
     [/^\/confirmar$/, 'account', function (page, m, q) { return renderConfirmSignup(page, q); }],
     [/^\/mercado$/, 'account', function (page) { return renderMarket(page); }],
     [/^\/escanear$/, 'scan', function (page) { return renderScanner(page); }],
@@ -116,6 +118,58 @@ function updateAccount() {
     document.body.classList.toggle('tier-priority', signedIn && acc.tier !== 'standard');
     $$('[data-role="admin"]').forEach(function (el) { el.hidden = !acc.can_manage_store; });
     $$('[data-role="priority"]').forEach(function (el) { el.hidden = !signedIn || !isPriority(); });
+}
+
+/* Menú del ícono de usuario: opciones según la sesión y el tipo de cuenta. */
+function updateUserMenu() {
+    const acc = account();
+    const signedIn = Boolean(state.customer);
+    const visible = {
+        guest: !signedIn,
+        signed: signedIn,
+        standard: signedIn && acc.tier === 'standard',
+        priority: signedIn && isPriority(),
+        admin: signedIn && acc.can_manage_store
+    };
+    $$('[data-when]').forEach(function (el) { el.hidden = !visible[el.dataset.when]; });
+    if (signedIn) {
+        $('#userMenuName').textContent = state.customer.first_name + ' ' + state.customer.last_name_paternal;
+        $('#userMenuEmail').textContent = state.customer.email;
+        const tier = $('#userMenuTier');
+        tier.textContent = 'Cuenta ' + acc.name;
+        tier.className = 'tier-chip tier-' + acc.tier;
+    }
+}
+
+function setUserMenu(open) {
+    $('#userMenuPanel').hidden = !open;
+    $('#userMenuButton').setAttribute('aria-expanded', String(open));
+}
+
+function bindUserMenu() {
+    const button = $('#userMenuButton');
+    const panel = $('#userMenuPanel');
+    button.addEventListener('click', function () { setUserMenu(panel.hidden); });
+    panel.addEventListener('click', function (e) {
+        if (e.target.closest('a')) setUserMenu(false);
+    });
+    document.addEventListener('click', function (e) {
+        if (!e.target.closest('#userMenu')) setUserMenu(false);
+    });
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && !panel.hidden) {
+            setUserMenu(false);
+            button.focus();
+        }
+    });
+    document.addEventListener('click', async function (e) {
+        if (!e.target.closest('[data-action="header-logout"]')) return;
+        setUserMenu(false);
+        closeMenu();
+        await logout();
+        toast('Cerraste sesión');
+        window.location.hash = '#/';
+    });
 }
 
 function updateCounts() {
@@ -241,10 +295,13 @@ document.addEventListener('error', function (e) {
 
 document.addEventListener('jam:change', updateCounts);
 document.addEventListener('jam:change', updateAccount);
+document.addEventListener('jam:change', updateUserMenu);
 window.addEventListener('hashchange', route);
 
 bindHeader();
+bindUserMenu();
 updateCounts();
+updateUserMenu();
 rotateAnnouncements();
 initEffects();
 initTheme();

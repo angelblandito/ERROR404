@@ -1076,6 +1076,60 @@
           }
         },
         {
+          "name": "PUT /me/profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/me/profile",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"first_name\": \"Prueba\",\n  \"last_name_paternal\": \"Estándar\",\n  \"last_name_maternal\": \"\",\n  \"phone\": \"6641234567\",\n  \"accepts_marketing\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "POST /me/password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/me/password",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"current_password\": \"JamEstandar2026\",\n  \"new_password\": \"JamEstandar2027\"\n}"
+            }
+          }
+        },
+        {
           "name": "GET /support/tickets",
           "request": {
             "method": "GET",

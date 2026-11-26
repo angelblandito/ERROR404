@@ -62,9 +62,42 @@
                     <svg aria-hidden="true"><use href="img/iconos.svg#chart"></use></svg><span>Comparador</span>
                 </a>
                 <a class="tier-chip" id="tierChip" href="#/cuenta" hidden></a>
-                <a class="icon-btn" href="#/cuenta" aria-label="Mi cuenta">
-                    <svg aria-hidden="true"><use href="img/iconos.svg#user"></use></svg>
-                </a>
+                <div class="user-menu" id="userMenu">
+                    <button class="icon-btn" id="userMenuButton" type="button" aria-label="Mi cuenta" aria-haspopup="menu" aria-expanded="false" aria-controls="userMenuPanel">
+                        <svg aria-hidden="true"><use href="img/iconos.svg#user"></use></svg>
+                    </button>
+                    <div class="user-menu-panel" id="userMenuPanel" role="menu" aria-label="Mi cuenta" hidden>
+                        <div class="user-menu-head" data-when="guest">
+                            <strong>¡Hola!</strong>
+                            <span class="muted small">Inicia sesión para ver tus pedidos, favoritos y beneficios.</span>
+                            <a class="btn btn-dark btn-sm btn-block" href="#/cuenta" role="menuitem">Iniciar sesión</a>
+                            <a class="btn btn-ghost btn-sm btn-block" href="#/cuenta?registro=1" role="menuitem">Crear cuenta</a>
+                        </div>
+                        <div class="user-menu-head" data-when="signed">
+                            <strong id="userMenuName"></strong>
+                            <span class="muted small" id="userMenuEmail"></span>
+                            <span class="tier-chip" id="userMenuTier"></span>
+                        </div>
+                        <div class="user-menu-links">
+                            <a href="#/cuenta" role="menuitem" data-when="signed">Mi cuenta</a>
+                            <a href="#/cuenta?ver=pedidos" role="menuitem" data-when="signed">Mis pedidos</a>
+                            <a href="#/favoritos" role="menuitem">Favoritos</a>
+                            <a href="#/prioritario" role="menuitem" data-when="standard">Cómo ser Prioritario</a>
+                            <a href="#/mercado" role="menuitem" data-when="priority">Comparador de mercado</a>
+                            <a href="#/admin" role="menuitem" data-when="admin">Administración</a>
+                        </div>
+                        <div class="user-menu-links">
+                            <a href="#/configuracion" role="menuitem" data-when="signed">Configuración</a>
+                            <a href="#/soporte" role="menuitem">Soporte técnico</a>
+                            <a href="#/contacto" role="menuitem">Contacto y emergencias</a>
+                            <a href="#/sucursales" role="menuitem">Sucursales</a>
+                            <a href="#/ayuda" role="menuitem">Ayuda</a>
+                        </div>
+                        <div class="user-menu-links" data-when="signed">
+                            <button type="button" role="menuitem" class="user-menu-logout" data-action="header-logout">Cerrar sesión</button>
+                        </div>
+                    </div>
+                </div>
                 <a class="icon-btn" href="#/favoritos" aria-label="Favoritos">
                     <svg aria-hidden="true"><use href="img/iconos.svg#heart"></use></svg>
                     <span class="count" data-count="favorites" hidden>0</span>
@@ -99,6 +132,7 @@
             </nav>
             <div class="mobile-secondary">
                 <a href="#/cuenta">Mi cuenta y pedidos</a>
+                <a href="#/configuracion" data-when="signed" hidden>Configuración</a>
                 <a href="#/escanear">Escanear un producto</a>
                 <a href="#/mercado" data-role="priority" hidden>Comparador de mercado</a>
                 <a href="#/soporte">Soporte</a>
@@ -107,6 +141,7 @@
                 <a href="#/sucursales">Sucursales</a>
                 <a href="#/ayuda">Ayuda</a>
                 <a href="#/admin" data-role="admin" hidden>Administración</a>
+                <button type="button" class="mobile-logout" data-when="signed" data-action="header-logout" hidden>Cerrar sesión</button>
             </div>
         </div>
     </div>
@@ -911,6 +946,7 @@
                 </div>
                 <div class="tier-actions">
                     <a class="btn btn-dark" href="#/soporte">Contactar a soporte</a>
+                    <a class="btn btn-ghost" href="#/configuracion">Configuración</a>
                     <a class="btn gold" href="#/mercado" data-field="marketLink" hidden>Comparador de mercado</a>
                     <a class="btn btn-ghost" href="#/admin" data-field="adminLink" hidden>Ir a Administración</a>
                 </div>
@@ -923,11 +959,69 @@
 
             <section data-slot="announcements"></section>
 
-            <div class="section-head">
+            <div class="section-head" id="misPedidos">
                 <h2>Mis pedidos</h2>
                 <button class="btn btn-ghost btn-sm" type="button" data-action="logout">Cerrar sesión</button>
             </div>
             <div data-slot="orders"></div>
+        </div>
+    </template>
+
+    <!-- ===================== Plantillas: configuración ===================== -->
+    <template id="tpl-settings">
+        <div class="settings">
+            <header class="settings-head">
+                <p class="eyebrow-dark">Mi cuenta</p>
+                <h1>Configuración</h1>
+                <p class="muted">Actualiza tus datos, tus preferencias y tu contraseña.</p>
+            </header>
+
+            <section class="settings-card">
+                <h2>Datos personales</h2>
+                <form data-form="profile" novalidate>
+                    <div class="field-row">
+                        <label class="field"><span>Nombre</span><input class="input" name="first_name" autocomplete="given-name" required minlength="2" maxlength="50"></label>
+                        <label class="field"><span>Apellido paterno</span><input class="input" name="last_name_paternal" autocomplete="family-name" required minlength="2" maxlength="50"></label>
+                    </div>
+                    <div class="field-row">
+                        <label class="field"><span>Apellido materno (opcional)</span><input class="input" name="last_name_maternal" maxlength="50"></label>
+                        <label class="field"><span>Teléfono (10 dígitos)</span><input class="input" type="tel" name="phone" inputmode="numeric" pattern="\d{10}" autocomplete="tel-national" required></label>
+                    </div>
+                    <div class="field-row">
+                        <label class="field"><span>Correo</span><input class="input" data-field="email" disabled></label>
+                        <label class="field"><span>Fecha de nacimiento</span><input class="input" data-field="birth" disabled></label>
+                    </div>
+                    <p class="muted small">El correo y la fecha de nacimiento no se pueden cambiar. Si están mal, escríbenos desde <a href="#/soporte">Soporte técnico</a>.</p>
+                    <h3>Preferencias</h3>
+                    <label class="check"><input type="checkbox" name="accepts_marketing" value="1"> Quiero recibir ofertas, cupones y novedades por correo</label>
+                    <button class="btn btn-dark">Guardar cambios</button>
+                </form>
+            </section>
+
+            <section class="settings-card">
+                <h2>Contraseña</h2>
+                <form data-form="password" novalidate>
+                    <label class="field"><span>Contraseña actual</span><input class="input" type="password" name="current_password" autocomplete="current-password" required></label>
+                    <div class="field-row">
+                        <label class="field"><span>Nueva contraseña (mínimo 8, con letras y números)</span><input class="input" type="password" name="new_password" autocomplete="new-password" minlength="8" maxlength="72" required></label>
+                        <label class="field"><span>Repite la nueva contraseña</span><input class="input" type="password" name="confirm_password" autocomplete="new-password" minlength="8" maxlength="72" required></label>
+                    </div>
+                    <p class="muted small">Al cambiarla se cierra tu sesión en todos tus dispositivos y vuelves a entrar con la nueva.</p>
+                    <button class="btn btn-dark">Cambiar contraseña</button>
+                </form>
+            </section>
+
+            <section class="settings-card">
+                <h2>Tu cuenta</h2>
+                <dl class="settings-facts">
+                    <dt>Tipo de cuenta</dt><dd data-field="tier"></dd>
+                    <dt>Cliente desde</dt><dd data-field="since"></dd>
+                </dl>
+                <div class="settings-actions">
+                    <a class="btn btn-ghost btn-sm" href="#/legal/privacidad">Aviso de privacidad</a>
+                    <button class="btn btn-ghost btn-sm" type="button" data-action="logout">Cerrar sesión</button>
+                </div>
+            </section>
         </div>
     </template>
 

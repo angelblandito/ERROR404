@@ -9,6 +9,7 @@ use Apicore\Middlewares\RateLimitMiddleware;
 use Apicore\Routers\RouterRegistry;
 use Apicore\Services\AccountService;
 use Apicore\Services\MailService;
+use Apicore\Services\ProfileService;
 use Apicore\Services\RecoveryService;
 use Apicore\Services\RegistrationService;
 
@@ -213,5 +214,50 @@ final class NuevasFuncionesTest extends TestCase
         foreach (['189.203.10.4', '10.0.0.4', '2806:2f0::1'] as $ip) {
             $this->assertFalse(RateLimitMiddleware::isLoopback($ip), $ip);
         }
+    }
+
+    /* ---------------- Configuración de la cuenta ---------------- */
+
+    public function testElPerfilValidaNombreYTelefono(): void
+    {
+        $ok = ProfileService::validate([
+            'first_name' => ' Ana ', 'last_name_paternal' => 'López', 'last_name_maternal' => '',
+            'phone' => '(664) 123-4567', 'accepts_marketing' => true,
+        ]);
+        $this->assertSame('Ana', $ok['first_name']);
+        $this->assertSame('6641234567', $ok['phone']);
+        $this->assertNull($ok['last_name_maternal']);
+        $this->assertSame(1, $ok['accepts_marketing']);
+
+        $bad = $this->assertThrows(AppError::class, static fn () => ProfileService::validate([
+            'first_name' => 'Ana', 'last_name_paternal' => 'López', 'phone' => '123',
+        ]));
+        $this->assertSame(400, $bad->statusCode());
+        $short = $this->assertThrows(AppError::class, static fn () => ProfileService::validate([
+            'first_name' => 'A', 'last_name_paternal' => 'López', 'phone' => '6641234567',
+        ]));
+        $this->assertSame(400, $short->statusCode());
+    }
+
+    public function testElPerfilNoCambiaCorreoNiTipoDeCuenta(): void
+    {
+        $data = ProfileService::validate([
+            'first_name' => 'Ana', 'last_name_paternal' => 'López', 'phone' => '6641234567',
+            'email' => 'otro@correo.com', 'id_account_tier' => 3, 'tier' => 'admin',
+        ]);
+        $this->assertSame(['first_name', 'last_name_paternal', 'last_name_maternal', 'phone', 'accepts_marketing'], array_keys($data));
+    }
+
+    public function testConfiguracionSoloConSesion(): void
+    {
+        $router = $this->router();
+        $this->assertSame(false, $router->routePublic('PUT', '/me/profile'));
+        $this->assertSame(false, $router->routePublic('POST', '/me/password'));
+        foreach ([['PUT', '/me/profile'], ['POST', '/me/password']] as [$method, $path]) {
+            $error = $this->assertThrows(AppError::class, static fn () => $router->dispatch($method, $path, '{}'));
+            $this->assertSame(401, $error->statusCode(), $method . ' ' . $path);
+        }
+        $this->assertSame('contrasena', RateLimitMiddleware::ruleFor('POST', '/me/password')[4]);
+        $this->assertSame('perfil', RateLimitMiddleware::ruleFor('PUT', '/me/profile')[4]);
     }
 }

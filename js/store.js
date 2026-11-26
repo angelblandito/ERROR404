@@ -398,6 +398,25 @@ export async function upgradeToPriority() {
     return data;
 }
 
+/* Configuración: datos personales y contraseña. */
+export async function updateProfile(fields) {
+    const customer = await api('/me/profile', { method: 'PUT', body: fields });
+    state.customer = customer;
+    customerPromise = Promise.resolve(customer);
+    emit();
+    return customer;
+}
+
+/* La API cierra todas las sesiones de la cuenta; aquí se borra la local. */
+export async function changePassword(current, next) {
+    await api('/me/password', { method: 'POST', body: { current_password: current, new_password: next } });
+    setToken(null);
+    state.customer = null;
+    customerPromise = null;
+    clampCart();
+    emit();
+}
+
 export async function logout() {
     try {
         await api('/auth/logout', { method: 'POST', body: {} });

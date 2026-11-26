@@ -8,7 +8,7 @@ use Apicore\Core\Response;
 use Apicore\Core\Router;
 
 /**
- * Routes: orders, support tickets and progress towards Prioritario of the signed-in customer.
+ * Routes: orders, support tickets, progress towards Prioritario and account settings of the signed-in customer.
  * Layer: routers. It only registers routes; the logic lives in MeController and the services.
  */
 final class MeRouter
@@ -44,6 +44,18 @@ final class MeRouter
             '/me/priority/upgrade',
             MeController::class,
             static fn (MeController $c, array $p, string $body): Response => Response::ok($c->upgrade(), headers: $c->responseHeaders),
+        );
+        $router->addRoute(
+            'PUT',
+            '/me/profile',
+            MeController::class,
+            static fn (MeController $c, array $p, string $body): Response => Response::ok($c->updateProfile($body), headers: $c->responseHeaders),
+        );
+        $router->addRoute(
+            'POST',
+            '/me/password',
+            MeController::class,
+            static fn (MeController $c, array $p, string $body): Response => Response::ok($c->changePassword($body), headers: $c->responseHeaders),
         );
     }
 }

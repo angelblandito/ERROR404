@@ -187,13 +187,15 @@ export async function renderAccount(page, params) {
     const back = params.volver;
 
     if (!state.customer) {
-        page.replaceChildren(authPanel('Mi cuenta', 'Inicia sesión para ver tus pedidos y comprar más rápido.', function () {
+        const panel = authPanel('Mi cuenta', 'Inicia sesión para ver tus pedidos y comprar más rápido.', function () {
             if (back) {
                 window.location.hash = back;
             } else {
                 renderAccount(page, {});
             }
-        }));
+        });
+        page.replaceChildren(panel);
+        if (params.registro) $('[data-auth="register"]', panel).click();
         return;
     }
 
@@ -232,6 +234,8 @@ export async function renderAccount(page, params) {
         toast('Cerraste sesión');
         renderAccount(page, {});
     });
+
+    if (params.ver === 'pedidos') $('#misPedidos', view).scrollIntoView();
 
     try {
         const list = await api('/me/orders');

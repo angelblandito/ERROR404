@@ -34,7 +34,7 @@ final class SyncMiddleware extends Middleware
      */
     private const SKIP = [
         '/distributed/sync', '/mirror/sync',
-        '/auth/login', '/auth/logout', '/auth/register', '/auth/forgot', '/auth/reset',
+        '/auth/login', '/auth/logout', '/auth/register', '/auth/forgot', '/auth/reset', '/me/password',
     ];
 
     /** Only writes that went well and that change store data (visit counters do not). */

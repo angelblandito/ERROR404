@@ -37,6 +37,8 @@ final class RateLimitMiddleware extends Middleware
         ['POST', '#^/support/tickets$#', 10, 600, 'tickets'],
         ['POST', '#^/orders/checkout$#', 20, 600, 'compras'],
         ['POST', '#^/me/priority/upgrade$#', 10, 600, 'ascenso'],
+        ['POST', '#^/me/password$#', 10, 900, 'contrasena'],
+        ['PUT', '#^/me/profile$#', 20, 600, 'perfil'],
     ];
 
     /** Requests per IP on any route inside GENERAL_SECONDS: stops floods from one connection. */
