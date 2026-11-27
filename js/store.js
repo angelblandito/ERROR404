@@ -1,5 +1,6 @@
 /* Estado de la tienda: catálogo, carrito de compras, favoritos y sesión del cliente. */
 import { api, getToken, setToken } from './api.js';
+import { assignPhotos } from './product-photos.js';
 
 function loadJSON(key, fallback) {
     try {
@@ -45,6 +46,7 @@ export function loadCatalog(force) {
     if (!catalogPromise || force) {
         catalogPromise = api('/store/catalog').then(function (data) {
             state.products = data.products;
+            assignPhotos(data.products);
             state.byId = new Map(data.products.map(function (p) { return [p.id_product, p]; }));
             state.stores = data.stores;
             state.onlineStore = data.online_store;
