@@ -556,7 +556,7 @@ Pasos (los scripts están en `infra\azure`):
    powershell -ExecutionPolicy Bypass -File infra\azure\01_crear_respaldo.ps1 -MiIp <tu IP pública>
    ```
    Anota la IP privada de la principal que muestra al final.
-2. **Las dos VM** (Escritorio remoto, PowerShell como administrador). Caddy con las dos direcciones. Correr primero en la principal, que obtiene el certificado de `trafficmanager.net`:
+2. **Las dos VM** (Escritorio remoto con el usuario `jam-vm-cl\jamadmin` en las dos, porque la de respaldo es una copia y conserva el nombre interno; PowerShell como administrador). Para saber en cuál estás: IP privada `10.0.0.4` = principal, `10.0.0.5` = respaldo. Caddy con las dos direcciones. Correr primero en la principal, que obtiene el certificado de `trafficmanager.net`:
    ```powershell
    cd C:\xampp\htdocs\ERROR404
    powershell -ExecutionPolicy Bypass -File infra\azure\04_configurar_caddy.ps1 -Propio jam-sport-jp31.chilecentral.cloudapp.azure.com     # principal
