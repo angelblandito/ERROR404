@@ -28,8 +28,9 @@ param(
 $ErrorActionPreference = 'Stop'
 
 function Az {
-    # Ejecuta Azure CLI y detiene el script si falla
-    $salida = & az @args
+    # Ejecuta Azure CLI y detiene el script si falla.
+    # az.cmd y no az: PowerShell no distingue mayúsculas y az llamaría a esta misma función
+    $salida = & az.cmd @args
     if ($LASTEXITCODE -ne 0) { throw "Falló: az $($args -join ' ')" }
     return $salida
 }
@@ -57,14 +58,17 @@ Write-Host 'Apagando la VM principal para copiar sus discos...'
 Az vm deallocate -g $Grupo -n $Principal | Out-Null
 
 $copias = @("$Respaldo-so-snap")
-Az snapshot create -g $Grupo -n "$Respaldo-so-snap" --source $discoSo --sku Standard_LRS | Out-Null
-for ($i = 0; $i -lt $discosDatos.Count; $i++) {
-    Az snapshot create -g $Grupo -n "$Respaldo-datos$i-snap" --source $discosDatos[$i] --sku Standard_LRS | Out-Null
-    $copias += "$Respaldo-datos$i-snap"
+try {
+    Az snapshot create -g $Grupo -n "$Respaldo-so-snap" --source $discoSo --sku Standard_LRS | Out-Null
+    for ($i = 0; $i -lt $discosDatos.Count; $i++) {
+        Az snapshot create -g $Grupo -n "$Respaldo-datos$i-snap" --source $discosDatos[$i] --sku Standard_LRS | Out-Null
+        $copias += "$Respaldo-datos$i-snap"
+    }
+} finally {
+    # Aunque falle la copia, la principal vuelve a encenderse
+    Write-Host 'Encendiendo de nuevo la VM principal...'
+    Az vm start -g $Grupo -n $Principal | Out-Null
 }
-
-Write-Host 'Encendiendo de nuevo la VM principal...'
-Az vm start -g $Grupo -n $Principal | Out-Null
 
 # ---------------------------------------------------------------------
 # 2. VM de respaldo con la copia
