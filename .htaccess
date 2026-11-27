@@ -4,7 +4,7 @@ AddType application/manifest+json .webmanifest
 
 # Archivos internos que no se publican: repositorio, scripts SQL y documentación
 RedirectMatch 404 "(?i)^.*/(\.git|\.vscode|API_JAM|docs)(/.*)?$"
-RedirectMatch 404 "(?i)^.*/(JAM|LICENSE|README\.md|\.gitignore)$"
+RedirectMatch 404 "(?i)^.*/(LICENSE|README\.md|\.gitignore)$"
 
 <IfModule mod_headers.c>
     Header always set X-Content-Type-Options "nosniff"

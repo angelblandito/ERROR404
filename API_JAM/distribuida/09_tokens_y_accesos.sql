@@ -14,7 +14,7 @@
 
    Las dos tablas viven solo en el nodo central (JAM_db): no se fragmentan,
    no se replican y no se copian al espejo de Azure. La API v3 las necesita
-   para iniciar sesión; las API v1 y v2 usan dbo.customer_session.
+   para iniciar sesión.
 
    El usuario jam_api (script 06) ya tiene permiso sobre todo el esquema
    dbo, así que no hace falta darle permisos nuevos.

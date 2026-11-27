@@ -6,8 +6,8 @@ El proyecto cubre los cuatro puntos del pizarrón:
 | # | Punto | Dónde está |
 |---|-------|------------|
 | 1 | UX/UI con media queries y menú de 4 opciones | `index.html`, `index.css` |
-| 2 | Front End | `index.js`, `config.js` |
-| 3 | Back End (API) | `api/v1/php/` |
+| 2 | Front End | `js/` (`app.js` y `views/`), `config.js` |
+| 3 | Back End (API) | `api/v3/` |
 | 4 | DB Manager: fragmentación vertical, fragmentación horizontal, replicación y espejo | `API_JAM/distribuida/` |
 
 ---
@@ -143,14 +143,14 @@ En SSMS, conectado a la instancia Developer, ejecutar en orden:
 
 La API y la página se sirven juntas desde **Apache de XAMPP**: ya no hace falta `php -S`.
 
-La página usa **`api/v2`**, la API con la arquitectura de la clase, en una sola carpeta (`core`, `routers`, `controllers`, `services`, `models`, `schemas`, `utils` y `tests`). Su estructura, rutas, ajustes y pruebas están en `api/v2/README.md`. La API anterior (`api/v1/php`) se conserva para comparar: se elige abriendo la tienda con `?api=v1` (y `?api=v2` para regresar). Las dos leen el mismo `config/settings.php`.
+La página usa **`api/v3`**, la API con la estructura del profe (`Controllers`, `Core`, `Middlewares`, `Models`, `Routers`, `Schemas`, `Services` y `tests`). Su estructura, rutas, ajustes y pruebas están en `api/v3/README.md`.
 
-1. Copiar `api/v1/php/config/settings.example.php` como `settings.php` y ajustar `JAM_LOCAL_SERVER` (p. ej. `localhost`), `JAM_LOCAL_USER` = `jam_api` y `JAM_LOCAL_PASSWORD`.
+1. Copiar `api/v3/.env.example` como `.env`, poner una `JWT_SECRET` propia y ajustar `JAM_LOCAL_SERVER` (p. ej. `localhost`). Sin `JAM_LOCAL_USER` se usa la autenticación de Windows; con Apache como servicio, `JAM_LOCAL_USER` = `jam_api` y su `JAM_LOCAL_PASSWORD`.
 2. Encender **Apache** en el panel de XAMPP.
-3. Probar `http://localhost/ERROR404/api/v2/health-check` (y `…/api/v1/php/health-check`) → `"database": "en_linea"` y `"pdo_sqlsrv": true`.
+3. Probar `http://localhost/ERROR404/api/v3/health` → `{"status":"ok"}` y correr `C:\xampp\php\php.exe api\v3\tests\run.php`.
 
 > Si Apache corre como servicio de Windows, la autenticación de Windows usa la cuenta del servicio y no la tuya: usa el usuario `jam_api` del script 06.
-> Los archivos `.htaccess` mandan todas las rutas a `index.php` y bloquean el acceso directo a `config/`, `core/`, `models/`, `.git`, `API_JAM/` y `docs/`.
+> El `.htaccess` de `api/v3` manda todas las rutas a `index.php`, así que el código, las pruebas y el `.env` no se pueden abrir desde el navegador. El de la raíz bloquea `.git`, `API_JAM/` y `docs/`.
 
 ### 2.5 Tienda en línea
 
@@ -448,16 +448,16 @@ Puntos de conexión resultantes:
 
 ### 5.2 Datos hacia Azure
 
-La API copia `JAM_db` a `JAM_cloud` (`models/mirror.php`). Funciona igual con SQL Server Express (laptop) y con Developer (máquina virtual).
+La API copia `JAM_db` a `JAM_cloud` (`api/v3/Services/MirrorService.php`). Funciona igual con SQL Server Express (laptop) y con Developer (máquina virtual).
 
 1. En SSMS conectarse a `jam-fog-<sufijo>.database.windows.net` (autenticación SQL `jamadmin`, *Cifrar: Obligatorio*), elegir la base `JAM_cloud` y ejecutar `API_JAM/distribuida/04_espejo_azure.sql`. La sección 0 crea las tablas del espejo.
-2. En `api/v1/php/config/settings.php` llenar:
-   ```php
-   'JAM_CLOUD_SERVER' => 'jam-fog-<sufijo>.database.windows.net',
-   'JAM_CLOUD_MIRROR_SERVER' => 'jam-fog-<sufijo>.secondary.database.windows.net',
-   'JAM_CLOUD_DB' => 'JAM_cloud',
-   'JAM_CLOUD_USER' => 'jamadmin',
-   'JAM_CLOUD_PASSWORD' => '<la contraseña de Azure>',
+2. En `api/v3/.env` llenar:
+   ```
+   JAM_CLOUD_SERVER=jam-fog-<sufijo>.database.windows.net
+   JAM_CLOUD_MIRROR_SERVER=jam-fog-<sufijo>.secondary.database.windows.net
+   JAM_CLOUD_DB=JAM_cloud
+   JAM_CLOUD_USER=jamadmin
+   JAM_CLOUD_PASSWORD=<la contraseña de Azure>
    ```
 3. Administración → **Base distribuida** → **Copiar al espejo (Azure)**. La tarjeta *Azure SQL* debe mostrar la hora de la copia y el estado del espejo (`jam-sql-espejo`).
 4. Comprobar en Azure con las consultas 5 de `04_espejo_azure.sql`: renglones por `id_store` iguales a los de cada sucursal.
@@ -504,7 +504,7 @@ foreach ($s in "jam-sql-principal-$SUF","jam-sql-espejo-$SUF") {
    sqlcmd -S localhost -E -C -I -f 65001 -b -i db_jam.sql
    ```
    Orden: `db_jam.sql`, `01`, `02`, login `jam_api`, `06`, `07`, `05` (validación), `08`, `09`, `10`, `11` y `12` (usuarios de prueba).
-6. `settings.php` con `JAM_LOCAL_SERVER = localhost`, el usuario `jam_api` y los datos `JAM_CLOUD_*`. En `api\v3\.env` (copia de `.env.example`): una `JWT_SECRET` propia, `REQUIRE_HTTPS=1`, `TRUST_PROXY=1` (Caddy va delante; sin esto todos los clientes parecen la misma IP) y `JAM_STORE_URL=https://jam-sport-jp31.trafficmanager.net/ERROR404/` (los enlaces de los correos). Apache como servicio: `httpd.exe -k install` y `Start-Service Apache2.4`. Comprobar `http://localhost:8080/ERROR404/api/v3/health`.
+6. En `api\v3\.env` (copia de `.env.example`): `JAM_LOCAL_SERVER=localhost`, el usuario `jam_api` con su contraseña, los datos `JAM_CLOUD_*`, una `JWT_SECRET` propia, `REQUIRE_HTTPS=1`, `TRUST_PROXY=1` (Caddy va delante; sin esto todos los clientes parecen la misma IP) y `JAM_STORE_URL=https://jam-sport-jp31.trafficmanager.net/ERROR404/` (los enlaces de los correos). Apache como servicio: `httpd.exe -k install` y `Start-Service Apache2.4`. Comprobar `http://localhost:8080/ERROR404/api/v3/health`.
 
 Solo una instalación debe copiar a `JAM_cloud` (la máquina virtual): en la laptop se deja vacío `JAM_CLOUD_PASSWORD` para no mezclar pedidos de dos bases distintas en el espejo.
 

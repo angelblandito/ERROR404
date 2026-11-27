@@ -12,7 +12,7 @@ use ValueError;
  * access here (token persistence lives in Services\TokenService).
  *
  * Passwords are stored with bcrypt, the format saved in customer_credential
- * and owner and the one API v1 and v2 read. PBKDF2 hashes
+ * and owner. PBKDF2 hashes
  * ("algorithm$iterations$salt$hash") are still verified.
  */
 final class Security

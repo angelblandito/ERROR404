@@ -12,8 +12,7 @@ foto no existe, aparece la ilustración del producto en ese color.
 powershell -ExecutionPolicy Bypass -File C:\xampp\htdocs\ERROR404\img\productos\descargar_fotos.ps1
 ```
 
-Los créditos de cada foto están en `CREDITOS.md`. Las fotos por nombre se ven con
-la API v2.
+Los créditos de cada foto están en `CREDITOS.md`.
 
 ## Foto por nombre del producto
 

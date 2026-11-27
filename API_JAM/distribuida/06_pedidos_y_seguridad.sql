@@ -381,7 +381,7 @@ CLOSE nodos;
 DEALLOCATE nodos;
 GO
 
-/* Después de ejecutar este script, en api/v1/php/config/settings.php:
-     'JAM_LOCAL_USER'     => 'jam_api',
-     'JAM_LOCAL_PASSWORD' => '<la contraseña de arriba>',
+/* Después de ejecutar este script, en api/v3/.env:
+     JAM_LOCAL_USER=jam_api
+     JAM_LOCAL_PASSWORD=<la contraseña de arriba>
 */

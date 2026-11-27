@@ -59,8 +59,8 @@ export async function api(path, options = {}) {
     if (response.status === 401 && token) {
         setToken(null);
     }
-    if (!response.ok || payload.success === false) {
-        /* v1 y v2 mandan el error en message; la v3, en error */
+    if (!response.ok) {
+        /* Los errores llegan en error; el health-check caído, en message */
         throw new ApiError(payload.message || payload.error || 'Error HTTP ' + response.status, response.status);
     }
     return payload.data;

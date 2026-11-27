@@ -1,8 +1,7 @@
-api/v1/php/config/settings.php
+# Configuración de la API con claves y contraseñas: nunca se sube
+api/v3/.env
 
-# Configuracion local de la API v2 (contrasenas)
+# Contraseñas de las API anteriores: pueden seguir en las computadoras que ya las tenían
+api/v1/php/config/settings.php
 api/v2/.env
 api/v2/config/settings.php
-
-# Configuracion local de la API v3 (clave de los tokens)
-api/v3/.env

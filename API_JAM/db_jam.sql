@@ -2766,8 +2766,8 @@ CREATE INDEX ix_payment_order           ON payment (id_order);
 CREATE INDEX ix_customer_order_address  ON customer_order (id_address);
 GO
 
--- Control de concurrencia optimista: row_version cambia en cada UPDATE y la
--- API v1 lo compara para rechazar un cambio sobre un registro que otro ya modificó.
+-- Control de concurrencia optimista: row_version cambia en cada UPDATE, así se
+-- puede saber si otro ya modificó el registro antes de guardar un cambio.
 ALTER TABLE product        ADD row_version ROWVERSION;
 ALTER TABLE inventory      ADD row_version ROWVERSION;
 ALTER TABLE customer_order ADD row_version ROWVERSION;

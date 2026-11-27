@@ -5,9 +5,7 @@ mismas clases base y el mismo formato de respuestas, pero conectado a **nuestra*
 SQL Server (`API_JAM/db_jam.sql` y los scripts de `API_JAM/distribuida`) en lugar de la base
 MySQL del profe. El `apicore.sql` del profe no se usa.
 
-Es la API que usa la página (`config.js` apunta a `api/v3`). Las carpetas `api/v1` y `api/v2`
-se conservan solo porque la máquina virtual de Azure todavía corre la v1 y porque la v3 lee
-la contraseña de SQL Server de su `config/settings.php` (ver Configuración).
+Es la API que usa la página (`config.js` apunta a `api/v3`).
 
 ## Qué cambia respecto al API del profe
 
@@ -18,14 +16,13 @@ la contraseña de SQL Server de su `config/settings.php` (ver Configuración).
 | Tabla `users` | `customer` + `customer_credential` | Son las cuentas que ya tiene la tienda |
 | Roles `God/Admin/User/Other` | Los tipos de cuenta de `account_tier`: `standard` (Estándar), `priority` (Prioritario) y `admin` (Administrador) | Son los roles de nuestra base; se leen de la base en cada petición |
 | Login con `Username` | `Username` = correo (también acepta `email`/`password`, que es lo que manda la página) | |
-| PBKDF2 | bcrypt | Así están guardadas las contraseñas de la tienda y la v1/v2 las tienen que seguir leyendo. Los hashes del profe se siguen aceptando al verificar |
+| PBKDF2 | bcrypt | Así están guardadas las contraseñas de la tienda. Los hashes del profe se siguen aceptando al verificar |
 | `DELETE` borra la fila | Borrado lógico (`deleted = 1`) en las tablas que tienen esa columna | Así el borrado llega a las sucursales y a Azure en la siguiente sincronización |
 | `LIMIT ... OFFSET` | `OFFSET ... FETCH NEXT` | Sintaxis de SQL Server |
 
 Además de las rutas CRUD de cada tabla, la v3 tiene todas las rutas propias de la tienda
-(catálogo, compra, panel de administración, base distribuida...), con las mismas
-direcciones que la v2. Responden exactamente los mismos datos que la v2; solo cambia el
-formato de la respuesta al del profe.
+(catálogo, compra, panel de administración, base distribuida...), con el formato de
+respuesta del profe.
 
 ## Requisitos
 
@@ -49,10 +46,9 @@ Si ya tienes la base de los días anteriores, solo asegúrate de haber corrido e
 
 1. Copia `.env.example` como `.env` en esta misma carpeta.
 2. Pon un valor en `JWT_SECRET` (la línea del archivo dice cómo generarlo en PowerShell).
-3. Listo: el servidor y la contraseña de SQL Server se leen del mismo archivo que ya usa la
-   tienda (`api/v2/config/settings.php` o `api/v1/php/config/settings.php`). Si algún día se
-   borran esas carpetas, antes hay que pasar `JAM_LOCAL_SERVER`, `JAM_LOCAL_USER`,
-   `JAM_LOCAL_PASSWORD` y las `JAM_CLOUD_*` al `.env` de la v3.
+3. Llena `JAM_LOCAL_*` (SQL Server local) y, solo en la máquina virtual, `JAM_CLOUD_*` (Azure SQL).
+   Una computadora que todavía tenga el `settings.php` de las API anteriores lo sigue leyendo
+   para lo que falte en el `.env`.
 
 | Variable | Por defecto | Uso |
 | --- | --- | --- |
@@ -64,8 +60,8 @@ Si ya tienes la base de los días anteriores, solo asegúrate de haber corrido e
 | `CORS_ALLOW_ORIGIN` | vacío | Vacío = misma dirección; `*` o una lista separada por comas |
 | `JAM_STORE_URL` | vacío | Dirección de la página; los enlaces de los correos solo apuntan aquí, a un origen de `CORS_ALLOW_ORIGIN` o a localhost |
 | `JAM_DEFAULT_NODE` | `central` | Nodo del CRUD y de la tienda |
-| `JAM_LOCAL_SERVER`, `JAM_LOCAL_USER`, `JAM_LOCAL_PASSWORD` | settings.php | SQL Server local (sin usuario = autenticación de Windows) |
-| `JAM_CLOUD_*` | settings.php | Azure SQL (si no hay usuario, el nodo `cloud` queda apagado) |
+| `JAM_LOCAL_SERVER`, `JAM_LOCAL_USER`, `JAM_LOCAL_PASSWORD` | `localhost`, vacío, vacío | SQL Server local (sin usuario = autenticación de Windows) |
+| `JAM_CLOUD_*` | vacío | Azure SQL (sin usuario y contraseña, el nodo `cloud` queda apagado) |
 | `REQUIRE_HTTPS` | `0` | `1` rechaza peticiones sin https (máquina virtual con Caddy) |
 | `TRUST_PROXY` | `0` | `1` detrás de Caddy en la máquina virtual |
 | `RATE_LIMIT` | `1` | `0` apaga el límite de peticiones por IP |
@@ -190,7 +186,7 @@ se usan solo desde las rutas de la tienda.
 Cada cambio del panel queda en `audit_log`.
 
 Después de cada escritura correcta, `Middlewares/SyncMiddleware.php` refresca los fragmentos
-de las sucursales y copia los cambios al espejo de Azure (lo mismo que hacía la v2).
+de las sucursales y, ya enviada la respuesta, copia los cambios al espejo de Azure.
 
 ## Seguridad
 
@@ -262,8 +258,6 @@ tokens y las reglas de acceso de la tienda.
 
 - La v3 necesita `users_tokens` (script 09) en el nodo central. Sin esa tabla no se puede
   iniciar sesión.
-- Un token de la v2 no sirve en la v3: quien tenía sesión abierta con la v2 vuelve a iniciar
-  sesión una vez (la página lo hace sola al recibir 401).
 - `DELETE /store/catalog` responde 401 o 404 y no 405: la tabla `store` tiene su CRUD en
   `/store/{id}` y esa ruta también coincide.
 

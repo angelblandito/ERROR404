@@ -15,8 +15,9 @@ use ValueError;
  * Each value is looked up in this order:
  *   1. Real environment variables of the server.
  *   2. api/v3/.env (KEY=VALUE).
- *   3. api/v2/config/settings.php or api/v1/php/config/settings.php, the file the store already
- *      uses, so the database passwords live in a single place.
+ *   3. api/v1/php/config/settings.php or api/v2/config/settings.php, where the database
+ *      passwords lived before api/v3/.env had them. Only read when it still exists on disk
+ *      (installations from before), so an old machine keeps working until it is migrated.
  *   4. The default written here.
  */
 final class Settings
@@ -49,7 +50,9 @@ final class Settings
     public function __construct(?string $root = null)
     {
         $root ??= dirname(__DIR__);
-        $this->values = array_merge(self::readSettingsFile($root), self::readEnvFile($root . '/.env'));
+        // An empty line of .env does not hide a value that the old settings.php still has
+        $env = array_filter(self::readEnvFile($root . '/.env'), static fn (string $value): bool => $value !== '');
+        $this->values = array_merge(self::readSettingsFile($root), $env);
 
         $flag = static fn (?string $value): bool => in_array(strtolower(trim((string) $value)), ['1', 'true', 'yes', 'on'], true);
 
@@ -122,14 +125,14 @@ final class Settings
     }
 
     /**
-     * config/settings.php of v2 or, when it does not exist, the one of v1. [] when neither exists.
+     * settings.php left by the old API folders (not in the repository anymore). [] when there is none.
      *
      * @return array<string, string>
      */
     private static function readSettingsFile(string $root): array
     {
         $api = dirname($root);
-        foreach ([$api . '/v2/config/settings.php', $api . '/v1/php/config/settings.php'] as $path) {
+        foreach ([$api . '/v1/php/config/settings.php', $api . '/v2/config/settings.php'] as $path) {
             if (is_file($path)) {
                 $loaded = require $path;
                 return is_array($loaded) ? array_map('strval', array_filter($loaded, 'is_scalar')) : [];

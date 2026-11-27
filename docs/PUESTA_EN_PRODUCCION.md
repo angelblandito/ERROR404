@@ -41,7 +41,7 @@ Escritorio remoto a `jam-vm-cl`, PowerShell como administrador.
    git fetch --depth 1 origin main
    git checkout -f -B main origin/main
    ```
-   `api\v1\php\config\settings.php` (contraseñas) no se toca: Git lo ignora.
+   `api\v3\.env` (claves y contraseñas) no se toca: Git lo ignora.
 
 2. **Base de datos** (en `API_JAM\distribuida`):
    ```powershell
