@@ -40,8 +40,9 @@ function Az {
 # ---------------------------------------------------------------------
 $vm = Az vm show -g $Grupo -n $Principal -o json | ConvertFrom-Json
 $region = $vm.location
-$discoSo = $vm.storageProfile.osDisk.managedDisk.id
-$discosDatos = @($vm.storageProfile.dataDisks | ForEach-Object { $_.managedDisk.id })
+# Por nombre y no por id: con el id, az snapshot create responde NotFound
+$discoSo = $vm.storageProfile.osDisk.name
+$discosDatos = @($vm.storageProfile.dataDisks | ForEach-Object { $_.name })
 $nic = Az network nic show --ids $vm.networkProfile.networkInterfaces[0].id -o json | ConvertFrom-Json
 $subred = $nic.ipConfigurations[0].subnet.id
 $ipPrincipal = $nic.ipConfigurations[0].publicIPAddress.id
@@ -54,6 +55,11 @@ Write-Host "Principal: $Principal en $region"
 # ---------------------------------------------------------------------
 # 1. Copia de los discos (con la VM apagada, la copia queda consistente)
 # ---------------------------------------------------------------------
+# Antes de apagar nada, comprobar que los discos se encuentran
+foreach ($disco in @($discoSo) + $discosDatos) {
+    Az disk show -g $Grupo -n $disco --query name -o tsv | Out-Null
+}
+
 Write-Host 'Apagando la VM principal para copiar sus discos...'
 Az vm deallocate -g $Grupo -n $Principal | Out-Null
 
