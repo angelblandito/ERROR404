@@ -35,14 +35,35 @@ function Az {
     return $salida
 }
 
+function Crear-Copia([string] $tipo, [string] $nombre, [string] $origen, [string] $sku, [hashtable] $extra) {
+    # Crea un snapshot ($tipo = 'snapshots') o un disco ('disks') copiando $origen (id completo).
+    # Se llama directo a la API de Azure: az snapshot create (2.93) responde NotFound
+    # aunque el disco existe.
+    $propiedades = @{ creationData = @{ createOption = 'Copy'; sourceResourceId = $origen } }
+    if ($extra) { foreach ($k in $extra.Keys) { $propiedades[$k] = $extra[$k] } }
+    $archivo = Join-Path $env:TEMP "$nombre.json"
+    @{ location = $region; sku = @{ name = $sku }; properties = $propiedades } |
+        ConvertTo-Json -Depth 5 | Set-Content $archivo -Encoding ascii
+    $url = "https://management.azure.com/subscriptions/$suscripcion/resourceGroups/$Grupo/providers/Microsoft.Compute/$tipo/$nombre`?api-version=2023-10-02"
+    Az rest --method put --url $url --body "@$archivo" | Out-Null
+    Remove-Item $archivo
+    do {
+        Start-Sleep -Seconds 10
+        $estado = Az rest --method get --url $url --query properties.provisioningState -o tsv
+        Write-Host "  $nombre`: $estado"
+    } while ($estado -notin @('Succeeded', 'Failed'))
+    if ($estado -ne 'Succeeded') { throw "No se pudo crear $nombre" }
+    return (Az rest --method get --url $url --query id -o tsv)
+}
+
 # ---------------------------------------------------------------------
 # 0. Datos de la VM principal
 # ---------------------------------------------------------------------
 $vm = Az vm show -g $Grupo -n $Principal -o json | ConvertFrom-Json
 $region = $vm.location
-# Por nombre y no por id: con el id, az snapshot create responde NotFound
-$discoSo = $vm.storageProfile.osDisk.name
-$discosDatos = @($vm.storageProfile.dataDisks | ForEach-Object { $_.name })
+$suscripcion = Az account show --query id -o tsv
+$discoSo = $vm.storageProfile.osDisk.managedDisk.id
+$discosDatos = @($vm.storageProfile.dataDisks | ForEach-Object { $_.managedDisk.id })
 $nic = Az network nic show --ids $vm.networkProfile.networkInterfaces[0].id -o json | ConvertFrom-Json
 $subred = $nic.ipConfigurations[0].subnet.id
 $ipPrincipal = $nic.ipConfigurations[0].publicIPAddress.id
@@ -56,18 +77,21 @@ Write-Host "Principal: $Principal en $region"
 # 1. Copia de los discos (con la VM apagada, la copia queda consistente)
 # ---------------------------------------------------------------------
 # Antes de apagar nada, comprobar que los discos se encuentran
-foreach ($disco in @($discoSo) + $discosDatos) {
-    Az disk show -g $Grupo -n $disco --query name -o tsv | Out-Null
+$generacion = Az disk show --ids $discoSo --query hyperVGeneration -o tsv
+foreach ($disco in $discosDatos) {
+    Az disk show --ids $disco --query name -o tsv | Out-Null
 }
 
 Write-Host 'Apagando la VM principal para copiar sus discos...'
 Az vm deallocate -g $Grupo -n $Principal | Out-Null
 
-$copias = @("$Respaldo-so-snap")
+$copias = @()
+$copiasId = @()
 try {
-    Az snapshot create -g $Grupo -n "$Respaldo-so-snap" --source $discoSo --sku Standard_LRS | Out-Null
+    $copiasId += Crear-Copia 'snapshots' "$Respaldo-so-snap" $discoSo 'Standard_LRS' $null
+    $copias += "$Respaldo-so-snap"
     for ($i = 0; $i -lt $discosDatos.Count; $i++) {
-        Az snapshot create -g $Grupo -n "$Respaldo-datos$i-snap" --source $discosDatos[$i] --sku Standard_LRS | Out-Null
+        $copiasId += Crear-Copia 'snapshots' "$Respaldo-datos$i-snap" $discosDatos[$i] 'Standard_LRS' $null
         $copias += "$Respaldo-datos$i-snap"
     }
 } finally {
@@ -79,10 +103,10 @@ try {
 # ---------------------------------------------------------------------
 # 2. VM de respaldo con la copia
 # ---------------------------------------------------------------------
-Az disk create -g $Grupo -n "$Respaldo-so" --source "$Respaldo-so-snap" --sku StandardSSD_LRS | Out-Null
+Crear-Copia 'disks' "$Respaldo-so" $copiasId[0] 'StandardSSD_LRS' @{ osType = 'Windows'; hyperVGeneration = $generacion } | Out-Null
 $datos = @()
 for ($j = 0; $j -lt $discosDatos.Count; $j++) {
-    Az disk create -g $Grupo -n "$Respaldo-datos$j" --source "$Respaldo-datos$j-snap" --sku StandardSSD_LRS | Out-Null
+    Crear-Copia 'disks' "$Respaldo-datos$j" $copiasId[$j + 1] 'StandardSSD_LRS' $null | Out-Null
     $datos += "$Respaldo-datos$j"
 }
 
