@@ -381,7 +381,7 @@ GO
 /* E2 (UNA SESIÓN): qué tanto log habría que procesar si el servidor fallara ahora */
 SELECT DB_NAME(s.database_id)             AS base,
        s.recovery_model                   AS modelo_recuperacion,
-       s.checkpoint_lsn,
+       s.log_checkpoint_lsn               AS checkpoint_lsn,
        s.log_since_last_checkpoint_mb     AS log_desde_checkpoint_mb,
        s.total_log_size_mb                AS tamano_log_mb,
        s.active_log_size_mb               AS log_activo_mb

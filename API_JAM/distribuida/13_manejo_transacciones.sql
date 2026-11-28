@@ -432,7 +432,7 @@ BEGIN
 
                 /* LSN del checkpoint; sin VIEW SERVER STATE queda vacío pero el checkpoint sí se hizo */
                 BEGIN TRY
-                    SELECT @lsn = checkpoint_lsn,
+                    SELECT @lsn = log_checkpoint_lsn,
                            @mb  = CAST(log_since_last_checkpoint_mb AS DECIMAL(12,2))
                     FROM sys.dm_db_log_stats(DB_ID(@db));
                 END TRY
