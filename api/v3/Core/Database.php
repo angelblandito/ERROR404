@@ -167,6 +167,48 @@ final class Database
         return self::$info[$name] ?? null;
     }
 
+    /** SQL Server error when a transaction was chosen as the victim of a deadlock. */
+    public const DEADLOCK_ERROR = 1205;
+
+    /**
+     * Run a unit of work and run it again when SQL Server chose it as the victim
+     * of a deadlock (error 1205, SQLSTATE 40001). SQL Server already rolled the
+     * victim back, so running it again is safe. The wait doubles each time
+     * (50, 100, 200 ms...) so the two transactions do not collide again.
+     *
+     * Only for work that opens and closes its own transaction (a stored
+     * procedure call), never for a step inside a transaction opened in PHP.
+     *
+     * @template T
+     * @param callable(int): T $work receives the attempt number (1, 2, 3...)
+     * @param ?callable(int): void $sleep waits that many milliseconds (the tests pass a fake one)
+     * @return T
+     */
+    public static function retryOnDeadlock(callable $work, int $attempts = 3, int $baseMs = 50, ?callable $sleep = null): mixed
+    {
+        $sleep ??= static function (int $ms): void {
+            usleep($ms * 1000);
+        };
+        for ($attempt = 1; ; $attempt++) {
+            try {
+                return $work($attempt);
+            } catch (PDOException $error) {
+                if (!self::isDeadlock($error) || $attempt >= $attempts) {
+                    throw $error;
+                }
+                $sleep($baseMs * (2 ** ($attempt - 1)));
+            }
+        }
+    }
+
+    /** True when the error says the transaction lost a deadlock. */
+    public static function isDeadlock(PDOException $error): bool
+    {
+        return (int) ($error->errorInfo[1] ?? 0) === self::DEADLOCK_ERROR
+            || ($error->errorInfo[0] ?? null) === '40001'
+            || (string) $error->getCode() === '40001';
+    }
+
     /** Forget the connections of this request. */
     public static function close(): void
     {

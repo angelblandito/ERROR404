@@ -181,7 +181,8 @@ se usan solo desde las rutas de la tienda.
 `/admin/emails`, `/admin/market`, `/admin/audit`, `/admin/analytics`,
 `/admin/analytics/online`, `/nodes`, `/distributed/inventory`, `/distributed/orders`,
 `/distributed/customers`, `/distributed/fragments`, `/replication/status`,
-`/distributed/sync` y `/mirror/sync`.
+`/distributed/sync`, `/mirror/sync`, `/distributed/transfer`, `/distributed/transactions`
+y `/distributed/checkpoint`.
 
 Cada cambio del panel queda en `audit_log`.
 
@@ -275,6 +276,15 @@ Scripts de SQL Server (en `API_JAM/distribuida`, en este orden después del 09):
 `10_catalogo_ampliado.sql` (20 productos nuevos por categoría), `11_registro_y_prioritario.sql`
 (tabla `customer_signup`, tipos de correo nuevos y la regla nueva de `sp_evaluar_clientes_prioritarios`)
 y `12_usuarios_de_prueba.sql` (cuentas de prueba).
+
+Unidad 4 (manejo de transacciones): `13_manejo_transacciones.sql` activa las lecturas con
+versiones (`READ_COMMITTED_SNAPSHOT`) y crea la bitácora `dist.transaction_log`, el traspaso
+entre sucursales `dist.sp_traspasar_inventario` (2PL con orden fijo de bloqueo, reintento ante
+interbloqueo y confirmación en tres bases), el punto de verificación global y las vistas
+`dist.vw_grafo_espera` y `dist.vw_transacciones_activas`. `14_practica_transacciones.sql` es la
+práctica de la unidad (ACID, 2PL, interbloqueo, 2PC, replicación y checkpoints) para SSMS.
+La API reintenta la compra hasta 3 veces si SQL Server la elige como víctima de un
+interbloqueo (`Database::retryOnDeadlock`).
 
 ### Correo real
 

@@ -8,7 +8,8 @@ use Apicore\Core\Response;
 use Apicore\Core\Router;
 
 /**
- * Routes: distributed database: nodes, fragments, replication, sync and the Azure mirror (Administrador only).
+ * Routes: distributed database: nodes, fragments, replication, sync, the Azure mirror and the
+ * distributed transactions (transfer, transaction log, global checkpoint). Administrador only.
  * Layer: routers. It only registers routes; the logic lives in DistributedController and the services.
  */
 final class DistributedRouter
@@ -56,6 +57,24 @@ final class DistributedRouter
             '/distributed/sync',
             DistributedController::class,
             static fn (DistributedController $c, array $p, string $body): Response => Response::ok($c->sync(), headers: $c->responseHeaders),
+        );
+        $router->addRoute(
+            'POST',
+            '/distributed/transfer',
+            DistributedController::class,
+            static fn (DistributedController $c, array $p, string $body): Response => Response::ok($c->transfer($body), headers: $c->responseHeaders),
+        );
+        $router->addRoute(
+            'GET',
+            '/distributed/transactions',
+            DistributedController::class,
+            static fn (DistributedController $c, array $p, string $body): Response => Response::ok($c->transactions(), headers: $c->responseHeaders),
+        );
+        $router->addRoute(
+            'POST',
+            '/distributed/checkpoint',
+            DistributedController::class,
+            static fn (DistributedController $c, array $p, string $body): Response => Response::ok($c->checkpoint(), headers: $c->responseHeaders),
         );
         $router->addRoute(
             'POST',

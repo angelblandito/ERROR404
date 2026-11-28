@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Apicore\Services;
 
 use Apicore\Core\AppError;
+use Apicore\Core\Database;
 use PDO;
 
 /**
@@ -63,53 +64,57 @@ final class CheckoutService
         $notes = StoreService::field($body, 'notes');
         $paymentMethod = StoreService::field($body, 'payment_method');
 
-        $stmt = $pdo->prepare('EXEC dbo.sp_crear_pedido
-            @id_store = :id_store,
-            @id_customer = :id_customer,
-            @promotion_code = :promotion_code,
-            @channel = :channel,
-            @items = :items,
-            @notes = :notes,
-            @source_node = :source_node,
-            @delivery_type = :delivery_type,
-            @payment_method = :payment_method,
-            @street = :street,
-            @ext_number = :ext_number,
-            @int_number = :int_number,
-            @neighborhood = :neighborhood,
-            @city = :city,
-            @id_state = :id_state,
-            @zip_code = :zip_code,
-            @reference = :reference,
-            @gift_wrap = :gift_wrap,
-            @gift_occasion = :gift_occasion,
-            @gift_color = :gift_color,
-            @gift_recipient = :gift_recipient,
-            @gift_message = :gift_message');
+        /* dbo.sp_crear_pedido is one transaction: when SQL Server picks it as the victim of a
+           deadlock it is rolled back whole, so it is run again (up to 3 times, 50/100 ms apart) */
+        $order = Database::retryOnDeadlock(static function () use ($pdo, $idStore, $actor, $promotionCode, $items, $notes, $deliveryType, $paymentMethod, $address, $body) {
+            $stmt = $pdo->prepare('EXEC dbo.sp_crear_pedido
+                @id_store = :id_store,
+                @id_customer = :id_customer,
+                @promotion_code = :promotion_code,
+                @channel = :channel,
+                @items = :items,
+                @notes = :notes,
+                @source_node = :source_node,
+                @delivery_type = :delivery_type,
+                @payment_method = :payment_method,
+                @street = :street,
+                @ext_number = :ext_number,
+                @int_number = :int_number,
+                @neighborhood = :neighborhood,
+                @city = :city,
+                @id_state = :id_state,
+                @zip_code = :zip_code,
+                @reference = :reference,
+                @gift_wrap = :gift_wrap,
+                @gift_occasion = :gift_occasion,
+                @gift_color = :gift_color,
+                @gift_recipient = :gift_recipient,
+                @gift_message = :gift_message');
 
-        $stmt->bindValue(':id_store', $idStore, PDO::PARAM_INT);
-        $stmt->bindValue(':id_customer', (int)$actor['id_customer'], PDO::PARAM_INT);
-        $stmt->bindValue(':promotion_code', $promotionCode === '' ? null : $promotionCode, $promotionCode === '' ? PDO::PARAM_NULL : PDO::PARAM_STR);
-        $stmt->bindValue(':channel', 'online', PDO::PARAM_STR);
-        $stmt->bindValue(':items', json_encode($items), PDO::PARAM_STR);
-        $stmt->bindValue(':notes', $notes === '' ? null : mb_substr($notes, 0, 255), $notes === '' ? PDO::PARAM_NULL : PDO::PARAM_STR);
-        $stmt->bindValue(':source_node', 'web_node', PDO::PARAM_STR);
-        $stmt->bindValue(':delivery_type', $deliveryType, PDO::PARAM_STR);
-        $stmt->bindValue(':payment_method', $paymentMethod === '' ? null : $paymentMethod, $paymentMethod === '' ? PDO::PARAM_NULL : PDO::PARAM_STR);
-        foreach (['street', 'ext_number', 'int_number', 'neighborhood', 'city', 'zip_code', 'reference'] as $field) {
-            $stmt->bindValue(':' . $field, isset($address[$field]) ? StoreService::field($address, $field) : null, PDO::PARAM_STR);
-        }
-        $stmt->bindValue(':id_state', $address['id_state'] ?? null, PDO::PARAM_INT);
+            $stmt->bindValue(':id_store', $idStore, PDO::PARAM_INT);
+            $stmt->bindValue(':id_customer', (int)$actor['id_customer'], PDO::PARAM_INT);
+            $stmt->bindValue(':promotion_code', $promotionCode === '' ? null : $promotionCode, $promotionCode === '' ? PDO::PARAM_NULL : PDO::PARAM_STR);
+            $stmt->bindValue(':channel', 'online', PDO::PARAM_STR);
+            $stmt->bindValue(':items', json_encode($items), PDO::PARAM_STR);
+            $stmt->bindValue(':notes', $notes === '' ? null : mb_substr($notes, 0, 255), $notes === '' ? PDO::PARAM_NULL : PDO::PARAM_STR);
+            $stmt->bindValue(':source_node', 'web_node', PDO::PARAM_STR);
+            $stmt->bindValue(':delivery_type', $deliveryType, PDO::PARAM_STR);
+            $stmt->bindValue(':payment_method', $paymentMethod === '' ? null : $paymentMethod, $paymentMethod === '' ? PDO::PARAM_NULL : PDO::PARAM_STR);
+            foreach (['street', 'ext_number', 'int_number', 'neighborhood', 'city', 'zip_code', 'reference'] as $field) {
+                $stmt->bindValue(':' . $field, isset($address[$field]) ? StoreService::field($address, $field) : null, PDO::PARAM_STR);
+            }
+            $stmt->bindValue(':id_state', $address['id_state'] ?? null, PDO::PARAM_INT);
 
-        $gift = isset($body['gift']) && is_array($body['gift']) ? $body['gift'] : null;
-        $stmt->bindValue(':gift_wrap', $gift !== null ? 1 : 0, PDO::PARAM_INT);
-        foreach (['occasion' => ':gift_occasion', 'color' => ':gift_color', 'recipient' => ':gift_recipient', 'message' => ':gift_message'] as $key => $param) {
-            $value = $gift !== null && isset($gift[$key]) ? trim(StoreService::field($gift, $key)) : null;
-            $stmt->bindValue($param, $value === '' ? null : $value, $value === null || $value === '' ? PDO::PARAM_NULL : PDO::PARAM_STR);
-        }
-        $stmt->execute();
+            $gift = isset($body['gift']) && is_array($body['gift']) ? $body['gift'] : null;
+            $stmt->bindValue(':gift_wrap', $gift !== null ? 1 : 0, PDO::PARAM_INT);
+            foreach (['occasion' => ':gift_occasion', 'color' => ':gift_color', 'recipient' => ':gift_recipient', 'message' => ':gift_message'] as $key => $param) {
+                $value = $gift !== null && isset($gift[$key]) ? trim(StoreService::field($gift, $key)) : null;
+                $stmt->bindValue($param, $value === '' ? null : $value, $value === null || $value === '' ? PDO::PARAM_NULL : PDO::PARAM_STR);
+            }
+            $stmt->execute();
 
-        $order = $stmt->fetch(PDO::FETCH_ASSOC);
+            return $stmt->fetch(PDO::FETCH_ASSOC);
+        });
         if (!$order) {
             throw new AppError('El pedido no devolvió resultado.', 500);
         }

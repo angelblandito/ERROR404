@@ -10,6 +10,7 @@ use Apicore\Core\Settings;
 use Apicore\Services\DistributedService;
 use Apicore\Services\MirrorService;
 use Apicore\Services\StoreService;
+use Apicore\Services\TransactionService;
 use Throwable;
 use ValueError;
 
@@ -90,6 +91,26 @@ final class DistributedController extends ActionController
     public function sync(): array
     {
         return $this->run(static fn (): array => DistributedService::sync());
+    }
+
+    /** @return array<string, mixed> */
+    public function transfer(string $body): array
+    {
+        $data = $this->body($body);
+        return $this->run(static fn (): array => TransactionService::transfer($data));
+    }
+
+    /** @return array<string, mixed> */
+    public function transactions(): array
+    {
+        $limit = (int) ($this->queryText('limit') ?? 30);
+        return $this->run(static fn (): array => TransactionService::overview($limit));
+    }
+
+    /** @return array<string, mixed> */
+    public function checkpoint(): array
+    {
+        return $this->run(static fn (): array => TransactionService::checkpoint());
     }
 
     /** @return array<string, mixed> */

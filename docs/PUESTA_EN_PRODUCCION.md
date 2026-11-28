@@ -23,7 +23,7 @@ Avisar a Michelle y Angel que actualicen con `git checkout main` y `git pull`.
 En **SQL Server de la laptop** (PowerShell en `C:\xampp\htdocs\ERROR404\API_JAM\distribuida`):
 
 ```powershell
-foreach ($s in '08_catalogo_temporadas','09_tokens_y_accesos','10_catalogo_ampliado','11_registro_y_prioritario','12_usuarios_de_prueba') {
+foreach ($s in '08_catalogo_temporadas','09_tokens_y_accesos','10_catalogo_ampliado','11_registro_y_prioritario','12_usuarios_de_prueba','13_manejo_transacciones') {
     sqlcmd -S localhost -E -C -I -f 65001 -b -i "$s.sql"
 }
 ```
@@ -45,7 +45,7 @@ Escritorio remoto a `jam-vm-cl`, PowerShell como administrador.
 
 2. **Base de datos** (en `API_JAM\distribuida`):
    ```powershell
-   foreach ($s in '08_catalogo_temporadas','09_tokens_y_accesos','10_catalogo_ampliado','11_registro_y_prioritario','12_usuarios_de_prueba') {
+   foreach ($s in '08_catalogo_temporadas','09_tokens_y_accesos','10_catalogo_ampliado','11_registro_y_prioritario','12_usuarios_de_prueba','13_manejo_transacciones') {
        sqlcmd -S localhost -E -C -I -f 65001 -b -i "$s.sql"
    }
    ```

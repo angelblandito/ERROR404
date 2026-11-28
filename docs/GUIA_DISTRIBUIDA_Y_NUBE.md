@@ -336,6 +336,9 @@ La versión en Azure (sección 5) también se abre desde el celular, en modo con
 | GET | `/replication/status` | Conteo y checksum del catálogo en el publicador contra cada suscriptor |
 | POST | `/distributed/sync` | Ejecuta `dist.sp_sincronizar_nodos` y devuelve los nodos pendientes |
 | POST | `/mirror/sync` | Copia los cambios de `JAM_db` a `JAM_cloud` en Azure (`?full=1` copia todo) |
+| POST | `/distributed/transfer` | Traspaso de existencias entre sucursales en una transacción distribuida (`dist.sp_traspasar_inventario`): body `{id_variant, from_store, to_store, quantity}` |
+| GET | `/distributed/transactions` | Bitácora de transacciones con su estado, último punto de verificación global y grafo de espera |
+| POST | `/distributed/checkpoint` | Punto de verificación global en todos los nodos (`dist.sp_punto_verificacion_global`) |
 | GET | `/season_theme` | Temporadas y campañas con su paleta de colores |
 | GET | `/season_theme/current?date=AAAA-MM-DD` | Temporada vigente para esa fecha (campaña > estación) |
 | GET | `/store/catalog` | Catálogo con variantes, existencias por tienda, calificación, unidades vendidas y precio de outlet (`outlet_percent`, `sale_price`) |

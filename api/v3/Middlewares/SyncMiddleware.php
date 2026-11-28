@@ -30,10 +30,10 @@ final class SyncMiddleware extends Middleware
     /**
      * Routes whose writes never touch the fragmented or mirrored tables: sessions,
      * login attempts, pending signups and passwords. The manual sync and the manual
-     * copy already do that work themselves.
+     * copy already do that work themselves, and a checkpoint changes no store data.
      */
     private const SKIP = [
-        '/distributed/sync', '/mirror/sync',
+        '/distributed/sync', '/mirror/sync', '/distributed/checkpoint',
         '/auth/login', '/auth/logout', '/auth/register', '/auth/forgot', '/auth/reset', '/me/password',
     ];
 
